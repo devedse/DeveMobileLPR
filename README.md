@@ -14,11 +14,12 @@ The first implementation targets Android because direct CameraX access gives the
 - IoU tracking and confidence/quality-weighted multi-frame consensus. A plate needs at least three supporting frames and character-level majority support.
 - Dutch sidecode validation and official three-group formatting for sidecodes 1–14.
 - Local SQLite sightings, duplicate merging, recent history, optional GPS, and “most expensive car” statistics.
-- Import of an existing RDW SQLite database through Android's document picker. Imports are validated and replaced atomically.
+- A resumable C# console downloader that builds the app's indexed SQLite database directly from official RDW Open Data.
+- Import of the generated RDW SQLite database through Android's document picker. Imports are validated and replaced atomically.
 - Model integrity verification at download time and again when Android installs bundled assets.
 - Unit tests, SQLite integration tests, and an inference smoke test that loads and executes both real ONNX files.
 - Reproducible NuGet lock files and warnings-as-errors.
-- A GitHub Actions pipeline on every push and manual run. Every successful build uploads a versioned APK; signed pushes to `master` also create a GitHub release.
+- A GitHub Actions pipeline on every push and manual run. Every successful build uploads a versioned APK and RDW-downloader ZIP; signed pushes to `master` also create a GitHub release.
 
 ## Architecture
 
@@ -46,6 +47,7 @@ The important boundaries are deliberate:
 - `DeveMobileLPR.Core` owns geometry, YUV representation, tracking, plate rules, and contracts.
 - `DeveMobileLPR.Inference` owns exact ONNX tensor contracts, preprocessing, execution providers, and decoding.
 - `DeveMobileLPR.Storage` owns sightings and the stable RDW view contract.
+- `DeveMobileLPR.RdwDownloader` owns official dataset paging, resumable imports, joining, and final database validation.
 - `DeveMobileLPR.Android` owns CameraX, permissions, location, model installation, lifecycle, and UI.
 
 See [docs/architecture.md](docs/architecture.md) for the implementation rationale and tuning points.
@@ -74,7 +76,7 @@ That command:
 3. restores the locked dependency graph;
 4. builds with warnings as errors;
 5. runs unit/integration tests and the real-model contract test;
-6. publishes an APK to `artifacts/android`.
+6. publishes the portable RDW-downloader ZIP to `artifacts/rdw-downloader` and an APK to `artifacts/android`.
 
 For portable development without Android packaging:
 
@@ -92,9 +94,26 @@ dotnet test ./tests/DeveMobileLPR.Inference.Tests -c Release --filter 'Category=
 
 Model binaries are build inputs and are ignored by Git. Their URLs, sizes, and hashes are pinned in both `ModelCatalog` and `eng/Download-Models.ps1`; details are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
+## Build and import the RDW database
+
+The app stays offline while recognizing. Build its indexed RDW snapshot on a desktop using the included console project:
+
+```powershell
+dotnet run --project ./src/DeveMobileLPR.RdwDownloader -c Release -- `
+  --output C:\RdwData\rdw.sqlite
+```
+
+The tool streams the official vehicle and fuel datasets, resumes through `<output>.building` after interruption, verifies that the RDW snapshots did not change mid-run, validates counts and SQLite integrity, and only then replaces the requested final output. A free Socrata app token is optional but recommended for the roughly 17-million-row full import; set `SOCRATA_APP_TOKEN` rather than placing it in command history.
+
+For a quick live test, add `--sample-rows 100 --page-size 50 --restart`. Sample output is deliberately marked and is not a complete lookup database.
+
+Copy the finished file to the phone, tap **Import RDW**, and select it. The app copies it into private storage, validates it, and only then replaces the previous database. Recognition and history work without RDW; only vehicle enrichment and RDW-backed statistics will be absent.
+
+See [docs/rdw-database.md](docs/rdw-database.md) for source datasets, free-token setup, sizing expectations, consistency guarantees, refresh behavior, and all options.
+
 ## RDW database contract
 
-The app expects a SQLite database containing this view:
+The included downloader creates a SQLite database containing this stable view:
 
 ```sql
 rdw_vehicles(
@@ -108,7 +127,7 @@ rdw_vehicles(
 )
 ```
 
-`normalized_plate` is uppercase without hyphens or spaces and must be efficiently indexed in the source table. Adapt and run [config/rdw-view.example.sql](config/rdw-view.example.sql) against the database produced by your downloader. In the app, tap **Import RDW** and select that SQLite file. The app copies it into private application storage, validates the view, and only then replaces the previous database.
+`normalized_plate` is uppercase without hyphens or spaces and is the primary key of the source table. [config/rdw-view.example.sql](config/rdw-view.example.sql) remains available only for users adapting a different pre-existing RDW dump.
 
 The RDW database may be several gigabytes. Ensure the phone has enough free storage before import. Vehicle lookup remains optional; recognition and history work without it.
 
@@ -117,9 +136,9 @@ The RDW database may be several gigabytes. Ensure the phone has enough free stor
 `.github/workflows/githubactionsbuilds.yml` runs for every push and manual dispatch. It uses the same versioning convention as DevePXEBoot: `onyxmueller/build-tag-number@v1` generates the build number and all outputs use `1.0.<build number>`.
 
 - The .NET assemblies, Android display version, artifact name, Git tag, and release name all use `1.0.<build number>`. Android's numeric version code uses the generated build number.
-- Every successful run uploads the installable APK as a workflow artifact for 14 days; test results are retained for 7 days.
+- Every successful run uploads the installable APK and portable RDW-downloader ZIP as workflow artifacts for 14 days; test results are retained for 7 days.
 - Without signing secrets, Android applies its development signature. That artifact is suitable for testing, not store distribution.
-- A push to `master` with all four signing secrets creates the latest GitHub release tagged `1.0.<build number>`.
+- A push to `master` with all four signing secrets creates the latest GitHub release tagged `1.0.<build number>`, containing both the signed APK and downloader ZIP.
 
 Configure these GitHub Actions secrets for release signing:
 

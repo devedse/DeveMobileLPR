@@ -306,7 +306,9 @@ public sealed class MainActivity : AppCompatActivity
     {
         var intent = new Intent(Intent.ActionOpenDocument);
         intent.AddCategory(Intent.CategoryOpenable);
-        intent.SetType("application/octet-stream");
+        // SQLite MIME reporting differs between Android document providers. Accept all
+        // openable files here and rely on the strict schema validation after selection.
+        intent.SetType("*/*");
         StartActivityForResult(intent, RdwPickerRequest);
     }
 

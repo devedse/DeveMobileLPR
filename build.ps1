@@ -12,7 +12,8 @@ $root = $PSScriptRoot
 $testProjects = @(
     (Join-Path $root 'tests\DeveMobileLPR.Core.Tests\DeveMobileLPR.Core.Tests.csproj'),
     (Join-Path $root 'tests\DeveMobileLPR.Inference.Tests\DeveMobileLPR.Inference.Tests.csproj'),
-    (Join-Path $root 'tests\DeveMobileLPR.Storage.Tests\DeveMobileLPR.Storage.Tests.csproj')
+    (Join-Path $root 'tests\DeveMobileLPR.Storage.Tests\DeveMobileLPR.Storage.Tests.csproj'),
+    (Join-Path $root 'tests\DeveMobileLPR.RdwDownloader.Tests\DeveMobileLPR.RdwDownloader.Tests.csproj')
 )
 
 if ($SkipAndroid) {
@@ -31,6 +32,8 @@ foreach ($project in $testProjects) {
     dotnet test $project --configuration $Configuration --no-build --filter 'Category!=Model' --collect 'XPlat Code Coverage' --results-directory (Join-Path $root 'artifacts\test-results')
 }
 dotnet test (Join-Path $root 'tests\DeveMobileLPR.Inference.Tests\DeveMobileLPR.Inference.Tests.csproj') --configuration $Configuration --no-build --filter 'Category=Model'
+
+& (Join-Path $root 'eng\Publish-RdwDownloader.ps1') -Configuration $Configuration
 
 if (-not $SkipAndroid) {
     & (Join-Path $root 'eng\Publish-Android.ps1') -Configuration $Configuration

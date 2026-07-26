@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>DeveMobileLPR.RdwDownloader</RootNamespace>
+    <AssemblyName>DeveMobileLPR.RdwDownloader</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../DeveMobileLPR.Core/DeveMobileLPR.Core.csproj" />
+    <ProjectReference Include="../DeveMobileLPR.Storage/DeveMobileLPR.Storage.csproj" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="Sylvan.Data.Csv" />
+  </ItemGroup>
+</Project>

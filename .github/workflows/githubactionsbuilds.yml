@@ -68,6 +68,10 @@ jobs:
         shell: pwsh
         run: dotnet test tests/DeveMobileLPR.Inference.Tests/DeveMobileLPR.Inference.Tests.csproj --configuration Release --no-build --filter "Category=Model"
 
+      - name: Package portable RDW downloader
+        shell: pwsh
+        run: ./eng/Publish-RdwDownloader.ps1 -Configuration Release -Version $env:BUILD_VERSION
+
       - name: Detect signing configuration
         id: signing
         shell: pwsh
@@ -108,6 +112,14 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Upload RDW downloader on every build
+        uses: actions/upload-artifact@v7
+        with:
+          name: RdwDownloader-${{ env.BUILD_VERSION }}
+          path: artifacts/rdw-downloader/*.zip
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v7
@@ -130,6 +142,12 @@ jobs:
           name: DeveMobileLPR-1.0.${{ needs.generate_version_number.outputs.build_number }}
           path: artifacts/android
 
+      - name: Download RDW downloader
+        uses: actions/download-artifact@v8
+        with:
+          name: RdwDownloader-1.0.${{ needs.generate_version_number.outputs.build_number }}
+          path: artifacts/rdw-downloader
+
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v3
         with:
@@ -137,6 +155,8 @@ jobs:
           name: 1.0.${{ needs.generate_version_number.outputs.build_number }}
           body: |
             ${{ github.event.head_commit.message }}
-          files: artifacts/android/*.apk
+          files: |
+            artifacts/android/*.apk
+            artifacts/rdw-downloader/*.zip
           fail_on_unmatched_files: true
           make_latest: true
