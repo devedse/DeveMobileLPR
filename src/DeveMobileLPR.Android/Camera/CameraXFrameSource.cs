@@ -1,6 +1,8 @@
 using System.Buffers;
 using Android.Content;
+using Android.Hardware.Display;
 using Android.Util;
+using Android.Views;
 using AndroidX.Camera.Core;
 using AndroidX.Camera.Lifecycle;
 using AndroidX.Camera.View;
@@ -17,6 +19,7 @@ internal sealed record CameraChoice(string Id, string Name);
 
 internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnalyzer, IDisposable
 {
+    private const string LogTag = "RoadLens.Camera";
     private static readonly global::Android.Util.Size RequestedAnalysisResolution = new(3840, 2160);
     private readonly Context _context;
     private readonly ILifecycleOwner _lifecycleOwner;
@@ -26,11 +29,16 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
         ?? throw new InvalidOperationException("Could not create the camera analysis executor.");
     private ProcessCameraProvider? _provider;
     private ICamera? _camera;
+    private Preview? _preview;
+    private ImageAnalysis? _analysis;
+    private readonly DisplayManager? _displayManager;
+    private readonly DisplayRotationListener _displayRotationListener;
     private long _sequence;
     private long _nextCaptureTicks;
     private int _reportedResolution;
     private bool _disposed;
     private bool _running;
+    private int _targetRotation = -1;
     private string _selectedCameraId = "rear";
     private IReadOnlyList<CameraChoice> _cameraChoices = [new("rear", "Rear cameras · automatic lens")];
 
@@ -40,6 +48,9 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
         _lifecycleOwner = lifecycleOwner;
         _previewView = previewView;
         _onFrame = onFrame;
+        _displayManager = context.GetSystemService(Context.DisplayService) as DisplayManager;
+        _displayRotationListener = new DisplayRotationListener(previewView, UpdateTargetRotation);
+        _displayManager?.RegisterDisplayListener(_displayRotationListener, null);
     }
 
     public event EventHandler<string>? Diagnostic;
@@ -82,6 +93,8 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
     {
         _running = false;
         _provider?.UnbindAll();
+        _preview = null;
+        _analysis = null;
     }
 
     public void SelectCamera(string cameraId)
@@ -112,7 +125,10 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
     private void BindCamera(ProcessCameraProvider provider)
     {
         provider.UnbindAll();
-        var preview = new Preview.Builder().Build()
+        var targetRotation = GetTargetRotation();
+        var preview = new Preview.Builder()
+            .SetTargetRotation(targetRotation)!
+            .Build()
             ?? throw new InvalidOperationException("CameraX could not create the preview use case.");
         preview.SetSurfaceProvider(
             ContextCompat.GetMainExecutor(_context),
@@ -128,6 +144,7 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
             .SetResolutionSelector(resolutionSelector)!
             .SetBackpressureStrategy(ImageAnalysis.StrategyKeepOnlyLatest)!
             .SetOutputImageFormat(ImageAnalysis.OutputImageFormatYuv420888)!
+            .SetTargetRotation(targetRotation)!
             .Build() ?? throw new InvalidOperationException("CameraX could not create the analysis use case.");
         analysis.SetAnalyzer(_analysisExecutor, this);
         var selector = _selectedCameraId == "front"
@@ -138,8 +155,42 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
             selector ?? throw new InvalidOperationException("The selected camera is unavailable."),
             preview,
             analysis);
-        Diagnostic?.Invoke(this, $"Camera active; requested analysis resolution {RequestedAnalysisResolution.Width}x{RequestedAnalysisResolution.Height}.");
+        _preview = preview;
+        _analysis = analysis;
+        _targetRotation = targetRotation;
+        ReportDiagnostic($"Camera active; requested analysis resolution {RequestedAnalysisResolution.Width}x{RequestedAnalysisResolution.Height}; target rotation {RotationName(targetRotation)}.");
     }
+
+    private int GetTargetRotation() => (int)(_previewView.Display?.Rotation ?? SurfaceOrientation.Rotation0);
+
+    private void UpdateTargetRotation()
+    {
+        if (!_running || _preview is null || _analysis is null)
+        {
+            return;
+        }
+
+        var targetRotation = GetTargetRotation();
+        if (targetRotation == _targetRotation)
+        {
+            return;
+        }
+
+        _preview.TargetRotation = targetRotation;
+        _analysis.TargetRotation = targetRotation;
+        _targetRotation = targetRotation;
+        Interlocked.Exchange(ref _reportedResolution, 0);
+        ReportDiagnostic($"Camera target rotation updated to {RotationName(targetRotation)}.");
+    }
+
+    private static string RotationName(int rotation) => rotation switch
+    {
+        (int)SurfaceOrientation.Rotation0 => "0°",
+        (int)SurfaceOrientation.Rotation90 => "90°",
+        (int)SurfaceOrientation.Rotation180 => "180°",
+        (int)SurfaceOrientation.Rotation270 => "270°",
+        _ => rotation.ToString()
+    };
 
     private void RefreshCameraChoices(ProcessCameraProvider provider)
     {
@@ -182,7 +233,7 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
             Interlocked.Exchange(ref _nextCaptureTicks, now + 250);
             if (Interlocked.Exchange(ref _reportedResolution, 1) == 0)
             {
-                Diagnostic?.Invoke(this, $"Camera analysis resolution: {image.Width}x{image.Height}.");
+                ReportDiagnostic($"Camera analysis resolution: {image.Width}x{image.Height}; frame rotation {image.ImageInfo?.RotationDegrees ?? 0}°.");
             }
             var planes = image.GetPlanes();
             if (planes is null || planes.Length != 3)
@@ -218,12 +269,18 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
         }
         catch (Exception exception)
         {
-            Diagnostic?.Invoke(this, $"Frame ingestion failed: {exception.Message}");
+            ReportDiagnostic($"Frame ingestion failed: {exception.Message}");
         }
         finally
         {
             image.Close();
         }
+    }
+
+    private void ReportDiagnostic(string message)
+    {
+        Log.Info(LogTag, message);
+        Diagnostic?.Invoke(this, message);
     }
 
     private static PlaneCopy CopyPlane(IImageProxyPlaneProxy plane)
@@ -259,8 +316,28 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
 
         _disposed = true;
         _provider?.UnbindAll();
+        _displayManager?.UnregisterDisplayListener(_displayRotationListener);
         _analysisExecutor.Shutdown();
         base.Dispose();
+    }
+
+    private sealed class DisplayRotationListener(PreviewView previewView, Action changed) : Java.Lang.Object, DisplayManager.IDisplayListener
+    {
+        public void OnDisplayAdded(int displayId)
+        {
+        }
+
+        public void OnDisplayChanged(int displayId)
+        {
+            if (previewView.Display?.DisplayId == displayId)
+            {
+                previewView.Post(new Java.Lang.Runnable(changed));
+            }
+        }
+
+        public void OnDisplayRemoved(int displayId)
+        {
+        }
     }
 
     private readonly record struct PlaneCopy(IMemoryOwner<byte>? Owner, int Length);

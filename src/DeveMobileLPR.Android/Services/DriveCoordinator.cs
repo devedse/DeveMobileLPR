@@ -408,6 +408,11 @@ internal sealed class DriveCoordinator : IAsyncDisposable
         {
             _driveFrames++;
             _processingTime = recognition.ProcessingTime;
+            if (_confirmedOverlay is not null
+                && (_confirmedOverlay.SourceWidth != recognition.SourceWidth || _confirmedOverlay.SourceHeight != recognition.SourceHeight))
+            {
+                _confirmedOverlay = null;
+            }
             if (_confirmedOverlay is not null && DateTimeOffset.UtcNow < _confirmedOverlayUntil)
             {
                 candidates.Add(_confirmedOverlay);

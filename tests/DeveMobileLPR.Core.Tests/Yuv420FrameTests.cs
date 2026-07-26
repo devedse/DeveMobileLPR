@@ -26,6 +26,25 @@ public sealed class Yuv420FrameTests
         Assert.Equal(expectedHeight, frame.OrientedHeight);
     }
 
+    [Theory]
+    [InlineData(0, 32)]
+    [InlineData(90, 160)]
+    [InlineData(180, 235)]
+    [InlineData(270, 128)]
+    public void GetRgb_RotatesCameraPixelsClockwiseIntoDisplayOrientation(int rotation, byte expectedLuma)
+    {
+        using var frame = CreateFrame(4, 2, rotation);
+        byte[] luma = [32, 64, 96, 128, 160, 192, 224, 235];
+        luma.CopyTo(frame.YPlane.Span);
+
+        frame.GetRgb(0, 0, out var red, out var green, out var blue);
+        Yuv420Frame.ConvertYuvToRgb(expectedLuma, 128, 128, out var expectedRed, out var expectedGreen, out var expectedBlue);
+
+        Assert.Equal(expectedRed, red);
+        Assert.Equal(expectedGreen, green);
+        Assert.Equal(expectedBlue, blue);
+    }
+
     internal static Yuv420Frame CreateFrame(int width, int height, int rotation = 0)
     {
         var y = MemoryPool<byte>.Shared.Rent(width * height);

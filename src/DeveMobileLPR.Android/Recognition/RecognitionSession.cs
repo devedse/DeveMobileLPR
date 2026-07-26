@@ -24,6 +24,9 @@ internal sealed class RecognitionSession : IAsyncDisposable
     private readonly Task _worker;
     private long _processedFrames;
     private int _resetRequested;
+    private int _sourceWidth;
+    private int _sourceHeight;
+    private int _rotationDegrees = -1;
 
     public RecognitionSession(
         IFrameRecognitionPipeline pipeline,
@@ -60,7 +63,17 @@ internal sealed class RecognitionSession : IAsyncDisposable
                 }
 
                 var recognition = await _pipeline.ProcessAsync(frame, _cancellation.Token).ConfigureAwait(false);
-                if (Interlocked.Exchange(ref _resetRequested, 0) != 0)
+                var geometryChanged = recognition.SourceWidth != _sourceWidth
+                    || recognition.SourceHeight != _sourceHeight
+                    || recognition.RotationDegrees != _rotationDegrees;
+                if (geometryChanged)
+                {
+                    _sourceWidth = recognition.SourceWidth;
+                    _sourceHeight = recognition.SourceHeight;
+                    _rotationDegrees = recognition.RotationDegrees;
+                }
+                var resetRequested = Interlocked.Exchange(ref _resetRequested, 0) != 0;
+                if (geometryChanged || resetRequested)
                 {
                     _tracks.Reset();
                 }

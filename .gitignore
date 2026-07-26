@@ -12,3 +12,4 @@ artifacts/
 *.apk
 *.aab
 local.properties
+.codex-remote-attachments/

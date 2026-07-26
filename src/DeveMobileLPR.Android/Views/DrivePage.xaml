@@ -38,6 +38,7 @@
             </Grid>
 
             <Border
+                x:Name="ReadyPanel"
                 Grid.Row="1"
                 IsVisible="{Binding ShowStartPanel}"
                 MaximumWidthRequest="570"
@@ -47,7 +48,8 @@
                 Stroke="{StaticResource Divider}"
                 StrokeShape="RoundRectangle 28"
                 VerticalOptions="Center">
-                <VerticalStackLayout Spacing="18">
+                <Grid>
+                    <VerticalStackLayout x:Name="ReadyPortraitContent" Spacing="18">
                     <Label Style="{StaticResource Eyebrow}" Text="Ready for the road" />
                     <Label FontAttributes="Bold" FontSize="34" LineHeight="1.05" Text="See the cars.&#10;Remember the journey." />
                     <Label Style="{StaticResource SecondaryText}" Text="Mount your phone securely before starting. Recognition and trip history stay on this device; raw video is never saved." />
@@ -72,7 +74,39 @@
                         <ActivityIndicator IsRunning="{Binding IsInitializing}" IsVisible="{Binding IsInitializing}" Color="{StaticResource Primary}" />
                         <Label FontSize="12" HorizontalTextAlignment="Center" Text="{Binding Status}" TextColor="{Binding StatusColor}" VerticalOptions="Center" />
                     </HorizontalStackLayout>
-                </VerticalStackLayout>
+                    </VerticalStackLayout>
+
+                    <Grid x:Name="ReadyLandscapeContent" ColumnDefinitions="1.05*,*" ColumnSpacing="30" IsVisible="False">
+                    <VerticalStackLayout Spacing="10" VerticalOptions="Center">
+                        <Label Style="{StaticResource Eyebrow}" Text="Ready for the road" />
+                        <Label FontAttributes="Bold" FontSize="29" LineHeight="1.04" Text="See the cars.&#10;Remember the journey." />
+                        <Label FontSize="12" LineBreakMode="WordWrap" MaxLines="3" Text="Mount your phone securely before starting. Recognition and trip history stay on this device; raw video is never saved." TextColor="{StaticResource TextSecondary}" />
+                    </VerticalStackLayout>
+
+                    <VerticalStackLayout Grid.Column="1" Spacing="9" VerticalOptions="Center">
+                        <Grid ColumnDefinitions="*,128" ColumnSpacing="12">
+                            <VerticalStackLayout Spacing="2">
+                                <Label FontSize="10" Text="CAMERA" TextColor="{StaticResource TextMuted}" />
+                                <Picker ItemsSource="{Binding CameraChoices}" SelectedItem="{Binding SelectedCamera}" TextColor="{StaticResource TextPrimary}" Title="Select camera" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Column="1" Spacing="2">
+                                <Grid ColumnDefinitions="*,Auto"><Label FontSize="10" Text="ZOOM" TextColor="{StaticResource TextMuted}" /><Label Grid.Column="1" FontAttributes="Bold" Text="{Binding ZoomLabel}" TextColor="{StaticResource Primary}" /></Grid>
+                                <Slider Maximum="4" Minimum="1" ThumbColor="{StaticResource Primary}" Value="{Binding Zoom}" />
+                            </VerticalStackLayout>
+                        </Grid>
+                        <Button
+                            AutomationId="start_drive_landscape_button"
+                            Command="{Binding ToggleDriveCommand}"
+                            HeightRequest="44"
+                            IsEnabled="{Binding CanStart}"
+                            Text="{Binding StartButtonText}" />
+                        <HorizontalStackLayout HorizontalOptions="Center" Spacing="8">
+                            <ActivityIndicator IsRunning="{Binding IsInitializing}" IsVisible="{Binding IsInitializing}" Color="{StaticResource Primary}" />
+                            <Label FontSize="11" HorizontalTextAlignment="Center" MaxLines="1" Text="{Binding Status}" TextColor="{Binding StatusColor}" VerticalOptions="Center" />
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+                    </Grid>
+                </Grid>
             </Border>
 
             <Grid Grid.Row="1" IsVisible="{Binding ShowDriveControls}">
