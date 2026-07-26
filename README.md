@@ -120,7 +120,6 @@ The RDW database may be several gigabytes. Ensure the phone has enough free stor
 - Every successful run uploads the installable APK as a workflow artifact for 14 days; test results are retained for 7 days.
 - Without signing secrets, Android applies its development signature. That artifact is suitable for testing, not store distribution.
 - A push to `master` with all four signing secrets creates the latest GitHub release tagged `1.0.<build number>`.
-- `.github/workflows/cleanup-large-artifacts.yml` can be run manually in dry-run or deletion mode when the repository's Actions artifact quota needs reclaiming.
 
 Configure these GitHub Actions secrets for release signing:
 

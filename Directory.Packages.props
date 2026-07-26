@@ -4,15 +4,15 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.10" />
-    <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.24.4" />
+    <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.28.0" />
     <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.4" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
     <PackageVersion Include="Xamarin.AndroidX.AppCompat" Version="1.7.1.4" />
     <PackageVersion Include="Xamarin.AndroidX.Camera.Camera2" Version="1.6.1.1" />
     <PackageVersion Include="Xamarin.AndroidX.Camera.Core" Version="1.6.1.1" />
     <PackageVersion Include="Xamarin.AndroidX.Camera.Lifecycle" Version="1.6.1.1" />
     <PackageVersion Include="Xamarin.AndroidX.Camera.View" Version="1.6.1.1" />
-    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+    <PackageVersion Include="coverlet.collector" Version="10.0.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
   </ItemGroup>
