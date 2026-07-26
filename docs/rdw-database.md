@@ -44,6 +44,20 @@ dotnet run --project ./src/DeveMobileLPR.RdwDownloader -c Release -- `
 
 `--app-token <token>` is also supported, but an environment variable keeps the token out of shell history. The tool sends it only in the `X-App-Token` header to `opendata.rdw.nl`. Do not commit it.
 
+## Manual GitHub Actions export
+
+The **RDW Database Export** workflow builds a fresh complete snapshot on demand:
+
+1. Open the repository's **Actions** tab.
+2. Select **RDW Database Export**.
+3. Select **Run workflow**.
+4. Choose how long GitHub should retain the generated artifact and start the run.
+5. When the run completes, download the `DeveMobileLPR-RDW-<run number>` artifact from its summary page.
+
+The artifact contains the validated `rdw.sqlite` and `rdw.sqlite.sha256` checksum file. GitHub wraps them in an artifact ZIP; extract `rdw.sqlite` before copying it to the phone.
+
+For a more reliable full download, configure an optional Actions repository secret named `SOCRATA_APP_TOKEN`. Without it, the workflow uses Socrata's shared public quota. GitHub-hosted runners are temporary, so a cancelled or failed workflow run cannot resume its partial download; triggering it again starts a new export.
+
 ## Resume, consistency, and replacement behavior
 
 The in-progress database is `<output>.building`. Each API page and its cursor are committed in one SQLite transaction. If the process, network, or computer stops, rerun the same command and it resumes after the last committed plate.

@@ -1,0 +1,97 @@
+# Purpose: manually build a complete, validated RDW SQLite snapshot and publish it as an artifact.
+name: RDW Database Export
+
+on:
+  workflow_dispatch:
+    inputs:
+      retention_days:
+        description: Number of days to retain the generated database artifact
+        required: true
+        default: "14"
+        type: choice
+        options:
+          - "1"
+          - "7"
+          - "14"
+          - "30"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rdw-database-export
+  cancel-in-progress: false
+
+jobs:
+  export_rdw_database:
+    name: Export complete RDW database
+    runs-on: windows-latest
+    timeout-minutes: 360
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      SOCRATA_APP_TOKEN: ${{ secrets.SOCRATA_APP_TOKEN }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Restore downloader dependencies
+        shell: pwsh
+        run: dotnet restore src/DeveMobileLPR.RdwDownloader/DeveMobileLPR.RdwDownloader.csproj --locked-mode
+
+      - name: Build downloader
+        shell: pwsh
+        run: dotnet build src/DeveMobileLPR.RdwDownloader/DeveMobileLPR.RdwDownloader.csproj --configuration Release --no-restore -p:ContinuousIntegrationBuild=true
+
+      - name: Export and validate complete RDW database
+        shell: pwsh
+        run: |
+          $output = Join-Path $env:GITHUB_WORKSPACE 'artifacts/rdw/rdw.sqlite'
+          New-Item -ItemType Directory -Force -Path (Split-Path $output) | Out-Null
+          dotnet run --project src/DeveMobileLPR.RdwDownloader/DeveMobileLPR.RdwDownloader.csproj --configuration Release --no-build -- --output $output
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+      - name: Record database checksum and summary
+        id: database
+        shell: pwsh
+        run: |
+          $database = Join-Path $env:GITHUB_WORKSPACE 'artifacts/rdw/rdw.sqlite'
+          if (-not (Test-Path -LiteralPath $database -PathType Leaf)) {
+            throw "Expected RDW database was not created: $database"
+          }
+
+          $file = Get-Item -LiteralPath $database
+          $hash = (Get-FileHash -LiteralPath $database -Algorithm SHA256).Hash.ToLowerInvariant()
+          $checksum = Join-Path $file.DirectoryName 'rdw.sqlite.sha256'
+          "$hash *rdw.sqlite" | Set-Content -LiteralPath $checksum -Encoding ascii
+
+          "size_bytes=$($file.Length)" | Add-Content -LiteralPath $env:GITHUB_OUTPUT
+          "sha256=$hash" | Add-Content -LiteralPath $env:GITHUB_OUTPUT
+
+          @"
+          ## Complete RDW database created
+
+          - Size: $($file.Length.ToString('N0')) bytes
+          - SHA-256: ``$hash``
+          - Artifact: ``DeveMobileLPR-RDW-$env:GITHUB_RUN_NUMBER``
+
+          Download the artifact, extract ``rdw.sqlite``, copy it to the phone, and select it with **Import RDW**.
+          "@ | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload complete RDW database
+        uses: actions/upload-artifact@v7
+        with:
+          name: DeveMobileLPR-RDW-${{ github.run_number }}
+          path: |
+            artifacts/rdw/rdw.sqlite
+            artifacts/rdw/rdw.sqlite.sha256
+          if-no-files-found: error
+          retention-days: ${{ inputs.retention_days }}
