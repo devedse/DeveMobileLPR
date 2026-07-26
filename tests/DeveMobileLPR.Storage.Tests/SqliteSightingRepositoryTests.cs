@@ -49,6 +49,60 @@ public sealed class SqliteSightingRepositoryTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Confirmation_WithImportedRdwVehicle_PersistsCatalogDetails()
+    {
+        var rdwPath = Path.Combine(Path.GetTempPath(), $"DeveMobileLPR-rdw-{Guid.NewGuid():N}.sqlite");
+        try
+        {
+            await using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={rdwPath}"))
+            {
+                await connection.OpenAsync();
+                await using var command = connection.CreateCommand();
+                command.CommandText = """
+                    CREATE TABLE rdw_vehicle_data (
+                        normalized_plate TEXT PRIMARY KEY,
+                        make TEXT,
+                        model TEXT,
+                        catalog_price INTEGER,
+                        registration_year INTEGER,
+                        fuel_description TEXT,
+                        body_type TEXT);
+                    INSERT INTO rdw_vehicle_data VALUES
+                        ('G694NT', 'TESLA', 'MODEL 3', 59350, 2019, 'Elektriciteit', 'sedan');
+                    CREATE VIEW rdw_vehicles AS
+                        SELECT normalized_plate, make, model, catalog_price,
+                               registration_year, fuel_description, body_type
+                        FROM rdw_vehicle_data;
+                    """;
+                await command.ExecuteNonQueryAsync();
+            }
+
+            var lookup = new SqliteRdwVehicleLookup(rdwPath);
+            await lookup.ValidateAsync(CancellationToken.None);
+            var vehicle = await lookup.FindAsync("G-694-NT", CancellationToken.None);
+            var time = DateTimeOffset.UtcNow;
+            var sighting = await _repository.AddOrMergeAsync(
+                Confirmed("G694NT", time, 3),
+                new GeoPoint(52.1, 5.1, 4),
+                vehicle,
+                null,
+                CancellationToken.None);
+
+            Assert.NotNull(vehicle);
+            Assert.Equal("TESLA", sighting.Vehicle?.Make);
+            Assert.Equal("MODEL 3", sighting.Vehicle?.Model);
+            Assert.Equal(59_350m, sighting.Vehicle?.CatalogPrice);
+            Assert.Equal("Elektriciteit", sighting.Vehicle?.FuelDescription);
+            Assert.Equal("sedan", sighting.Vehicle?.BodyType);
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            if (File.Exists(rdwPath)) File.Delete(rdwPath);
+        }
+    }
+
+    [Fact]
     public async Task Trips_KeepSightingsSeparateAndCalculateDistanceAndStatistics()
     {
         var startedAt = new DateTimeOffset(2026, 7, 26, 8, 0, 0, TimeSpan.Zero);
@@ -141,5 +195,5 @@ public sealed class SqliteSightingRepositoryTests : IAsyncLifetime
         time.AddSeconds(-1),
         time,
         new BoundingBox(10, 10, 100, 40),
-        new ConsensusResult(plate, "AB-12-34", "Netherlands", 0.95f, observations));
+        new ConsensusResult(plate, PlateText.FormatDutchPlate(plate), "Netherlands", 0.95f, observations));
 }

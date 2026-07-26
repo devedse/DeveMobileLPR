@@ -76,7 +76,6 @@ internal sealed class DriveCoordinator : IAsyncDisposable
     }
 
     public event EventHandler<DriveSnapshot>? SnapshotChanged;
-    public event EventHandler? HistoryChanged;
     public SqliteSightingRepository Repository => _repository;
     public DriveSnapshot Snapshot { get { lock (_stateGate) return CreateSnapshot(); } }
     public long? ActiveTripId { get { var value = Interlocked.Read(ref _activeTripId); return value == 0 ? null : value; } }
@@ -323,7 +322,6 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                 _status = "Trip saved · review it in History";
             }
             Publish();
-            NotifyHistoryChanged();
         }
         catch (Exception exception)
         {
@@ -358,7 +356,6 @@ internal sealed class DriveCoordinator : IAsyncDisposable
             throw new InvalidOperationException("Stop the active drive before deleting history.");
         }
         await _repository.DeleteHistoryAsync(CancellationToken.None);
-        NotifyHistoryChanged();
     }
 
     private async Task RecordRouteAsync(long tripId, CancellationToken cancellationToken)
@@ -448,10 +445,9 @@ internal sealed class DriveCoordinator : IAsyncDisposable
 
         if (_settings.ConfirmationHaptic)
         {
-            MainThread.BeginInvokeOnMainThread(() => HapticFeedback.Default.Perform(HapticFeedbackType.Click));
+            MainThread.BeginInvokeOnMainThread(PerformConfirmationHaptic);
         }
         Publish();
-        NotifyHistoryChanged();
     }
 
     private void RecognitionFailed(object? sender, Exception exception) => SetStatus($"Recognition paused: {exception.Message}", true);
@@ -479,8 +475,6 @@ internal sealed class DriveCoordinator : IAsyncDisposable
         MainThread.BeginInvokeOnMainThread(() => SnapshotChanged?.Invoke(this, snapshot));
     }
 
-    private void NotifyHistoryChanged() => MainThread.BeginInvokeOnMainThread(() => HistoryChanged?.Invoke(this, EventArgs.Empty));
-
     private DriveSnapshot CreateSnapshot() => new(
         _initializing,
         _ready,
@@ -496,6 +490,18 @@ internal sealed class DriveCoordinator : IAsyncDisposable
         _location?.Latest is not null,
         _cameraChoices.ToArray(),
         _camera?.SelectedCameraId ?? _settings.CameraId);
+
+    private static void PerformConfirmationHaptic()
+    {
+        try
+        {
+            HapticFeedback.Default.Perform(HapticFeedbackType.Click);
+        }
+        catch (Exception exception)
+        {
+            global::Android.Util.Log.Warn("RoadLens.Haptics", $"Confirmation haptic failed: {exception}");
+        }
+    }
 
     private static string FormatPlate(string value)
     {

@@ -47,7 +47,6 @@ internal sealed class HistoryViewModel : ViewModelBase
         ShowTripsCommand = new Command(() => ShowTrips = true);
         ShowVehiclesCommand = new Command(() => ShowTrips = false);
         RefreshCommand = new AsyncCommand(LoadAsync);
-        _coordinator.HistoryChanged += HistoryChanged;
     }
 
     public ObservableCollection<TripCardViewModel> Trips { get; } = [];
@@ -183,6 +182,4 @@ internal sealed class HistoryViewModel : ViewModelBase
         OnPropertyChanged(nameof(ShowTripsEmpty));
         OnPropertyChanged(nameof(ShowVehiclesEmpty));
     }
-
-    private void HistoryChanged(object? sender, EventArgs args) => _ = LoadAsync();
 }
