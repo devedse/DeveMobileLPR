@@ -1,6 +1,7 @@
 using System.Buffers;
 using Android.Content;
 using Android.Hardware.Display;
+using Android.Runtime;
 using Android.Util;
 using Android.Views;
 using AndroidX.Camera.Core;
@@ -20,6 +21,8 @@ internal sealed record CameraChoice(string Id, string Name);
 internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnalyzer, IDisposable
 {
     private const string LogTag = "RoadLens.Camera";
+    private const int ZoomStateRetryCount = 8;
+    private const long ZoomStateRetryDelayMilliseconds = 50;
     private static readonly global::Android.Util.Size RequestedAnalysisResolution = new(3840, 2160);
     private readonly Context _context;
     private readonly ILifecycleOwner _lifecycleOwner;
@@ -39,6 +42,8 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
     private bool _disposed;
     private bool _running;
     private int _targetRotation = -1;
+    private int _zoomRequestVersion;
+    private float _requestedZoomRatio = 1f;
     private string _selectedCameraId = "rear";
     private IReadOnlyList<CameraChoice> _cameraChoices = [new("rear", "Rear cameras · automatic lens")];
 
@@ -92,7 +97,9 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
     public void Stop()
     {
         _running = false;
+        Interlocked.Increment(ref _zoomRequestVersion);
         _provider?.UnbindAll();
+        _camera = null;
         _preview = null;
         _analysis = null;
     }
@@ -113,13 +120,85 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
 
     public void SetZoom(float zoomRatio)
     {
-        var state = _camera?.CameraInfo?.ZoomState?.Value as IZoomState;
-        if (state is null)
+        Volatile.Write(ref _requestedZoomRatio, Math.Max(1f, zoomRatio));
+        var requestVersion = Interlocked.Increment(ref _zoomRequestVersion);
+        if (_running)
+        {
+            ScheduleZoom(requestVersion, 0);
+        }
+    }
+
+    private void ScheduleZoom(int requestVersion, int attempt)
+    {
+        var action = new Java.Lang.Runnable(() => ApplyRequestedZoom(requestVersion, attempt));
+        if (attempt == 0)
+        {
+            _previewView.Post(action);
+        }
+        else
+        {
+            _previewView.PostDelayed(action, ZoomStateRetryDelayMilliseconds);
+        }
+    }
+
+    private void ApplyRequestedZoom(int requestVersion, int attempt)
+    {
+        if (!_running || requestVersion != Volatile.Read(ref _zoomRequestVersion))
         {
             return;
         }
 
-        _camera!.CameraControl?.SetZoomRatio(Math.Clamp(zoomRatio, state.MinZoomRatio, state.MaxZoomRatio));
+        var camera = _camera;
+        var control = camera?.CameraControl;
+        var state = GetZoomState(camera);
+        if (camera is null || control is null || state is null)
+        {
+            if (attempt < ZoomStateRetryCount)
+            {
+                ScheduleZoom(requestVersion, attempt + 1);
+            }
+            else
+            {
+                ReportDiagnostic("Camera zoom is unavailable for the selected camera.");
+            }
+            return;
+        }
+
+        var requested = Volatile.Read(ref _requestedZoomRatio);
+        var target = Math.Clamp(requested, state.MinZoomRatio, state.MaxZoomRatio);
+        var future = control.SetZoomRatio(target)
+            ?? throw new InvalidOperationException("CameraX returned no zoom operation.");
+        future.AddListener(new Java.Lang.Runnable(() =>
+        {
+            if (requestVersion != Volatile.Read(ref _zoomRequestVersion))
+            {
+                return;
+            }
+
+            try
+            {
+                future.Get();
+                var applied = GetZoomState(camera);
+                ReportDiagnostic(
+                    $"Camera zoom applied: {applied?.ZoomRatio ?? target:0.0}× " +
+                    $"(requested {requested:0.0}×; supported {state.MinZoomRatio:0.0}–{state.MaxZoomRatio:0.0}×).");
+            }
+            catch (Exception exception)
+            {
+                ReportDiagnostic($"Camera zoom failed: {exception.GetBaseException().Message}");
+            }
+        }), ContextCompat.GetMainExecutor(_context));
+    }
+
+    private static IZoomState? GetZoomState(ICamera? camera)
+    {
+        var value = camera?.CameraInfo?.ZoomState?.Value;
+        if (value is IZoomState state)
+        {
+            return state;
+        }
+
+        return value?.JavaCast<IZoomState>();
     }
 
     private void BindCamera(ProcessCameraProvider provider)
@@ -158,6 +237,8 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
         _preview = preview;
         _analysis = analysis;
         _targetRotation = targetRotation;
+        var zoomRequestVersion = Interlocked.Increment(ref _zoomRequestVersion);
+        ScheduleZoom(zoomRequestVersion, 0);
         ReportDiagnostic($"Camera active; requested analysis resolution {RequestedAnalysisResolution.Width}x{RequestedAnalysisResolution.Height}; target rotation {RotationName(targetRotation)}.");
     }
 
@@ -315,6 +396,7 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
         }
 
         _disposed = true;
+        Interlocked.Increment(ref _zoomRequestVersion);
         _provider?.UnbindAll();
         _displayManager?.UnregisterDisplayListener(_displayRotationListener);
         _analysisExecutor.Shutdown();

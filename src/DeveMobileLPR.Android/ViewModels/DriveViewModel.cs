@@ -44,8 +44,6 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     public string StartButtonText => IsInitializing ? "Preparing…" : "Start drive";
     public string Duration => _snapshot.StartedAt is null ? "0:00" : FormatClock(DateTimeOffset.UtcNow - _snapshot.StartedAt.Value);
     public string UniqueVehicles => _snapshot.UniqueVehicles.ToString();
-    public string ConfirmedSightings => _snapshot.ConfirmedSightings.ToString();
-    public string Performance => _snapshot.ProcessedFrames == 0 ? "Waiting for frames" : $"{_snapshot.ProcessingTime.TotalMilliseconds:0} ms · {_snapshot.ProcessedFrames} frames";
     public string LocationState => _snapshot.HasLocation ? "GPS active" : _settings.TrackLocation ? "Finding GPS" : "Location off";
     public bool HasLatest => _snapshot.RecentSightings.Count > 0;
     public string LatestPlate => HasLatest ? _snapshot.RecentSightings[0].DisplayPlate : "Looking for a plate";
@@ -54,7 +52,6 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         : "Keep the road area inside the guide";
     public string LatestPrice => HasLatest ? DisplayFormat.Price(_snapshot.RecentSightings[0].Vehicle?.CatalogPrice) : "—";
     public string TopValue => _snapshot.MostExpensive is null ? "—" : DisplayFormat.CompactPrice(_snapshot.MostExpensive.Vehicle?.CatalogPrice);
-    public string TopPlate => _snapshot.MostExpensive?.DisplayPlate ?? "No valued car yet";
 
     public double Zoom
     {
@@ -104,8 +101,8 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         {
             nameof(IsInitializing), nameof(IsReady), nameof(IsDriving), nameof(IsStopping), nameof(ShowStartPanel), nameof(ShowDriveControls),
             nameof(CanStart), nameof(Status), nameof(StatusColor), nameof(StatusLabel), nameof(StatusAccent), nameof(StartButtonText), nameof(Duration),
-            nameof(UniqueVehicles), nameof(ConfirmedSightings), nameof(Performance), nameof(LocationState), nameof(HasLatest), nameof(LatestPlate),
-            nameof(LatestVehicle), nameof(LatestPrice), nameof(TopValue), nameof(TopPlate)
+            nameof(UniqueVehicles), nameof(LocationState), nameof(HasLatest), nameof(LatestPlate),
+            nameof(LatestVehicle), nameof(LatestPrice), nameof(TopValue)
         }) OnPropertyChanged(property);
         ToggleDriveCommand.RaiseCanExecuteChanged();
 

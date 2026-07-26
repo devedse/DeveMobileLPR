@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using DeveMobileLPR.Imaging;
 using DeveMobileLPR.Inference.Preprocessing;
 using DeveMobileLPR.Recognition;
@@ -12,7 +11,6 @@ public sealed class PlateRecognitionPipeline(
 {
     public async ValueTask<FrameRecognition> ProcessAsync(Yuv420Frame frame, CancellationToken cancellationToken)
     {
-        var stopwatch = Stopwatch.StartNew();
         var detections = await detector.DetectAsync(frame, cancellationToken).ConfigureAwait(false);
         var observations = new List<PlateObservation>(Math.Min(detections.Count, maximumPlatesPerFrame));
         foreach (var detection in detections
@@ -33,7 +31,7 @@ public sealed class PlateRecognitionPipeline(
             }
         }
 
-        return new FrameRecognition(frame.Sequence, frame.CapturedAt, stopwatch.Elapsed, observations)
+        return new FrameRecognition(frame.Sequence, frame.CapturedAt, observations)
         {
             SourceWidth = frame.OrientedWidth,
             SourceHeight = frame.OrientedHeight,

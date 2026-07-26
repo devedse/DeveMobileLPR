@@ -28,10 +28,7 @@ internal sealed record DriveSnapshot(
     string Status,
     bool HasError,
     DateTimeOffset? StartedAt,
-    long ProcessedFrames,
-    TimeSpan ProcessingTime,
     int UniqueVehicles,
-    int ConfirmedSightings,
     IReadOnlyList<Sighting> RecentSightings,
     Sighting? MostExpensive,
     IReadOnlyList<DriveOverlay> Overlays,
@@ -59,8 +56,6 @@ internal sealed class DriveCoordinator : IAsyncDisposable
     private GeoPoint? _lastRoutePoint;
     private DateTimeOffset _lastRouteAt;
     private long _activeTripId;
-    private long _driveFrames;
-    private int _confirmedSightings;
     private bool _initializing;
     private bool _ready;
     private bool _driving;
@@ -69,7 +64,6 @@ internal sealed class DriveCoordinator : IAsyncDisposable
     private string _status = "Preparing the on-device recognition engine…";
     private bool _hasError;
     private DateTimeOffset? _startedAt;
-    private TimeSpan _processingTime;
     private Sighting? _mostExpensive;
     private IReadOnlyList<DriveOverlay> _overlays = [];
     private IReadOnlyList<CameraChoice> _cameraChoices = [new("rear", "Rear cameras · automatic lens")];
@@ -240,9 +234,6 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                 _driving = true;
                 _stopping = false;
                 _startedAt = now;
-                _driveFrames = 0;
-                _confirmedSightings = 0;
-                _processingTime = TimeSpan.Zero;
                 _uniqueVehicles.Clear();
                 _recentSightings.Clear();
                 _mostExpensive = null;
@@ -406,8 +397,6 @@ internal sealed class DriveCoordinator : IAsyncDisposable
             false)).ToList();
         lock (_stateGate)
         {
-            _driveFrames++;
-            _processingTime = recognition.ProcessingTime;
             if (_confirmedOverlay is not null
                 && (_confirmedOverlay.SourceWidth != recognition.SourceWidth || _confirmedOverlay.SourceHeight != recognition.SourceHeight))
             {
@@ -438,7 +427,6 @@ internal sealed class DriveCoordinator : IAsyncDisposable
         lock (_stateGate)
         {
             _uniqueVehicles.Add(sighting.NormalizedPlate);
-            _confirmedSightings++;
             _recentSightings.RemoveAll(item => item.Id == sighting.Id);
             _recentSightings.Insert(0, sighting);
             if (_recentSightings.Count > 5) _recentSightings.RemoveRange(5, _recentSightings.Count - 5);
@@ -501,10 +489,7 @@ internal sealed class DriveCoordinator : IAsyncDisposable
         _status,
         _hasError,
         _startedAt,
-        _driveFrames,
-        _processingTime,
         _uniqueVehicles.Count,
-        _confirmedSightings,
         _recentSightings.ToArray(),
         _mostExpensive,
         _overlays.ToArray(),

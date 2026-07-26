@@ -5,31 +5,30 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:controls="clr-namespace:DeveMobileLPR.AndroidApp.Controls"
-    xmlns:vm="clr-namespace:DeveMobileLPR.AndroidApp.ViewModels"
-    Shell.NavBarIsVisible="False">
+    xmlns:vm="clr-namespace:DeveMobileLPR.AndroidApp.ViewModels">
     <Grid>
         <controls:CameraPreview />
 
         <BoxView IsVisible="{Binding ShowStartPanel}" InputTransparent="True">
             <BoxView.Background>
                 <LinearGradientBrush EndPoint="1,1">
-                    <GradientStop Color="#F20B0D10" Offset="0" />
-                    <GradientStop Color="#C911151B" Offset="0.55" />
-                    <GradientStop Color="#F20B0D10" Offset="1" />
+                    <GradientStop Color="{StaticResource DriveScrimStart}" Offset="0" />
+                    <GradientStop Color="{StaticResource DriveScrimMiddle}" Offset="0.55" />
+                    <GradientStop Color="{StaticResource DriveScrimStart}" Offset="1" />
                 </LinearGradientBrush>
             </BoxView.Background>
         </BoxView>
 
-        <Grid Padding="24,18" RowDefinitions="Auto,*,Auto">
+        <Grid RowDefinitions="Auto,*,Auto" Style="{StaticResource DrivePageGrid}">
             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
-                <Border BackgroundColor="{StaticResource PlateYellow}" Padding="11,7" StrokeThickness="0" StrokeShape="RoundRectangle 10">
-                    <Label FontAttributes="Bold" FontSize="14" Text="RL" TextColor="#111318" />
+                <Border Style="{StaticResource BrandMark}">
+                    <Label Style="{StaticResource BrandMarkText}" Text="RL" />
                 </Border>
                 <VerticalStackLayout Grid.Column="1" Spacing="0" VerticalOptions="Center">
                     <Label FontAttributes="Bold" FontSize="17" Text="RoadLens" />
                     <Label FontSize="11" Text="PRIVATE · ON-DEVICE" TextColor="{StaticResource TextSecondary}" />
                 </VerticalStackLayout>
-                <Border Grid.Column="2" BackgroundColor="#D9161A21" Padding="12,7" Stroke="{Binding StatusAccent}" StrokeThickness="1" StrokeShape="RoundRectangle 16">
+                <Border Grid.Column="2" Stroke="{Binding StatusAccent}" Style="{StaticResource DriveStatusPill}">
                     <HorizontalStackLayout Spacing="8">
                         <Ellipse Fill="{Binding StatusAccent}" HeightRequest="8" VerticalOptions="Center" WidthRequest="8" />
                         <Label FontAttributes="Bold" FontSize="12" Text="{Binding StatusLabel}" TextColor="{Binding StatusColor}" TextTransform="Uppercase" />
@@ -41,13 +40,7 @@
                 x:Name="ReadyPanel"
                 Grid.Row="1"
                 IsVisible="{Binding ShowStartPanel}"
-                MaximumWidthRequest="570"
-                Padding="30"
-                BackgroundColor="#F0151922"
-                HorizontalOptions="Center"
-                Stroke="{StaticResource Divider}"
-                StrokeShape="RoundRectangle 28"
-                VerticalOptions="Center">
+                Style="{StaticResource DriveReadyCard}">
                 <Grid>
                     <VerticalStackLayout x:Name="ReadyPortraitContent" Spacing="18">
                     <Label Style="{StaticResource Eyebrow}" Text="Ready for the road" />
@@ -56,12 +49,12 @@
 
                     <Grid ColumnDefinitions="*,150" ColumnSpacing="14">
                         <VerticalStackLayout Spacing="4">
-                            <Label FontSize="11" Text="CAMERA" TextColor="{StaticResource TextMuted}" />
-                            <Picker ItemsSource="{Binding CameraChoices}" SelectedItem="{Binding SelectedCamera}" TextColor="{StaticResource TextPrimary}" Title="Select camera" />
+                            <Label Style="{StaticResource FieldCaption}" Text="Camera" />
+                            <Picker ItemsSource="{Binding CameraChoices}" SelectedItem="{Binding SelectedCamera}" Title="Select camera" />
                         </VerticalStackLayout>
                         <VerticalStackLayout Grid.Column="1" Spacing="4">
-                            <Grid ColumnDefinitions="*,Auto"><Label FontSize="11" Text="ZOOM" TextColor="{StaticResource TextMuted}" /><Label Grid.Column="1" FontAttributes="Bold" Text="{Binding ZoomLabel}" TextColor="{StaticResource Primary}" /></Grid>
-                            <Slider Maximum="4" Minimum="1" ThumbColor="{StaticResource Primary}" Value="{Binding Zoom}" />
+                            <Grid ColumnDefinitions="*,Auto"><Label Style="{StaticResource FieldCaption}" Text="Zoom" /><Label Grid.Column="1" FontAttributes="Bold" Text="{Binding ZoomLabel}" TextColor="{StaticResource Primary}" /></Grid>
+                            <Slider Maximum="4" Minimum="1" Value="{Binding Zoom}" />
                         </VerticalStackLayout>
                     </Grid>
 
@@ -71,7 +64,7 @@
                         IsEnabled="{Binding CanStart}"
                         Text="{Binding StartButtonText}" />
                     <HorizontalStackLayout HorizontalOptions="Center" Spacing="8">
-                        <ActivityIndicator IsRunning="{Binding IsInitializing}" IsVisible="{Binding IsInitializing}" Color="{StaticResource Primary}" />
+                        <ActivityIndicator IsRunning="{Binding IsInitializing}" IsVisible="{Binding IsInitializing}" />
                         <Label FontSize="12" HorizontalTextAlignment="Center" Text="{Binding Status}" TextColor="{Binding StatusColor}" VerticalOptions="Center" />
                     </HorizontalStackLayout>
                     </VerticalStackLayout>
@@ -86,22 +79,22 @@
                     <VerticalStackLayout Grid.Column="1" Spacing="9" VerticalOptions="Center">
                         <Grid ColumnDefinitions="*,128" ColumnSpacing="12">
                             <VerticalStackLayout Spacing="2">
-                                <Label FontSize="10" Text="CAMERA" TextColor="{StaticResource TextMuted}" />
-                                <Picker ItemsSource="{Binding CameraChoices}" SelectedItem="{Binding SelectedCamera}" TextColor="{StaticResource TextPrimary}" Title="Select camera" />
+                                <Label Style="{StaticResource FieldCaption}" Text="Camera" />
+                                <Picker ItemsSource="{Binding CameraChoices}" SelectedItem="{Binding SelectedCamera}" Title="Select camera" />
                             </VerticalStackLayout>
                             <VerticalStackLayout Grid.Column="1" Spacing="2">
-                                <Grid ColumnDefinitions="*,Auto"><Label FontSize="10" Text="ZOOM" TextColor="{StaticResource TextMuted}" /><Label Grid.Column="1" FontAttributes="Bold" Text="{Binding ZoomLabel}" TextColor="{StaticResource Primary}" /></Grid>
-                                <Slider Maximum="4" Minimum="1" ThumbColor="{StaticResource Primary}" Value="{Binding Zoom}" />
+                                <Grid ColumnDefinitions="*,Auto"><Label Style="{StaticResource FieldCaption}" Text="Zoom" /><Label Grid.Column="1" FontAttributes="Bold" Text="{Binding ZoomLabel}" TextColor="{StaticResource Primary}" /></Grid>
+                                <Slider Maximum="4" Minimum="1" Value="{Binding Zoom}" />
                             </VerticalStackLayout>
                         </Grid>
                         <Button
                             AutomationId="start_drive_landscape_button"
                             Command="{Binding ToggleDriveCommand}"
-                            HeightRequest="44"
                             IsEnabled="{Binding CanStart}"
+                            Style="{StaticResource CompactButton}"
                             Text="{Binding StartButtonText}" />
                         <HorizontalStackLayout HorizontalOptions="Center" Spacing="8">
-                            <ActivityIndicator IsRunning="{Binding IsInitializing}" IsVisible="{Binding IsInitializing}" Color="{StaticResource Primary}" />
+                            <ActivityIndicator IsRunning="{Binding IsInitializing}" IsVisible="{Binding IsInitializing}" />
                             <Label FontSize="11" HorizontalTextAlignment="Center" MaxLines="1" Text="{Binding Status}" TextColor="{Binding StatusColor}" VerticalOptions="Center" />
                         </HorizontalStackLayout>
                     </VerticalStackLayout>
@@ -110,12 +103,12 @@
             </Border>
 
             <Grid Grid.Row="1" IsVisible="{Binding ShowDriveControls}">
-                <Border BackgroundColor="#D911151B" HorizontalOptions="End" Padding="14,10" Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 18" VerticalOptions="Start">
+                <Border HorizontalOptions="End" Style="{StaticResource DriveControlCard}" VerticalOptions="Start">
                     <HorizontalStackLayout Spacing="14">
-                        <Picker ItemsSource="{Binding CameraChoices}" SelectedItem="{Binding SelectedCamera}" TextColor="White" Title="Camera" WidthRequest="205" />
+                        <Picker ItemsSource="{Binding CameraChoices}" SelectedItem="{Binding SelectedCamera}" Title="Camera" WidthRequest="205" />
                         <VerticalStackLayout Spacing="0" WidthRequest="180">
-                            <Grid ColumnDefinitions="*,Auto"><Label FontSize="11" Text="ZOOM" TextColor="{StaticResource TextSecondary}" /><Label Grid.Column="1" FontAttributes="Bold" Text="{Binding ZoomLabel}" TextColor="{StaticResource Primary}" /></Grid>
-                            <Slider Maximum="4" Minimum="1" ThumbColor="{StaticResource Primary}" Value="{Binding Zoom}" />
+                            <Grid ColumnDefinitions="*,Auto"><Label Style="{StaticResource FieldCaption}" Text="Zoom" /><Label Grid.Column="1" FontAttributes="Bold" Text="{Binding ZoomLabel}" TextColor="{StaticResource Primary}" /></Grid>
+                            <Slider Maximum="4" Minimum="1" Value="{Binding Zoom}" />
                         </VerticalStackLayout>
                     </HorizontalStackLayout>
                 </Border>
@@ -130,19 +123,19 @@
                     Text="■  Stop &amp; save"
                     WidthRequest="160" />
 
-                <Border Grid.Column="1" BackgroundColor="#E0151922" Padding="14,8" StrokeThickness="0" StrokeShape="RoundRectangle 16" WidthRequest="92">
-                    <VerticalStackLayout Spacing="0"><Label FontAttributes="Bold" FontSize="22" Text="{Binding Duration}" /><Label FontSize="10" Text="DRIVE" TextColor="{StaticResource TextSecondary}" /></VerticalStackLayout>
+                <Border Grid.Column="1" Style="{StaticResource DriveMetricCard}">
+                    <VerticalStackLayout Spacing="0"><Label Style="{StaticResource DriveMetricValue}" Text="{Binding Duration}" /><Label Style="{StaticResource DriveCaption}" Text="Drive" /></VerticalStackLayout>
                 </Border>
-                <Border Grid.Column="2" BackgroundColor="#E0151922" Padding="14,8" StrokeThickness="0" StrokeShape="RoundRectangle 16" WidthRequest="92">
-                    <VerticalStackLayout Spacing="0"><Label FontAttributes="Bold" FontSize="22" Text="{Binding UniqueVehicles}" /><Label FontSize="10" Text="UNIQUE" TextColor="{StaticResource TextSecondary}" /></VerticalStackLayout>
+                <Border Grid.Column="2" Style="{StaticResource DriveMetricCard}">
+                    <VerticalStackLayout Spacing="0"><Label Style="{StaticResource DriveMetricValue}" Text="{Binding UniqueVehicles}" /><Label Style="{StaticResource DriveCaption}" Text="Unique" /></VerticalStackLayout>
                 </Border>
-                <Border Grid.Column="3" BackgroundColor="#E0151922" Padding="14,8" StrokeThickness="0" StrokeShape="RoundRectangle 16" WidthRequest="92">
-                    <VerticalStackLayout Spacing="0"><Label FontAttributes="Bold" FontSize="22" Text="{Binding TopValue}" TextColor="{StaticResource PlateYellow}" /><Label FontSize="10" Text="TOP VALUE" TextColor="{StaticResource TextSecondary}" /></VerticalStackLayout>
+                <Border Grid.Column="3" Style="{StaticResource DriveMetricCard}">
+                    <VerticalStackLayout Spacing="0"><Label Style="{StaticResource DriveMetricValue}" Text="{Binding TopValue}" TextColor="{StaticResource PlateYellow}" /><Label Style="{StaticResource DriveCaption}" Text="Top value" /></VerticalStackLayout>
                 </Border>
 
-                <Border Grid.Column="5" BackgroundColor="#EB151922" Padding="15,8" Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 16" WidthRequest="330">
+                <Border Grid.Column="5" Style="{StaticResource DriveLatestCard}">
                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                        <Border BackgroundColor="{StaticResource PlateYellow}" Padding="10,5" StrokeThickness="0" StrokeShape="RoundRectangle 7" VerticalOptions="Center"><Label FontAttributes="Bold" FontSize="16" Text="{Binding LatestPlate}" TextColor="#111318" /></Border>
+                        <Border Style="{StaticResource PlateBadge}"><Label Style="{StaticResource PlateBadgeText}" Text="{Binding LatestPlate}" /></Border>
                         <VerticalStackLayout Grid.Column="1" Spacing="0" VerticalOptions="Center"><Label FontAttributes="Bold" LineBreakMode="TailTruncation" Text="{Binding LatestVehicle}" /><Label FontSize="11" Text="{Binding LocationState}" TextColor="{StaticResource TextSecondary}" /></VerticalStackLayout>
                         <Label Grid.Column="2" FontAttributes="Bold" Text="{Binding LatestPrice}" TextColor="{StaticResource PlateYellow}" VerticalOptions="Center" />
                     </Grid>

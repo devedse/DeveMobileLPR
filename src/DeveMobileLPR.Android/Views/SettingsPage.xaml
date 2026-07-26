@@ -4,58 +4,98 @@
     x:DataType="vm:SettingsViewModel"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    xmlns:vm="clr-namespace:DeveMobileLPR.AndroidApp.ViewModels"
-    BackgroundColor="{StaticResource Background}"
-    Shell.NavBarIsVisible="False">
+    xmlns:controls="clr-namespace:DeveMobileLPR.AndroidApp.Controls"
+    xmlns:vm="clr-namespace:DeveMobileLPR.AndroidApp.ViewModels">
     <ScrollView>
-        <VerticalStackLayout Padding="24,22,24,30" Spacing="18">
-            <Grid ColumnDefinitions="*,Auto">
-                <VerticalStackLayout Spacing="2"><Label Style="{StaticResource Eyebrow}" Text="Make it yours" /><Label Style="{StaticResource PageTitle}" Text="Settings" /></VerticalStackLayout>
-                <ActivityIndicator Grid.Column="1" Color="{StaticResource Primary}" IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" VerticalOptions="Center" />
-            </Grid>
+        <VerticalStackLayout Style="{StaticResource PageScrollContent}">
+            <controls:PageHeader Eyebrow="Make it yours" IsBusy="{Binding IsBusy}" Title="Settings" />
 
-            <Border BackgroundColor="#292517" Padding="20,17" Stroke="#5C4B18" StrokeShape="RoundRectangle 22">
-                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
-                    <Ellipse Fill="{Binding RdwColor}" HeightRequest="12" VerticalOptions="Center" WidthRequest="12" />
-                    <VerticalStackLayout Grid.Column="1" Spacing="2"><Label FontAttributes="Bold" FontSize="18" Text="{Binding RdwTitle}" /><Label FontSize="13" Text="{Binding RdwDetail}" TextColor="#D9C77E" /></VerticalStackLayout>
-                    <Button Grid.Column="2" Clicked="ImportRdwClicked" HeightRequest="44" Padding="18,8" Text="Import / replace" VerticalOptions="Center" />
-                </Grid>
+            <Border Style="{StaticResource HighlightCard}">
+                <controls:ResponsiveGrid ColumnSpacing="16" MaximumColumns="2" MinimumItemWidth="280" RowSpacing="12">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14" VerticalOptions="Center">
+                        <Ellipse Fill="{Binding RdwColor}" HeightRequest="12" VerticalOptions="Center" WidthRequest="12" />
+                        <VerticalStackLayout Grid.Column="1" Spacing="3">
+                            <Label FontAttributes="Bold" FontSize="18" Text="{Binding RdwTitle}" />
+                            <Label FontSize="13" Text="{Binding RdwDetail}" TextColor="{StaticResource HighlightText}" />
+                        </VerticalStackLayout>
+                    </Grid>
+                    <Button
+                        AutomationId="import_rdw_button"
+                        Clicked="ImportRdwClicked"
+                        HorizontalOptions="End"
+                        MinimumWidthRequest="170"
+                        Style="{StaticResource CompactButton}"
+                        Text="Import / replace"
+                        VerticalOptions="Center" />
+                </controls:ResponsiveGrid>
             </Border>
 
-            <FlexLayout AlignItems="Stretch" Direction="Row" Wrap="Wrap">
-                <Border FlexLayout.Basis="340" FlexLayout.Grow="1" Margin="0,0,7,14" BackgroundColor="{StaticResource Surface}" Padding="20" Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 22">
-                    <VerticalStackLayout Spacing="16">
+            <controls:ResponsiveGrid ColumnSpacing="16" MaximumColumns="2" MinimumItemWidth="320" RowSpacing="16">
+                <Border Style="{StaticResource Card}">
+                    <VerticalStackLayout Style="{StaticResource CardContent}">
                         <Label Style="{StaticResource SectionTitle}" Text="Drive experience" />
-                        <Grid ColumnDefinitions="*,Auto"><VerticalStackLayout><Label FontAttributes="Bold" Text="Save location trail" /><Label Style="{StaticResource SecondaryText}" Text="Stores filtered GPS points and the location of each confirmation." /></VerticalStackLayout><Switch Grid.Column="1" IsToggled="{Binding TrackLocation}" VerticalOptions="Center" /></Grid>
-                        <BoxView HeightRequest="1" Color="{StaticResource Divider}" />
-                        <Grid ColumnDefinitions="*,Auto"><VerticalStackLayout><Label FontAttributes="Bold" Text="Show road guide" /><Label Style="{StaticResource SecondaryText}" Text="Displays corner markers for the area the detector processes." /></VerticalStackLayout><Switch Grid.Column="1" IsToggled="{Binding ShowRoadGuide}" VerticalOptions="Center" /></Grid>
-                        <BoxView HeightRequest="1" Color="{StaticResource Divider}" />
-                        <Grid ColumnDefinitions="*,Auto"><VerticalStackLayout><Label FontAttributes="Bold" Text="Confirmation haptic" /><Label Style="{StaticResource SecondaryText}" Text="A light tap when a plate reaches temporal consensus." /></VerticalStackLayout><Switch Grid.Column="1" IsToggled="{Binding ConfirmationHaptic}" VerticalOptions="Center" /></Grid>
+                        <controls:SettingsToggleRow
+                            Description="Stores filtered GPS points and the location of each confirmation."
+                            IsToggled="{Binding TrackLocation}"
+                            Title="Save location trail" />
+                        <BoxView Style="{StaticResource DividerLine}" />
+                        <controls:SettingsToggleRow
+                            Description="Displays corner markers for the area the detector processes."
+                            IsToggled="{Binding ShowRoadGuide}"
+                            Title="Show road guide" />
+                        <BoxView Style="{StaticResource DividerLine}" />
+                        <controls:SettingsToggleRow
+                            Description="A light tap when a plate reaches temporal consensus."
+                            IsToggled="{Binding ConfirmationHaptic}"
+                            Title="Confirmation haptic" />
                     </VerticalStackLayout>
                 </Border>
 
-                <Border FlexLayout.Basis="340" FlexLayout.Grow="1" Margin="7,0,0,14" BackgroundColor="{StaticResource Surface}" Padding="20" Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 22">
-                    <VerticalStackLayout Spacing="15">
+                <Border Style="{StaticResource Card}">
+                    <VerticalStackLayout Style="{StaticResource CardContent}">
                         <Label Style="{StaticResource SectionTitle}" Text="Privacy &amp; permissions" />
                         <Label Style="{StaticResource SecondaryText}" Text="Plate recognition, RDW lookups, trips, and route points are processed locally. Raw camera frames are discarded immediately and never saved." />
-                        <Border BackgroundColor="{StaticResource SurfaceRaised}" Padding="14,11" StrokeThickness="0" StrokeShape="RoundRectangle 14"><Label FontSize="13" Text="{Binding PermissionsDetail}" /></Border>
-                        <Button Clicked="OpenPermissionsClicked" HeightRequest="44" Style="{StaticResource SecondaryButton}" Text="Open Android app settings" />
+                        <Border Style="{StaticResource InsetCard}">
+                            <Label FontSize="13" Text="{Binding PermissionsDetail}" />
+                        </Border>
+                        <Button Clicked="OpenPermissionsClicked" Style="{StaticResource CompactSecondaryButton}" Text="Open Android app settings" />
                     </VerticalStackLayout>
                 </Border>
-            </FlexLayout>
+            </controls:ResponsiveGrid>
 
-            <Border BackgroundColor="{StaticResource Surface}" Padding="20" Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 22">
-                <VerticalStackLayout Spacing="14">
-                    <VerticalStackLayout Spacing="3"><Label Style="{StaticResource SectionTitle}" Text="Your data" /><Label Style="{StaticResource SecondaryText}" Text="{Binding HistoryDetail}" /><Label FontSize="12" Text="CSV export includes timestamps, RDW fields, trip IDs, and saved coordinates." TextColor="{StaticResource TextMuted}" /></VerticalStackLayout>
-                    <HorizontalStackLayout Spacing="10"><Button Clicked="ExportClicked" HeightRequest="46" Style="{StaticResource SecondaryButton}" Text="Export CSV" /><Button Clicked="DeleteClicked" HeightRequest="46" Style="{StaticResource DangerButton}" Text="Delete history" /></HorizontalStackLayout>
+            <Border Style="{StaticResource Card}">
+                <VerticalStackLayout Style="{StaticResource CardContent}">
+                    <VerticalStackLayout Spacing="3">
+                        <Label Style="{StaticResource SectionTitle}" Text="Your data" />
+                        <Label Style="{StaticResource SecondaryText}" Text="{Binding HistoryDetail}" />
+                        <Label Style="{StaticResource MutedText}" Text="CSV export includes timestamps, RDW fields, trip IDs, and saved coordinates." />
+                    </VerticalStackLayout>
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                        <Button Clicked="ExportClicked" Style="{StaticResource CompactSecondaryButton}" Text="Export CSV" />
+                        <Button Grid.Column="1" Clicked="DeleteClicked" Style="{StaticResource CompactDangerButton}" Text="Delete history" />
+                    </Grid>
                 </VerticalStackLayout>
             </Border>
 
-            <Border BackgroundColor="{StaticResource Surface}" Padding="20" Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 22">
-                <FlexLayout Direction="Row" Wrap="Wrap"><VerticalStackLayout FlexLayout.Basis="280" FlexLayout.Grow="1" Margin="0,0,18,12"><Label Style="{StaticResource SectionTitle}" Text="Recognition engine" /><Label Style="{StaticResource SecondaryText}" Text="YOLOv9 plate detector · CCT-S V2 OCR · CameraX high-resolution analysis · ONNX Runtime · temporal consensus" /></VerticalStackLayout><VerticalStackLayout FlexLayout.Basis="220" FlexLayout.Grow="1"><Label Style="{StaticResource SectionTitle}" Text="About" /><Label Style="{StaticResource SecondaryText}" Text="{Binding Version}" /><Label FontSize="12" Text="Package nl.deve.mobilelpr · Android 8.0+" TextColor="{StaticResource TextMuted}" /></VerticalStackLayout></FlexLayout>
-            </Border>
+            <controls:ResponsiveGrid ColumnSpacing="16" MaximumColumns="2" MinimumItemWidth="320" RowSpacing="16">
+                <Border Style="{StaticResource Card}">
+                    <VerticalStackLayout Style="{StaticResource CardContent}">
+                        <Label Style="{StaticResource SectionTitle}" Text="Recognition engine" />
+                        <Label Style="{StaticResource SecondaryText}" Text="YOLOv9 plate detector · CCT-S V2 OCR · CameraX high-resolution analysis · ONNX Runtime · temporal consensus" />
+                    </VerticalStackLayout>
+                </Border>
+                <Border Style="{StaticResource Card}">
+                    <VerticalStackLayout Style="{StaticResource CardContent}">
+                        <Label Style="{StaticResource SectionTitle}" Text="About" />
+                        <Label Style="{StaticResource SecondaryText}" Text="{Binding Version}" />
+                        <Label Style="{StaticResource MutedText}" Text="Package nl.deve.mobilelpr · Android 8.0+" />
+                    </VerticalStackLayout>
+                </Border>
+            </controls:ResponsiveGrid>
 
-            <Border BackgroundColor="{StaticResource SurfaceRaised}" IsVisible="{Binding HasStatus}" Padding="14,10" Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 14"><Label Text="{Binding StatusMessage}" /></Border>
+            <Border IsVisible="{Binding HasStatus}" Style="{StaticResource StatusCard}">
+                <Label Text="{Binding StatusMessage}" />
+            </Border>
         </VerticalStackLayout>
     </ScrollView>
 </ContentPage>

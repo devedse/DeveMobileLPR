@@ -323,10 +323,7 @@ public sealed class SqliteSightingRepository : ISightingRepository
         var mostExpensive = (await QuerySightingsAsync(
             "SELECT * FROM sightings WHERE last_seen_at >= @from AND last_seen_at < @until AND catalog_price IS NOT NULL ORDER BY catalog_price DESC, last_seen_at DESC LIMIT 1;",
             c => { c.Parameters.AddWithValue("@from", Timestamp(from)); c.Parameters.AddWithValue("@until", Timestamp(until)); }, cancellationToken).ConfigureAwait(false)).FirstOrDefault();
-        var mostRecent = (await QuerySightingsAsync(
-            "SELECT * FROM sightings WHERE last_seen_at >= @from AND last_seen_at < @until ORDER BY last_seen_at DESC LIMIT 1;",
-            c => { c.Parameters.AddWithValue("@from", Timestamp(from)); c.Parameters.AddWithValue("@until", Timestamp(until)); }, cancellationToken).ConfigureAwait(false)).FirstOrDefault();
-        return new HistoryStatistics(tripCount, sightingCount, uniqueCount, distance, mostExpensive, mostRecent);
+        return new HistoryStatistics(tripCount, sightingCount, uniqueCount, distance, mostExpensive);
     }
 
     public Task<IReadOnlyList<Sighting>> GetRecentAsync(int limit, CancellationToken cancellationToken) =>

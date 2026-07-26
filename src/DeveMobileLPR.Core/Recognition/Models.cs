@@ -7,12 +7,7 @@ public sealed record PlateDetection(BoundingBox Bounds, float Confidence);
 
 public sealed record CharacterCandidate(char Character, float Probability);
 
-public sealed record CharacterHypothesis(IReadOnlyList<CharacterCandidate> Candidates)
-{
-    public CharacterCandidate Best => Candidates.Count == 0
-        ? new CharacterCandidate('_', 0)
-        : Candidates[0];
-}
+public sealed record CharacterHypothesis(IReadOnlyList<CharacterCandidate> Candidates);
 
 public sealed record PlateRead(
     string Text,
@@ -31,7 +26,6 @@ public sealed record PlateObservation(
 public sealed record FrameRecognition(
     long FrameSequence,
     DateTimeOffset CapturedAt,
-    TimeSpan ProcessingTime,
     IReadOnlyList<PlateObservation> Observations)
 {
     public int SourceWidth { get; init; }
@@ -92,7 +86,6 @@ public sealed record TripSummary(
     GeoPoint? EndLocation)
 {
     public TimeSpan Duration => (EndedAt ?? DateTimeOffset.UtcNow) - StartedAt;
-    public bool IsActive => EndedAt is null;
 }
 
 public sealed record TripPoint(
@@ -116,8 +109,7 @@ public sealed record HistoryStatistics(
     int SightingCount,
     int UniqueVehicleCount,
     double DistanceMeters,
-    Sighting? MostExpensiveSighting,
-    Sighting? MostRecentSighting);
+    Sighting? MostExpensiveSighting);
 
 public interface IPlateDetector
 {

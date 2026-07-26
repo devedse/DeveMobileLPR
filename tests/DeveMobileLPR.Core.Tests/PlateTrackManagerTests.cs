@@ -31,7 +31,6 @@ public sealed class PlateTrackManagerTests
         var muchLater = new FrameRecognition(
             3,
             DateTimeOffset.UnixEpoch.AddSeconds(10),
-            TimeSpan.Zero,
             [Observation(3, 14, DateTimeOffset.UnixEpoch.AddSeconds(10))]);
 
         Assert.Empty(manager.Update(muchLater));
@@ -40,7 +39,7 @@ public sealed class PlateTrackManagerTests
     private static FrameRecognition Frame(long sequence, float left)
     {
         var capturedAt = DateTimeOffset.UnixEpoch.AddMilliseconds(sequence * 200);
-        return new FrameRecognition(sequence, capturedAt, TimeSpan.FromMilliseconds(50), [Observation(sequence, left, capturedAt)]);
+        return new FrameRecognition(sequence, capturedAt, [Observation(sequence, left, capturedAt)]);
     }
 
     private static PlateObservation Observation(long sequence, float left, DateTimeOffset capturedAt)

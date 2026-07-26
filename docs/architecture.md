@@ -1,5 +1,7 @@
 # Architecture and engineering decisions
 
+The visual architecture, reusable components, and responsive-layout rules are documented in [RoadLens UI design system](ui-design-system.md).
+
 ## Resolution before frame rate
 
 License-plate OCR fails when characters occupy too few pixels, so the camera path asks CameraX for 3840×2160 analysis and accepts the nearest device-supported resolution. Only one frame every 250 ms is copied from CameraX. This gives the detector multiple observations while preserving character detail and avoiding sustained 30 fps memory bandwidth.
@@ -7,6 +9,8 @@ License-plate OCR fails when characters occupy too few pixels, so the camera pat
 `ImageAnalysis.StrategyKeepOnlyLatest` is paired with an application-level slot of capacity one. There are therefore two independent backpressure boundaries: CameraX does not queue proxies, and inference does not queue copied frames. A slow/thermally throttled phone reduces sampling rate rather than increasing latency or memory.
 
 Camera planes are copied because an `ImageProxy` must be closed promptly and its buffers become invalid afterwards. Copies use pooled memory. Preprocessors bilinearly sample RGB values directly from rotated YUV planes into reusable detector/OCR tensors; they never materialize a 4K RGB bitmap.
+
+Zoom is applied with CameraX `CameraControl.SetZoomRatio` after preview and analysis are bound to the same camera, so both outputs receive the same sensor crop. The requested ratio is retained and reapplied after camera or lifecycle rebinding. The AndroidX `ZoomState` live-data value is a Java peer and must be converted with Android's Java-aware cast; a normal CLR interface cast silently yields `null` on affected runtimes. Zoom futures are observed and logged so camera failures cannot disappear silently again.
 
 ## Inference contracts
 

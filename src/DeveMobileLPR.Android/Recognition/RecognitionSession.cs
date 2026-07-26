@@ -3,9 +3,7 @@ using DeveMobileLPR.Recognition;
 
 namespace DeveMobileLPR.AndroidApp.Recognition;
 
-internal sealed record RecognitionProgress(
-    long ProcessedFrames,
-    FrameRecognition Recognition);
+internal sealed record RecognitionProgress(FrameRecognition Recognition);
 
 internal sealed record RecognitionConfirmation(
     Sighting Sighting,
@@ -22,7 +20,6 @@ internal sealed class RecognitionSession : IAsyncDisposable
     private readonly PlateTrackManager _tracks = new();
     private readonly CancellationTokenSource _cancellation = new();
     private readonly Task _worker;
-    private long _processedFrames;
     private int _resetRequested;
     private int _sourceWidth;
     private int _sourceHeight;
@@ -77,8 +74,7 @@ internal sealed class RecognitionSession : IAsyncDisposable
                 {
                     _tracks.Reset();
                 }
-                var processed = Interlocked.Increment(ref _processedFrames);
-                Progress?.Invoke(this, new RecognitionProgress(processed, recognition));
+                Progress?.Invoke(this, new RecognitionProgress(recognition));
                 foreach (var confirmation in _tracks.Update(recognition))
                 {
                     var vehicle = await _vehicleLookup.FindAsync(confirmation.Consensus.NormalizedPlate, _cancellation.Token).ConfigureAwait(false);

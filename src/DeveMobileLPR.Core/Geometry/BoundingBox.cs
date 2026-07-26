@@ -5,8 +5,6 @@ public readonly record struct BoundingBox(float Left, float Top, float Right, fl
     public float Width => Math.Max(0, Right - Left);
     public float Height => Math.Max(0, Bottom - Top);
     public float Area => Width * Height;
-    public float CenterX => (Left + Right) / 2;
-    public float CenterY => (Top + Bottom) / 2;
     public bool IsEmpty => Width <= 0 || Height <= 0;
 
     public BoundingBox Clamp(int width, int height) => new(

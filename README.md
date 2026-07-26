@@ -160,7 +160,7 @@ Never commit a keystore or signing password. Keep an offline backup; losing the 
 4. Select the camera, set zoom, and tap **Start drive** before moving.
 5. Do not interact with the app while the vehicle is moving.
 
-Heat, windscreen reflections, shutter speed, plate pixel height, and device-specific CameraX resolution support dominate real-world accuracy. The app displays the actual selected analysis resolution and per-frame inference time so a physical road benchmark can make those trade-offs measurable.
+Heat, windscreen reflections, shutter speed, plate pixel height, and device-specific CameraX resolution support dominate real-world accuracy. Camera diagnostics report the selected analysis resolution and applied hardware zoom so a physical road benchmark can make those trade-offs measurable.
 
 ## Privacy and legal responsibility
 
