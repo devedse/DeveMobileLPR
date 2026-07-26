@@ -46,7 +46,7 @@ jobs:
 
       - name: Restore workloads
         shell: pwsh
-        run: dotnet workload install android --skip-manifest-update
+        run: dotnet workload install maui-android --skip-manifest-update
 
       - name: Download and verify model assets
         shell: pwsh

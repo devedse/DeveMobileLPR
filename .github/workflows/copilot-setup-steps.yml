@@ -24,9 +24,9 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Install Android workload
+      - name: Install MAUI Android workload
         shell: pwsh
-        run: dotnet workload install android --skip-manifest-update
+        run: dotnet workload install maui-android --skip-manifest-update
 
       - name: Download and verify model assets
         shell: pwsh

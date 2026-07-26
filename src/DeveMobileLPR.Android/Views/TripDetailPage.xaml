@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage
+    x:Class="DeveMobileLPR.AndroidApp.Views.TripDetailPage"
+    x:DataType="vm:TripDetailViewModel"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:controls="clr-namespace:DeveMobileLPR.AndroidApp.Controls"
+    xmlns:vm="clr-namespace:DeveMobileLPR.AndroidApp.ViewModels"
+    BackgroundColor="{StaticResource Background}"
+    Shell.NavBarIsVisible="False">
+    <Grid Padding="24,18,24,10" RowDefinitions="Auto,*" RowSpacing="14">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
+            <Button Clicked="BackClicked" HeightRequest="44" Padding="16,8" Style="{StaticResource SecondaryButton}" Text="‹  Back" />
+            <VerticalStackLayout Grid.Column="1" Spacing="0"><Label Style="{StaticResource Eyebrow}" Text="Trip details" /><Label FontAttributes="Bold" FontSize="25" Text="{Binding Title}" /></VerticalStackLayout>
+            <ActivityIndicator Grid.Column="2" Color="{StaticResource Primary}" IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+        </Grid>
+
+        <CollectionView Grid.Row="1" ItemsSource="{Binding Sightings}" SelectionMode="None">
+            <CollectionView.Header>
+                <VerticalStackLayout Padding="0,0,0,16" Spacing="14">
+                    <Label Style="{StaticResource SecondaryText}" Text="{Binding Subtitle}" />
+                    <FlexLayout Direction="Row" Wrap="Wrap">
+                        <Border FlexLayout.Basis="125" FlexLayout.Grow="1" Margin="0,0,8,8" BackgroundColor="{StaticResource Surface}" Padding="16,12" Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 18"><VerticalStackLayout><Label Style="{StaticResource MetricValue}" Text="{Binding Duration}" /><Label Style="{StaticResource SecondaryText}" Text="Duration" /></VerticalStackLayout></Border>
+                        <Border FlexLayout.Basis="125" FlexLayout.Grow="1" Margin="0,0,8,8" BackgroundColor="{StaticResource Surface}" Padding="16,12" Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 18"><VerticalStackLayout><Label Style="{StaticResource MetricValue}" Text="{Binding Distance}" /><Label Style="{StaticResource SecondaryText}" Text="Distance" /></VerticalStackLayout></Border>
+                        <Border FlexLayout.Basis="125" FlexLayout.Grow="1" Margin="0,0,8,8" BackgroundColor="{StaticResource Surface}" Padding="16,12" Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 18"><VerticalStackLayout><Label Style="{StaticResource MetricValue}" Text="{Binding Unique}" /><Label Style="{StaticResource SecondaryText}" Text="Unique cars" /></VerticalStackLayout></Border>
+                        <Border FlexLayout.Basis="180" FlexLayout.Grow="1" Margin="0,0,0,8" BackgroundColor="#292517" Padding="16,12" Stroke="#5C4B18" StrokeShape="RoundRectangle 18"><VerticalStackLayout><Label FontAttributes="Bold" FontSize="22" Text="{Binding Highlight}" TextColor="{StaticResource PlateYellow}" /><Label FontSize="12" Text="Trip highlight" TextColor="#D9C77E" /></VerticalStackLayout></Border>
+                    </FlexLayout>
+
+                    <Grid RowDefinitions="Auto,Auto" RowSpacing="8">
+                        <controls:TripRouteView Points="{Binding Points}" />
+                        <Grid Grid.Row="1" ColumnDefinitions="*,Auto"><Label Style="{StaticResource SecondaryText}" Text="Offline route trace · yellow is start, mint is finish" /><Button Grid.Column="1" Clicked="OpenRouteClicked" HeightRequest="42" IsVisible="{Binding HasRoute}" Padding="16,6" Style="{StaticResource SecondaryButton}" Text="Open finish in Maps" /></Grid>
+                    </Grid>
+                    <Label Style="{StaticResource SectionTitle}" Text="Vehicles on this drive" />
+                </VerticalStackLayout>
+            </CollectionView.Header>
+            <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Vertical" ItemSpacing="9" /></CollectionView.ItemsLayout>
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="vm:SightingCardViewModel">
+                    <Border BackgroundColor="{StaticResource Surface}" Padding="16,13" Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 18">
+                        <Grid ColumnDefinitions="120,*,Auto,Auto" ColumnSpacing="16">
+                            <Border BackgroundColor="{StaticResource PlateYellow}" Padding="10,6" StrokeThickness="0" StrokeShape="RoundRectangle 7" VerticalOptions="Center"><Label FontAttributes="Bold" FontSize="17" HorizontalTextAlignment="Center" Text="{Binding DisplayPlate}" TextColor="#111318" /></Border>
+                            <VerticalStackLayout Grid.Column="1" Spacing="1"><Label FontAttributes="Bold" Text="{Binding VehicleName}" /><Label FontSize="13" Text="{Binding Metadata}" TextColor="{StaticResource TextSecondary}" /><Label FontSize="11" Text="{Binding Confidence}" TextColor="{StaticResource TextMuted}" /></VerticalStackLayout>
+                            <VerticalStackLayout Grid.Column="2" HorizontalOptions="End"><Label FontAttributes="Bold" HorizontalTextAlignment="End" Text="{Binding Price}" TextColor="{StaticResource PlateYellow}" /><Label FontSize="12" HorizontalTextAlignment="End" Text="{Binding Seen}" TextColor="{StaticResource TextSecondary}" /></VerticalStackLayout>
+                            <Button Grid.Column="3" Clicked="OpenLocationClicked" CommandParameter="{Binding Location}" HeightRequest="40" IsVisible="{Binding HasLocation}" Padding="12,4" Style="{StaticResource SecondaryButton}" Text="Map" VerticalOptions="Center" />
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+            <CollectionView.EmptyView><Label Margin="0,30" HorizontalTextAlignment="Center" Style="{StaticResource SecondaryText}" Text="No confirmed vehicles were recorded on this drive." /></CollectionView.EmptyView>
+        </CollectionView>
+    </Grid>
+</ContentPage>

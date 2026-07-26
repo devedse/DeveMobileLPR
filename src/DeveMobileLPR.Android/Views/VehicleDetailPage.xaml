@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage
+    x:Class="DeveMobileLPR.AndroidApp.Views.VehicleDetailPage"
+    x:DataType="vm:VehicleDetailViewModel"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:DeveMobileLPR.AndroidApp.ViewModels"
+    BackgroundColor="{StaticResource Background}"
+    Shell.NavBarIsVisible="False">
+    <Grid Padding="24,18,24,10" RowDefinitions="Auto,*" RowSpacing="14">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
+            <Button Clicked="BackClicked" HeightRequest="44" Padding="16,8" Style="{StaticResource SecondaryButton}" Text="‹  Back" />
+            <VerticalStackLayout Grid.Column="1" Spacing="0"><Label Style="{StaticResource Eyebrow}" Text="Vehicle profile" /><Label FontAttributes="Bold" FontSize="25" Text="Every time you saw it" /></VerticalStackLayout>
+            <ActivityIndicator Grid.Column="2" Color="{StaticResource Primary}" IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" />
+        </Grid>
+
+        <CollectionView Grid.Row="1" ItemsSource="{Binding Sightings}" SelectionMode="None">
+            <CollectionView.Header>
+                <VerticalStackLayout Padding="0,0,0,18" Spacing="16">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="20">
+                        <Border BackgroundColor="{StaticResource PlateYellow}" Padding="24,12" StrokeThickness="0" StrokeShape="RoundRectangle 12" VerticalOptions="Center"><Label FontAttributes="Bold" FontSize="28" Text="{Binding DisplayPlate}" TextColor="#111318" /></Border>
+                        <VerticalStackLayout Grid.Column="1" Spacing="3" VerticalOptions="Center"><Label FontAttributes="Bold" FontSize="27" Text="{Binding VehicleName}" /><Label Style="{StaticResource SecondaryText}" Text="{Binding Metadata}" /></VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="2" HorizontalOptions="End" VerticalOptions="Center"><Label FontAttributes="Bold" FontSize="27" HorizontalTextAlignment="End" Text="{Binding Price}" TextColor="{StaticResource PlateYellow}" /><Label Style="{StaticResource SecondaryText}" Text="Original catalog price" /></VerticalStackLayout>
+                    </Grid>
+                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10">
+                        <Border BackgroundColor="{StaticResource Surface}" Padding="16,12" Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 18"><VerticalStackLayout><Label Style="{StaticResource MetricValue}" Text="{Binding Appearances}" /><Label Style="{StaticResource SecondaryText}" Text="Appearances" /></VerticalStackLayout></Border>
+                        <Border Grid.Column="1" BackgroundColor="{StaticResource Surface}" Padding="16,12" Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 18"><VerticalStackLayout><Label FontAttributes="Bold" FontSize="20" Text="{Binding FirstSeen}" /><Label Style="{StaticResource SecondaryText}" Text="First seen" /></VerticalStackLayout></Border>
+                        <Border Grid.Column="2" BackgroundColor="{StaticResource Surface}" Padding="16,12" Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 18"><VerticalStackLayout><Label FontAttributes="Bold" FontSize="20" Text="{Binding LastSeen}" /><Label Style="{StaticResource SecondaryText}" Text="Last seen" /></VerticalStackLayout></Border>
+                    </Grid>
+                    <Label Style="{StaticResource SectionTitle}" Text="Sightings" />
+                </VerticalStackLayout>
+            </CollectionView.Header>
+            <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Vertical" ItemSpacing="9" /></CollectionView.ItemsLayout>
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="vm:SightingCardViewModel">
+                    <Border BackgroundColor="{StaticResource Surface}" Padding="16,13" Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 18">
+                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="16">
+                            <VerticalStackLayout Spacing="1"><Label FontAttributes="Bold" Text="{Binding Seen}" /><Label FontSize="12" Text="{Binding Confidence}" TextColor="{StaticResource TextSecondary}" /></VerticalStackLayout>
+                            <Label Grid.Column="1" Text="{Binding Price}" TextColor="{StaticResource PlateYellow}" VerticalOptions="Center" />
+                            <Button Grid.Column="2" Clicked="OpenLocationClicked" CommandParameter="{Binding Location}" HeightRequest="40" IsVisible="{Binding HasLocation}" Padding="12,4" Style="{StaticResource SecondaryButton}" Text="Open map" />
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+    </Grid>
+</ContentPage>

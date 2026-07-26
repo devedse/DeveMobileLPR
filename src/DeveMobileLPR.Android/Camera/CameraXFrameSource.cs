@@ -13,9 +13,11 @@ using Java.Util.Concurrent;
 
 namespace DeveMobileLPR.AndroidApp.Camera;
 
+internal sealed record CameraChoice(string Id, string Name);
+
 internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnalyzer, IDisposable
 {
-    private static readonly Size RequestedAnalysisResolution = new(3840, 2160);
+    private static readonly global::Android.Util.Size RequestedAnalysisResolution = new(3840, 2160);
     private readonly Context _context;
     private readonly ILifecycleOwner _lifecycleOwner;
     private readonly PreviewView _previewView;
@@ -28,6 +30,9 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
     private long _nextCaptureTicks;
     private int _reportedResolution;
     private bool _disposed;
+    private bool _running;
+    private string _selectedCameraId = "rear";
+    private IReadOnlyList<CameraChoice> _cameraChoices = [new("rear", "Rear cameras · automatic lens")];
 
     public CameraXFrameSource(Context context, ILifecycleOwner lifecycleOwner, PreviewView previewView, Action<Yuv420Frame> onFrame)
     {
@@ -38,12 +43,16 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
     }
 
     public event EventHandler<string>? Diagnostic;
+    public event EventHandler<IReadOnlyList<CameraChoice>>? CameraChoicesChanged;
+    public IReadOnlyList<CameraChoice> CameraChoices => _cameraChoices;
+    public string SelectedCameraId => _selectedCameraId;
 
     public Task StartAsync()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (_provider is not null)
         {
+            _running = true;
             BindCamera(_provider);
             return Task.CompletedTask;
         }
@@ -56,6 +65,8 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
             {
                 _provider = (ProcessCameraProvider?)future.Get()
                     ?? throw new InvalidOperationException("CameraX returned no camera provider.");
+                _running = true;
+                RefreshCameraChoices(_provider);
                 BindCamera(_provider);
                 completion.TrySetResult();
             }
@@ -67,7 +78,25 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
         return completion.Task;
     }
 
-    public void Stop() => _provider?.UnbindAll();
+    public void Stop()
+    {
+        _running = false;
+        _provider?.UnbindAll();
+    }
+
+    public void SelectCamera(string cameraId)
+    {
+        if (cameraId is not ("rear" or "front") || cameraId == _selectedCameraId)
+        {
+            return;
+        }
+
+        _selectedCameraId = cameraId;
+        if (_running && _provider is not null)
+        {
+            BindCamera(_provider);
+        }
+    }
 
     public void SetZoom(float zoomRatio)
     {
@@ -101,12 +130,38 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
             .SetOutputImageFormat(ImageAnalysis.OutputImageFormatYuv420888)!
             .Build() ?? throw new InvalidOperationException("CameraX could not create the analysis use case.");
         analysis.SetAnalyzer(_analysisExecutor, this);
+        var selector = _selectedCameraId == "front"
+            ? CameraSelector.DefaultFrontCamera
+            : CameraSelector.DefaultBackCamera;
         _camera = provider.BindToLifecycle(
             _lifecycleOwner,
-            CameraSelector.DefaultBackCamera ?? throw new InvalidOperationException("The back camera selector is unavailable."),
+            selector ?? throw new InvalidOperationException("The selected camera is unavailable."),
             preview,
             analysis);
         Diagnostic?.Invoke(this, $"Camera active; requested analysis resolution {RequestedAnalysisResolution.Width}x{RequestedAnalysisResolution.Height}.");
+    }
+
+    private void RefreshCameraChoices(ProcessCameraProvider provider)
+    {
+        var choices = new List<CameraChoice>();
+        if (CameraSelector.DefaultBackCamera is { } back && provider.HasCamera(back))
+        {
+            choices.Add(new CameraChoice("rear", "Rear cameras · automatic lens"));
+        }
+        if (CameraSelector.DefaultFrontCamera is { } front && provider.HasCamera(front))
+        {
+            choices.Add(new CameraChoice("front", "Front camera"));
+        }
+        if (choices.Count == 0)
+        {
+            choices.Add(new CameraChoice("rear", "Rear camera"));
+        }
+        _cameraChoices = choices;
+        if (!_cameraChoices.Any(choice => choice.Id == _selectedCameraId))
+        {
+            _selectedCameraId = _cameraChoices[0].Id;
+        }
+        CameraChoicesChanged?.Invoke(this, _cameraChoices);
     }
 
     public void Analyze(IImageProxy? image)

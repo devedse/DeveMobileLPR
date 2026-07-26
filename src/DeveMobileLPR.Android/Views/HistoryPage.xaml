@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage
+    x:Class="DeveMobileLPR.AndroidApp.Views.HistoryPage"
+    x:DataType="vm:HistoryViewModel"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:DeveMobileLPR.AndroidApp.ViewModels"
+    BackgroundColor="{StaticResource Background}"
+    Shell.NavBarIsVisible="False">
+    <Grid Padding="24,22,24,12" RowDefinitions="Auto,Auto,*" RowSpacing="18">
+        <Grid ColumnDefinitions="*,Auto">
+            <VerticalStackLayout Spacing="2">
+                <Label Style="{StaticResource Eyebrow}" Text="Your road journal" />
+                <Label Style="{StaticResource PageTitle}" Text="History" />
+            </VerticalStackLayout>
+            <ActivityIndicator Grid.Column="1" Color="{StaticResource Primary}" IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" VerticalOptions="Center" />
+        </Grid>
+
+        <FlexLayout Grid.Row="1" AlignItems="Stretch" Direction="Row" JustifyContent="SpaceBetween" Wrap="Wrap">
+            <Border FlexLayout.Basis="125" FlexLayout.Grow="1" Margin="0,0,8,8" BackgroundColor="{StaticResource Surface}" Padding="16,12" Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 18">
+                <VerticalStackLayout Spacing="1"><Label Style="{StaticResource MetricValue}" Text="{Binding TodayTrips}" /><Label Style="{StaticResource SecondaryText}" Text="Drives today" /></VerticalStackLayout>
+            </Border>
+            <Border FlexLayout.Basis="125" FlexLayout.Grow="1" Margin="0,0,8,8" BackgroundColor="{StaticResource Surface}" Padding="16,12" Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 18">
+                <VerticalStackLayout Spacing="1"><Label Style="{StaticResource MetricValue}" Text="{Binding TodayUnique}" /><Label Style="{StaticResource SecondaryText}" Text="Unique cars" /></VerticalStackLayout>
+            </Border>
+            <Border FlexLayout.Basis="125" FlexLayout.Grow="1" Margin="0,0,8,8" BackgroundColor="{StaticResource Surface}" Padding="16,12" Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 18">
+                <VerticalStackLayout Spacing="1"><Label Style="{StaticResource MetricValue}" Text="{Binding TodayDistance}" /><Label Style="{StaticResource SecondaryText}" Text="Route distance" /></VerticalStackLayout>
+            </Border>
+            <Border FlexLayout.Basis="175" FlexLayout.Grow="1" Margin="0,0,0,8" BackgroundColor="#292517" Padding="16,12" Stroke="#5C4B18" StrokeShape="RoundRectangle 18">
+                <VerticalStackLayout Spacing="3"><Label FontAttributes="Bold" FontSize="25" Text="{Binding TodayTopValue}" TextColor="{StaticResource PlateYellow}" /><Label FontSize="12" Text="Most expensive today" TextColor="#D9C77E" /><Border BackgroundColor="{StaticResource PlateYellow}" HorizontalOptions="Start" Padding="8,3" StrokeThickness="0" StrokeShape="RoundRectangle 6"><Label FontAttributes="Bold" FontSize="11" Text="{Binding TodayTopPlate}" TextColor="#111318" /></Border></VerticalStackLayout>
+            </Border>
+        </FlexLayout>
+
+        <Grid Grid.Row="2" RowDefinitions="Auto,*" RowSpacing="12">
+            <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8">
+                <Button Command="{Binding ShowTripsCommand}" BackgroundColor="{Binding TripsTabColor}" HeightRequest="44" Padding="20,8" Text="Trips" TextColor="{StaticResource TextPrimary}" />
+                <Button Grid.Column="1" Command="{Binding ShowVehiclesCommand}" BackgroundColor="{Binding VehiclesTabColor}" HeightRequest="44" Padding="20,8" Text="Vehicles" TextColor="{StaticResource TextPrimary}" />
+                <SearchBar Grid.Column="2" IsVisible="{Binding ShowVehicles}" Placeholder="Search plate, make, or model" Text="{Binding SearchText}" />
+            </Grid>
+
+            <Grid Grid.Row="1">
+                <RefreshView Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsBusy}" IsVisible="{Binding ShowTrips}">
+                    <CollectionView x:Name="TripsList" ItemsSource="{Binding Trips}" SelectionChanged="TripSelected" SelectionMode="Single">
+                        <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Vertical" ItemSpacing="10" /></CollectionView.ItemsLayout>
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="vm:TripCardViewModel">
+                                <Border BackgroundColor="{StaticResource Surface}" Padding="18,15" Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 20">
+                                    <Grid ColumnDefinitions="125,*,Auto" ColumnSpacing="18">
+                                        <VerticalStackLayout Spacing="1"><Label FontAttributes="Bold" FontSize="18" Text="{Binding Day}" /><Label Style="{StaticResource SecondaryText}" Text="{Binding Time}" /></VerticalStackLayout>
+                                        <Grid Grid.Column="1" ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="24" VerticalOptions="Center">
+                                            <VerticalStackLayout><Label FontAttributes="Bold" Text="{Binding Duration}" /><Label FontSize="11" Text="DURATION" TextColor="{StaticResource TextMuted}" /></VerticalStackLayout>
+                                            <VerticalStackLayout Grid.Column="1"><Label FontAttributes="Bold" Text="{Binding Distance}" /><Label FontSize="11" Text="DISTANCE" TextColor="{StaticResource TextMuted}" /></VerticalStackLayout>
+                                            <VerticalStackLayout Grid.Column="2"><Label FontAttributes="Bold" Text="{Binding VehicleCount}" /><Label FontSize="11" Text="VEHICLES" TextColor="{StaticResource TextMuted}" /></VerticalStackLayout>
+                                        </Grid>
+                                        <HorizontalStackLayout Grid.Column="2" Spacing="12" VerticalOptions="Center">
+                                            <VerticalStackLayout HorizontalOptions="End" Spacing="1"><Label FontAttributes="Bold" HorizontalTextAlignment="End" Text="{Binding Highlight}" TextColor="{StaticResource PlateYellow}" /><Label FontSize="12" HorizontalTextAlignment="End" Text="{Binding HighlightPlate}" TextColor="{StaticResource TextSecondary}" /></VerticalStackLayout>
+                                            <Label FontSize="24" Text="›" TextColor="{StaticResource TextMuted}" VerticalOptions="Center" />
+                                        </HorizontalStackLayout>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </RefreshView>
+
+                <RefreshView Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsBusy}" IsVisible="{Binding ShowVehicles}">
+                    <CollectionView x:Name="VehiclesList" ItemsSource="{Binding Vehicles}" SelectionChanged="VehicleSelected" SelectionMode="Single">
+                        <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Vertical" ItemSpacing="10" /></CollectionView.ItemsLayout>
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="vm:VehicleCardViewModel">
+                                <Border BackgroundColor="{StaticResource Surface}" Padding="17,14" Stroke="{StaticResource Divider}" StrokeShape="RoundRectangle 20">
+                                    <Grid ColumnDefinitions="125,*,Auto" ColumnSpacing="18">
+                                        <Border BackgroundColor="{StaticResource PlateYellow}" Padding="12,7" StrokeThickness="0" StrokeShape="RoundRectangle 8" VerticalOptions="Center"><Label FontAttributes="Bold" FontSize="18" HorizontalTextAlignment="Center" Text="{Binding DisplayPlate}" TextColor="#111318" /></Border>
+                                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center"><Label FontAttributes="Bold" FontSize="17" Text="{Binding VehicleName}" /><Label Style="{StaticResource SecondaryText}" Text="{Binding Metadata}" /><Label FontSize="12" Text="{Binding Seen}" TextColor="{StaticResource TextMuted}" /></VerticalStackLayout>
+                                        <HorizontalStackLayout Grid.Column="2" Spacing="14" VerticalOptions="Center"><VerticalStackLayout HorizontalOptions="End"><Label FontAttributes="Bold" HorizontalTextAlignment="End" Text="{Binding Price}" TextColor="{StaticResource PlateYellow}" /><Label FontSize="12" HorizontalTextAlignment="End" Text="{Binding Trips}" TextColor="{StaticResource TextSecondary}" /></VerticalStackLayout><Label FontSize="24" Text="›" TextColor="{StaticResource TextMuted}" /></HorizontalStackLayout>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </RefreshView>
+
+                <VerticalStackLayout IsVisible="{Binding ShowTripsEmpty}" HorizontalOptions="Center" Spacing="10" VerticalOptions="Center"><Label FontSize="44" HorizontalTextAlignment="Center" Text="◇" TextColor="{StaticResource Primary}" /><Label Style="{StaticResource SectionTitle}" Text="No drives yet" /><Label Style="{StaticResource SecondaryText}" Text="{Binding EmptyMessage}" /></VerticalStackLayout>
+                <VerticalStackLayout IsVisible="{Binding ShowVehiclesEmpty}" HorizontalOptions="Center" Spacing="10" VerticalOptions="Center"><Label FontSize="44" HorizontalTextAlignment="Center" Text="▱" TextColor="{StaticResource PlateYellow}" /><Label Style="{StaticResource SectionTitle}" Text="No vehicles found" /><Label Style="{StaticResource SecondaryText}" Text="{Binding EmptyMessage}" /></VerticalStackLayout>
+            </Grid>
+        </Grid>
+    </Grid>
+</ContentPage>

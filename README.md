@@ -1,19 +1,20 @@
 # DeveMobileLPR
 
-DeveMobileLPR is an offline-first Android license-plate recognition app written in C#. It is designed for a securely mounted phone looking through a car windscreen. Camera frames stay on the phone: the app stores confirmed plate text, time, optional position, and matched RDW vehicle facts, but does not store raw video or plate crops.
+DeveMobileLPR (the app is presented as **RoadLens**) is an offline-first .NET MAUI Android license-plate recognition app written in C#. It is designed for a securely mounted phone looking through a car windscreen. Camera frames stay on the phone: the app stores confirmed plate text, trips, optional route points, and matched RDW vehicle facts, but does not store raw video or plate crops.
 
 The first implementation targets Android because direct CameraX access gives the required control over analysis resolution, YUV frames, zoom, and backpressure. The reusable recognition, inference, tracking, and SQLite layers target plain .NET.
 
 ## What is implemented
 
 - Direct CameraX preview and YUV analysis, requesting a practical 3840×2160 stream with device-specific fallback.
-- Manual 1×–3× zoom control and a visible road-region guide.
+- A full-screen, low-distraction Drive mode with live plate boxes, OCR text, RDW vehicle labels, camera selection, 1×–4× zoom, and a visible road-region guide.
 - Latest-frame-only ingestion at up to four high-resolution samples per second. Slow inference drops stale frames instead of consuming more memory.
 - MIT-licensed YOLOv9-S 608 plate detection and CCT-S V2 global OCR through ONNX Runtime.
 - Direct YUV-to-model sampling: there is no full-frame RGB bitmap allocation.
 - IoU tracking and confidence/quality-weighted multi-frame consensus. A plate needs at least three supporting frames and character-level majority support.
 - Dutch sidecode validation and official three-group formatting for sidecodes 1–14.
-- Local SQLite sightings, duplicate merging, recent history, optional GPS, and “most expensive car” statistics.
+- Local SQLite trips, filtered route traces, duplicate merging within a drive, a searchable vehicle library, daily/drive statistics, CSV export, optional GPS, and “most expensive car” highlights.
+- .NET MAUI Shell navigation with Drive, History, and Settings surfaces plus trip and vehicle detail views.
 - A resumable C# console downloader that builds the app's indexed SQLite database directly from official RDW Open Data.
 - Import of the generated RDW SQLite database through Android's document picker. Imports are validated and replaced atomically.
 - Model integrity verification at download time and again when Android installs bundled assets.
@@ -55,7 +56,7 @@ See [docs/architecture.md](docs/architecture.md) for the implementation rational
 ## Prerequisites
 
 - Windows, macOS, or Linux with the SDK selected by `global.json`.
-- The .NET Android workload: `dotnet workload install android`.
+- The .NET MAUI Android workload: `dotnet workload install maui-android`.
 - PowerShell 7 (`pwsh`) for the repository scripts.
 - Android API 26 or newer on the target phone. A 64-bit phone with at least 4 GB RAM is recommended.
 
@@ -107,7 +108,7 @@ The tool streams the official vehicle and fuel datasets, resumes through `<outpu
 
 For a quick live test, add `--sample-rows 100 --page-size 50 --restart`. Sample output is deliberately marked and is not a complete lookup database.
 
-Copy the finished file to the phone, tap **Import RDW**, and select it. The app copies it into private storage, validates it, and only then replaces the previous database. Recognition and history work without RDW; only vehicle enrichment and RDW-backed statistics will be absent.
+Copy the finished file to the phone, open **Settings**, tap **Import / replace**, and select it. The app copies it into private storage, validates it, and only then replaces the previous database. Recognition and history work without RDW; only vehicle enrichment and RDW-backed statistics will be absent.
 
 See [docs/rdw-database.md](docs/rdw-database.md) for source datasets, free-token setup, sizing expectations, consistency guarantees, refresh behavior, and all options.
 
@@ -154,9 +155,9 @@ Never commit a keystore or signing password. Keep an offline backup; losing the 
 ## Phone setup and safe use
 
 1. Install the APK and grant camera permission. Location permission is optional.
-2. Import the RDW database while parked, if desired.
+2. Import the RDW database from **Settings** while parked, if desired.
 3. Fix the phone securely in landscape orientation with the rear camera unobstructed.
-4. Aim the yellow guide at the road, set zoom, and tap **Start before driving**.
+4. Select the camera, set zoom, and tap **Start drive** before moving.
 5. Do not interact with the app while the vehicle is moving.
 
 Heat, windscreen reflections, shutter speed, plate pixel height, and device-specific CameraX resolution support dominate real-world accuracy. The app displays the actual selected analysis resolution and per-frame inference time so a physical road benchmark can make those trade-offs measurable.

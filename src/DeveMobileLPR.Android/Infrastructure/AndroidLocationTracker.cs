@@ -21,6 +21,8 @@ internal sealed class AndroidLocationTracker : Java.Lang.Object, ILocationListen
     }
 
     public GeoPoint? Latest => _latest;
+    public bool IsRunning => _running;
+    public event EventHandler<GeoPoint>? LocationChanged;
 
     public bool Start()
     {
@@ -50,8 +52,11 @@ internal sealed class AndroidLocationTracker : Java.Lang.Object, ILocationListen
         _running = false;
     }
 
-    public void OnLocationChanged(Location location) =>
+    public void OnLocationChanged(global::Android.Locations.Location location)
+    {
         _latest = new GeoPoint(location.Latitude, location.Longitude, location.HasAccuracy ? location.Accuracy : null);
+        LocationChanged?.Invoke(this, _latest.Value);
+    }
 
     public void OnProviderDisabled(string provider) { }
     public void OnProviderEnabled(string provider) { }

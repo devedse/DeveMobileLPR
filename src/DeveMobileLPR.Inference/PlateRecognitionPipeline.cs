@@ -33,7 +33,12 @@ public sealed class PlateRecognitionPipeline(
             }
         }
 
-        return new FrameRecognition(frame.Sequence, frame.CapturedAt, stopwatch.Elapsed, observations);
+        return new FrameRecognition(frame.Sequence, frame.CapturedAt, stopwatch.Elapsed, observations)
+        {
+            SourceWidth = frame.OrientedWidth,
+            SourceHeight = frame.OrientedHeight,
+            RotationDegrees = frame.RotationDegrees
+        };
     }
 
     public void Dispose()

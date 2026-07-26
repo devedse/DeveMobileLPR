@@ -23,7 +23,7 @@ if ($SkipAndroid) {
     }
 }
 else {
-    dotnet workload install android --skip-manifest-update
+    dotnet workload install maui-android --skip-manifest-update
     dotnet restore (Join-Path $root 'DeveMobileLPR.slnx') --locked-mode
     dotnet build (Join-Path $root 'DeveMobileLPR.slnx') --configuration $Configuration --no-restore
 }

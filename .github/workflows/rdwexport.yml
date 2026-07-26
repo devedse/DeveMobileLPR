@@ -83,7 +83,7 @@ jobs:
           - SHA-256: ``$hash``
           - Artifact: ``DeveMobileLPR-RDW-$env:GITHUB_RUN_NUMBER``
 
-          Download the artifact, extract ``rdw.sqlite``, copy it to the phone, and select it with **Import RDW**.
+          Download the artifact, extract ``rdw.sqlite``, copy it to the phone, then open **Settings** and select it with **Import / replace**.
           "@ | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
 
       - name: Upload complete RDW database

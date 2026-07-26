@@ -117,7 +117,7 @@ The tool does not add sightings to this database. Sightings remain in the app's 
 
 1. Copy the completed `rdw.sqlite` to storage visible to the phone, using USB or another trusted transfer method.
 2. Open DeveMobileLPR while parked.
-3. Tap **Import RDW** and select the file.
+3. Open **Settings**, tap **Import / replace**, and select the file.
 4. Wait for **RDW database installed** before deleting the transferred copy.
 
 Android streams the selected file to `rdw.sqlite.importing` in private app storage, validates the required view, and then replaces the previous installed snapshot. A failed or cancelled copy does not replace the previous database.
