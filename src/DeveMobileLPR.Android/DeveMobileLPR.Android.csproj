@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-android36.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <SupportedOSPlatformVersion>26.0</SupportedOSPlatformVersion>
+    <ApplicationId>nl.deve.mobilelpr</ApplicationId>
+    <ApplicationTitle>DeveMobileLPR</ApplicationTitle>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <AndroidLinkMode Condition="'$(Configuration)' == 'Release'">SdkOnly</AndroidLinkMode>
+    <RunAOTCompilation>false</RunAOTCompilation>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DeveMobileLPR.Core\DeveMobileLPR.Core.csproj" />
+    <ProjectReference Include="..\DeveMobileLPR.Inference\DeveMobileLPR.Inference.csproj" />
+    <ProjectReference Include="..\DeveMobileLPR.Storage\DeveMobileLPR.Storage.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Xamarin.AndroidX.AppCompat" />
+    <PackageReference Include="Xamarin.AndroidX.Camera.Camera2" />
+    <PackageReference Include="Xamarin.AndroidX.Camera.Core" />
+    <PackageReference Include="Xamarin.AndroidX.Camera.Lifecycle" />
+    <PackageReference Include="Xamarin.AndroidX.Camera.View" />
+  </ItemGroup>
+  <ItemGroup>
+    <AndroidAsset Include="..\..\artifacts\models\yolo-v9-s-608-license-plates-end2end.onnx" Link="models\yolo-v9-s-608-license-plates-end2end.onnx" />
+    <AndroidAsset Include="..\..\artifacts\models\cct_s_v2_global.onnx" Link="models\cct_s_v2_global.onnx" />
+  </ItemGroup>
+</Project>

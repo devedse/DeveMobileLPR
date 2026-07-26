@@ -1,0 +1,122 @@
+name: Build and release
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    outputs:
+      release_signed: ${{ steps.signing.outputs.configured }}
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      DEVEMOBILELPR_MODEL_DIR: ${{ github.workspace }}\artifacts\models
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore workloads
+        shell: pwsh
+        run: dotnet workload install android --skip-manifest-update
+
+      - name: Download and verify model assets
+        shell: pwsh
+        run: ./eng/Download-Models.ps1
+
+      - name: Restore dependencies
+        shell: pwsh
+        run: dotnet restore DeveMobileLPR.slnx --locked-mode
+
+      - name: Build
+        shell: pwsh
+        run: dotnet build DeveMobileLPR.slnx --configuration Release --no-restore -p:ContinuousIntegrationBuild=true -p:ApplicationVersion=${{ github.run_number }} -p:ApplicationDisplayVersion=0.1.${{ github.run_number }}
+
+      - name: Test
+        shell: pwsh
+        run: dotnet test DeveMobileLPR.slnx --configuration Release --no-build --filter "Category!=Model" --collect "XPlat Code Coverage" --results-directory artifacts/test-results
+
+      - name: Verify ONNX model contracts
+        shell: pwsh
+        run: dotnet test tests/DeveMobileLPR.Inference.Tests/DeveMobileLPR.Inference.Tests.csproj --configuration Release --no-build --filter "Category=Model"
+
+      - name: Detect signing configuration
+        id: signing
+        shell: pwsh
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          $configured = -not [string]::IsNullOrWhiteSpace($env:KEYSTORE_BASE64) `
+            -and -not [string]::IsNullOrWhiteSpace($env:KEYSTORE_PASSWORD) `
+            -and -not [string]::IsNullOrWhiteSpace($env:KEY_ALIAS) `
+            -and -not [string]::IsNullOrWhiteSpace($env:KEY_PASSWORD)
+          "configured=$($configured.ToString().ToLowerInvariant())" | Add-Content -LiteralPath $env:GITHUB_OUTPUT
+          if ($configured) {
+            [System.IO.File]::WriteAllBytes((Join-Path $env:RUNNER_TEMP 'release.keystore'), [Convert]::FromBase64String($env:KEYSTORE_BASE64))
+          }
+
+      - name: Package debug-signed APK
+        if: steps.signing.outputs.configured != 'true'
+        shell: pwsh
+        run: ./eng/Publish-Android.ps1 -Configuration Release
+
+      - name: Package release-signed APK
+        if: steps.signing.outputs.configured == 'true'
+        shell: pwsh
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./eng/Publish-Android.ps1 -Configuration Release -Keystore "$env:RUNNER_TEMP\release.keystore" -KeystorePassword $env:KEYSTORE_PASSWORD -KeyAlias $env:KEY_ALIAS -KeyPassword $env:KEY_PASSWORD
+
+      - name: Upload APK on every build
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeveMobileLPR-${{ github.run_number }}
+          path: artifacts/android/*.apk
+          if-no-files-found: error
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.run_number }}
+          path: artifacts/test-results
+          if-no-files-found: warn
+
+  release:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.build.outputs.release_signed == 'true'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download signed APK
+        uses: actions/download-artifact@v4
+        with:
+          name: DeveMobileLPR-${{ github.run_number }}
+          path: artifacts/android
+
+      - name: Publish GitHub prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: DeveMobileLPR build ${{ github.run_number }}
+          prerelease: true
+          generate_release_notes: true
+          files: artifacts/android/*.apk
