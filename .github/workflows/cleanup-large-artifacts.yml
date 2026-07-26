@@ -1,0 +1,74 @@
+# Purpose: manually reclaim repository artifact quota by deleting completed-run artifacts above a
+# selected size threshold. Called only through workflow_dispatch; it never removes caches or releases.
+name: CleanupLargeArtifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      threshold_mb:
+        description: 'Delete stored artifacts larger than this size (in MB)'
+        required: false
+        default: '1'
+        type: string
+      dry_run:
+        description: 'Only list what would be deleted, do not actually delete'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Delete large artifacts
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const thresholdMb = Number(context.payload.inputs.threshold_mb || '1');
+            const dryRun = context.payload.inputs.dry_run === true || context.payload.inputs.dry_run === 'true';
+            const thresholdBytes = thresholdMb * 1024 * 1024;
+
+            core.info(`Threshold: ${thresholdMb} MB (${thresholdBytes} bytes). Dry run: ${dryRun}`);
+
+            const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100,
+            });
+
+            const large = artifacts.filter(a => a.size_in_bytes > thresholdBytes);
+
+            if (large.length === 0) {
+              core.info('No artifacts exceed the threshold.');
+              return;
+            }
+
+            let deleted = 0;
+            let freedBytes = 0;
+            for (const artifact of large) {
+              const sizeMb = (artifact.size_in_bytes / 1024 / 1024).toFixed(2);
+              if (dryRun) {
+                core.info(`[dry-run] Would delete '${artifact.name}' (id ${artifact.id}, ${sizeMb} MB)`);
+                continue;
+              }
+              await github.rest.actions.deleteArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: artifact.id,
+              });
+              deleted++;
+              freedBytes += artifact.size_in_bytes;
+              core.info(`Deleted '${artifact.name}' (id ${artifact.id}, ${sizeMb} MB)`);
+            }
+
+            const freedMb = (freedBytes / 1024 / 1024).toFixed(2);
+            core.summary
+              .addHeading('Artifact cleanup')
+              .addRaw(`Threshold: ${thresholdMb} MB`)
+              .addBreak()
+              .addRaw(dryRun
+                ? `Dry run: ${large.length} artifact(s) exceed the threshold and would be deleted.`
+                : `Deleted ${deleted} artifact(s), freed ${freedMb} MB.`)
+              .write();

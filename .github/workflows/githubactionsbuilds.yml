@@ -1,15 +1,29 @@
-name: Build and release
+# Purpose: build, test, package, and publish DeveMobileLPR on normal CI/release runs.
+name: GitHubActionsBuilds
 
 on:
   push:
-  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  generate_version_number:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    outputs:
+      build_number: ${{ steps.buildnumber.outputs.build_number }}
+    steps:
+      - name: Generate build number
+        id: buildnumber
+        uses: onyxmueller/build-tag-number@v1
+        with:
+          token: ${{ secrets.github_token }}
+
   build:
+    needs: generate_version_number
     runs-on: windows-latest
     timeout-minutes: 45
     outputs:
@@ -18,13 +32,15 @@ jobs:
       DOTNET_NOLOGO: true
       DOTNET_CLI_TELEMETRY_OPTOUT: true
       DEVEMOBILELPR_MODEL_DIR: ${{ github.workspace }}\artifacts\models
+      BUILD_NUMBER: ${{ needs.generate_version_number.outputs.build_number }}
+      BUILD_VERSION: 1.0.${{ needs.generate_version_number.outputs.build_number }}
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -42,7 +58,7 @@ jobs:
 
       - name: Build
         shell: pwsh
-        run: dotnet build DeveMobileLPR.slnx --configuration Release --no-restore -p:ContinuousIntegrationBuild=true -p:ApplicationVersion=${{ github.run_number }} -p:ApplicationDisplayVersion=0.1.${{ github.run_number }}
+        run: dotnet build DeveMobileLPR.slnx --configuration Release --no-restore -p:ContinuousIntegrationBuild=true -p:Version=$env:BUILD_VERSION -p:ApplicationVersion=$env:BUILD_NUMBER -p:ApplicationDisplayVersion=$env:BUILD_VERSION
 
       - name: Test
         shell: pwsh
@@ -73,7 +89,7 @@ jobs:
       - name: Package debug-signed APK
         if: steps.signing.outputs.configured != 'true'
         shell: pwsh
-        run: ./eng/Publish-Android.ps1 -Configuration Release
+        run: ./eng/Publish-Android.ps1 -Configuration Release -Version $env:BUILD_VERSION -ApplicationVersion $env:BUILD_NUMBER -ApplicationDisplayVersion $env:BUILD_VERSION
 
       - name: Package release-signed APK
         if: steps.signing.outputs.configured == 'true'
@@ -82,41 +98,45 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./eng/Publish-Android.ps1 -Configuration Release -Keystore "$env:RUNNER_TEMP\release.keystore" -KeystorePassword $env:KEYSTORE_PASSWORD -KeyAlias $env:KEY_ALIAS -KeyPassword $env:KEY_PASSWORD
+        run: ./eng/Publish-Android.ps1 -Configuration Release -Version $env:BUILD_VERSION -ApplicationVersion $env:BUILD_NUMBER -ApplicationDisplayVersion $env:BUILD_VERSION -Keystore "$env:RUNNER_TEMP\release.keystore" -KeystorePassword $env:KEYSTORE_PASSWORD -KeyAlias $env:KEY_ALIAS -KeyPassword $env:KEY_PASSWORD
 
       - name: Upload APK on every build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: DeveMobileLPR-${{ github.run_number }}
+          name: DeveMobileLPR-${{ env.BUILD_VERSION }}
           path: artifacts/android/*.apk
           if-no-files-found: error
+          retention-days: 14
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: test-results-${{ github.run_number }}
+          name: test-results-${{ env.BUILD_VERSION }}
           path: artifacts/test-results
           if-no-files-found: warn
+          retention-days: 7
 
   release:
-    needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.build.outputs.release_signed == 'true'
+    needs: [generate_version_number, build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.build.outputs.release_signed == 'true'
     runs-on: windows-latest
     permissions:
       contents: write
     steps:
       - name: Download signed APK
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
-          name: DeveMobileLPR-${{ github.run_number }}
+          name: DeveMobileLPR-1.0.${{ needs.generate_version_number.outputs.build_number }}
           path: artifacts/android
 
-      - name: Publish GitHub prerelease
-        uses: softprops/action-gh-release@v2
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v3
         with:
-          tag_name: build-${{ github.run_number }}
-          name: DeveMobileLPR build ${{ github.run_number }}
-          prerelease: true
-          generate_release_notes: true
+          tag_name: 1.0.${{ needs.generate_version_number.outputs.build_number }}
+          name: 1.0.${{ needs.generate_version_number.outputs.build_number }}
+          body: |
+            ${{ github.event.head_commit.message }}
           files: artifacts/android/*.apk
+          fail_on_unmatched_files: true
+          make_latest: true

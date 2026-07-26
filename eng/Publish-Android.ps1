@@ -2,6 +2,12 @@
 param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
+    [ValidatePattern('^\d+\.\d+\.\d+$')]
+    [string]$Version,
+    [ValidateRange(1, 2100000000)]
+    [int]$ApplicationVersion,
+    [ValidatePattern('^\d+\.\d+\.\d+$')]
+    [string]$ApplicationDisplayVersion,
     [string]$Keystore,
     [string]$KeystorePassword,
     [string]$KeyAlias,
@@ -17,6 +23,15 @@ $output = Join-Path $root 'artifacts\android'
 Get-ChildItem -LiteralPath $output -Filter '*.apk' -File -ErrorAction SilentlyContinue | Remove-Item -Force
 
 $arguments = @('publish', $project, '--configuration', $Configuration, '--no-restore', '-p:AndroidPackageFormats=apk', "-p:PublishDir=$output\")
+if ($PSBoundParameters.ContainsKey('Version')) {
+    $arguments += "-p:Version=$Version"
+}
+if ($PSBoundParameters.ContainsKey('ApplicationVersion')) {
+    $arguments += "-p:ApplicationVersion=$ApplicationVersion"
+}
+if ($PSBoundParameters.ContainsKey('ApplicationDisplayVersion')) {
+    $arguments += "-p:ApplicationDisplayVersion=$ApplicationDisplayVersion"
+}
 if (-not [string]::IsNullOrWhiteSpace($Keystore)) {
     if (-not (Test-Path -LiteralPath $Keystore)) { throw "Keystore does not exist: $Keystore" }
     $arguments += @(

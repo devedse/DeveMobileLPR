@@ -18,7 +18,7 @@ The first implementation targets Android because direct CameraX access gives the
 - Model integrity verification at download time and again when Android installs bundled assets.
 - Unit tests, SQLite integration tests, and an inference smoke test that loads and executes both real ONNX files.
 - Reproducible NuGet lock files and warnings-as-errors.
-- A GitHub Actions pipeline on every push, pull request, and manual run. Every successful build uploads an APK; signed pushes to `main` also create a GitHub prerelease.
+- A GitHub Actions pipeline on every push and manual run. Every successful build uploads a versioned APK; signed pushes to `master` also create a GitHub release.
 
 ## Architecture
 
@@ -114,11 +114,13 @@ The RDW database may be several gigabytes. Ensure the phone has enough free stor
 
 ## CI and releases
 
-`.github/workflows/build-release.yml` runs for every push, pull request, and manual dispatch.
+`.github/workflows/githubactionsbuilds.yml` runs for every push and manual dispatch. It uses the same versioning convention as DevePXEBoot: `onyxmueller/build-tag-number@v1` generates the build number and all outputs use `1.0.<build number>`.
 
-- Every successful run uploads the installable APK as a workflow artifact.
+- The .NET assemblies, Android display version, artifact name, Git tag, and release name all use `1.0.<build number>`. Android's numeric version code uses the generated build number.
+- Every successful run uploads the installable APK as a workflow artifact for 14 days; test results are retained for 7 days.
 - Without signing secrets, Android applies its development signature. That artifact is suitable for testing, not store distribution.
-- A push to `main` with all four signing secrets creates a prerelease tagged `build-<run number>`.
+- A push to `master` with all four signing secrets creates the latest GitHub release tagged `1.0.<build number>`.
+- `.github/workflows/cleanup-large-artifacts.yml` can be run manually in dry-run or deletion mode when the repository's Actions artifact quota needs reclaiming.
 
 Configure these GitHub Actions secrets for release signing:
 

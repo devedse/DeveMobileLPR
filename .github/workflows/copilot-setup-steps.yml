@@ -1,0 +1,36 @@
+name: "Copilot Setup Steps"
+
+on:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up .NET 10.0
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Install Android workload
+        shell: pwsh
+        run: dotnet workload install android --skip-manifest-update
+
+      - name: Download and verify model assets
+        shell: pwsh
+        run: ./eng/Download-Models.ps1
+
+      - name: Restore dependencies
+        run: dotnet restore DeveMobileLPR.slnx --locked-mode
