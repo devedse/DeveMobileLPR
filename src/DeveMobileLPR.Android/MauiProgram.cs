@@ -18,12 +18,15 @@ public static class MauiProgram
         builder.Services.AddSingleton<RdwDatabaseService>();
         builder.Services.AddSingleton(_ => new SqliteSightingRepository(Path.Combine(FileSystem.AppDataDirectory, "sightings.sqlite")));
         builder.Services.AddSingleton<DriveCoordinator>();
+        builder.Services.AddSingleton<VideoAnalysisService>();
         builder.Services.AddSingleton<DriveViewModel>();
+        builder.Services.AddSingleton<AnalyzeViewModel>();
         builder.Services.AddSingleton<HistoryViewModel>();
         builder.Services.AddSingleton<HistoryExportService>();
         builder.Services.AddSingleton<SettingsViewModel>();
         builder.Services.AddSingleton<AppShell>();
         builder.Services.AddSingleton(services => new DrivePage(services.GetRequiredService<DriveViewModel>()));
+        builder.Services.AddSingleton(services => new AnalyzePage(services.GetRequiredService<AnalyzeViewModel>()));
         builder.Services.AddSingleton(services => new HistoryPage(services.GetRequiredService<HistoryViewModel>()));
         builder.Services.AddSingleton(services => new SettingsPage(services.GetRequiredService<SettingsViewModel>()));
         return builder.Build();

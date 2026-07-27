@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage
+    x:Class="DeveMobileLPR.AndroidApp.Views.AnalyzePage"
+    x:DataType="vm:AnalyzeViewModel"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:controls="clr-namespace:DeveMobileLPR.AndroidApp.Controls"
+    xmlns:vm="clr-namespace:DeveMobileLPR.AndroidApp.ViewModels">
+    <Grid>
+        <ScrollView IsVisible="{Binding ShowSetup}">
+            <VerticalStackLayout Style="{StaticResource PageScrollContent}">
+                <controls:PageHeader Eyebrow="Model workbench" IsBusy="{Binding IsProcessing}" Title="Analyze video" />
+                <Label Style="{StaticResource SecondaryText}" Text="Process a recording privately, then inspect the sampled frames without adding test results to History." />
+
+                <Border Style="{StaticResource Card}">
+                    <VerticalStackLayout Style="{StaticResource CardContent}">
+                        <Label Style="{StaticResource SectionTitle}" Text="Video source" />
+                        <Label LineBreakMode="MiddleTruncation" Style="{StaticResource SecondaryText}" Text="{Binding SelectedFileName}" />
+                        <Button Clicked="SelectVideoClicked" IsEnabled="{Binding CanSelectVideo}" Style="{StaticResource SecondaryButton}" Text="Select video" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource Card}">
+                    <VerticalStackLayout Style="{StaticResource CardContent}">
+                        <Label Style="{StaticResource SectionTitle}" Text="Frame sampling" />
+                        <Picker ItemsSource="{Binding SamplingOptions}" SelectedItem="{Binding SelectedSampling}" />
+                        <Label Style="{StaticResource SecondaryText}" Text="{Binding SelectedSampling.Detail}" />
+                        <Button Command="{Binding ProcessCommand}" Text="Process video" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border IsVisible="{Binding IsProcessing}" Style="{StaticResource HighlightCard}">
+                    <VerticalStackLayout Style="{StaticResource CardContent}">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Style="{StaticResource SectionTitle}" Text="Processing" />
+                            <ActivityIndicator Grid.Column="1" IsRunning="True" />
+                        </Grid>
+                        <ProgressBar Progress="{Binding Progress}" ProgressColor="{DynamicResource Primary}" />
+                        <Label Style="{StaticResource SecondaryText}" Text="{Binding ProgressText}" />
+                        <Button Command="{Binding CancelCommand}" Style="{StaticResource CompactSecondaryButton}" Text="Cancel" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border IsVisible="{Binding HasResult}" Style="{StaticResource HighlightCard}">
+                    <VerticalStackLayout Style="{StaticResource CardContent}">
+                        <Label Style="{StaticResource SectionTitle}" Text="Analysis ready" />
+                        <Label Style="{StaticResource SecondaryText}" Text="{Binding ResultSummary}" />
+                        <Button Command="{Binding OpenReviewCommand}" Text="Open frame review" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource StatusCard}">
+                    <Label Style="{StaticResource SecondaryText}" Text="{Binding StatusMessage}" />
+                </Border>
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <Grid IsVisible="{Binding IsReviewing}" RowDefinitions="Auto,*,Auto" Style="{StaticResource PageGrid}">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                <Button Clicked="CloseReviewClicked" Style="{StaticResource CompactSecondaryButton}" Text="Back" />
+                <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                    <Label Style="{StaticResource SectionTitle}" Text="{Binding CurrentFrameTitle}" />
+                    <Label Style="{StaticResource MutedText}" Text="{Binding CurrentFrameDetail}" />
+                </VerticalStackLayout>
+            </Grid>
+
+            <ScrollView Grid.Row="1">
+                <VerticalStackLayout Spacing="12">
+                    <Border BackgroundColor="#000000" Padding="0" Stroke="{DynamicResource Divider}" StrokeShape="RoundRectangle 8">
+                        <Image Aspect="AspectFit" HeightRequest="260" Source="{Binding CurrentPreview}" />
+                    </Border>
+                    <Border Style="{StaticResource CompactCard}">
+                        <VerticalStackLayout BindableLayout.ItemsSource="{Binding CurrentReads}" Spacing="8">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <Label Style="{StaticResource SecondaryText}" Text="{Binding .}" />
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
+                    </Border>
+                </VerticalStackLayout>
+            </ScrollView>
+
+            <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="10">
+                <Button Command="{Binding PreviousFrameCommand}" Style="{StaticResource SecondaryButton}" Text="Previous frame" />
+                <Button Grid.Column="1" Command="{Binding NextFrameCommand}" Text="Next frame" />
+            </Grid>
+        </Grid>
+    </Grid>
+</ContentPage>

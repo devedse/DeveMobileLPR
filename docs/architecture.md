@@ -58,3 +58,11 @@ Tune in this order:
 6. consider detector/OCR fine-tuning only when the remaining error set is understood.
 
 False confirmations are more damaging than missed sightings because they poison long-term history. Threshold changes should therefore preserve high precision first.
+
+## Offline video analysis
+
+The Analyze tab is intentionally separate from Drive and History. A user-selected video is staged in the application's private cache because Android document-provider streams cannot be reopened reliably by the platform media decoder. Stale staged videos are removed when the analysis service starts, and selecting another video removes the previous staged copy. Analysis metadata is held only for the current app session; detections and confirmations are never inserted into sighting history.
+
+Android's media retriever supplies decoded bitmaps at sampled source-frame timestamps. Frames are converted into pooled planar YUV and passed through the same detector, OCR, tracking, and temporal-consensus code as camera frames. The shared `VideoFrameSampling` and `VideoFrameTimeline` types keep sampling semantics independent of Android so future Windows or stream decoders can use the same schedule.
+
+Offline analysis applies backpressure and processes every requested sample. Unlike the live camera's latest-frame slot, it does not drop selected frames. Sampling can process every frame or every second, fourth, or eighth source frame. When frame-rate metadata is absent, timing is derived from reported frame count and duration before falling back to 30 fps.
