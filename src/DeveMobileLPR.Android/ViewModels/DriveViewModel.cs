@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using DeveMobileLPR.AndroidApp.Camera;
 using DeveMobileLPR.AndroidApp.Services;
 using DeveMobileLPR.AndroidApp.UI;
 

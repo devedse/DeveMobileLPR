@@ -1,5 +1,7 @@
+#if ANDROID
 using Android.Content.PM;
 using Android.Views;
+#endif
 using DeveMobileLPR.AndroidApp.ViewModels;
 
 namespace DeveMobileLPR.AndroidApp.Views;
@@ -44,6 +46,7 @@ public partial class DrivePage : ContentPage
     private void ApplyDriveMode(bool isDriving)
     {
         Shell.SetTabBarIsVisible(this, !isDriving);
+#if ANDROID
         if (Platform.CurrentActivity is not { } activity || activity.Window?.DecorView is not { } decor)
         {
             return;
@@ -56,5 +59,6 @@ public partial class DrivePage : ContentPage
             : SystemUiFlags.Visible;
         decor.SystemUiVisibility = (StatusBarVisibility)flags;
 #pragma warning restore CS0618
+#endif
     }
 }

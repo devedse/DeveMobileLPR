@@ -1,12 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0-android36.0</TargetFramework>
+    <TargetFrameworks>net10.0-android36.0;net10.0-windows10.0.19041.0</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <UseMaui>true</UseMaui>
     <SingleProject>true</SingleProject>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <SupportedOSPlatformVersion>26.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">26.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.19041.0</SupportedOSPlatformVersion>
     <ApplicationId>nl.deve.mobilelpr</ApplicationId>
     <ApplicationTitle>DeveMobileLPR</ApplicationTitle>
     <ApplicationVersion>1</ApplicationVersion>
@@ -15,6 +16,19 @@
     <AndroidLinkMode Condition="'$(Configuration)' == 'Release'">SdkOnly</AndroidLinkMode>
     <RunAOTCompilation>false</RunAOTCompilation>
     <MauiEnableXamlCBindingWithSourceCompilation>true</MauiEnableXamlCBindingWithSourceCompilation>
+    <AllowUnsafeBlocks Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <SelfContained>true</SelfContained>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <PublishSingleFile>true</PublishSingleFile>
+    <PublishReadyToRun>false</PublishReadyToRun>
+  </PropertyGroup>
+  <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows' and '$(RuntimeIdentifierOverride)' != ''">
+    <RuntimeIdentifier>$(RuntimeIdentifierOverride)</RuntimeIdentifier>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\DeveMobileLPR.Core\DeveMobileLPR.Core.csproj" />
@@ -24,6 +38,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" />
     <PackageReference Include="Microsoft.Maui.Essentials" />
+  </ItemGroup>
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
     <!-- CameraX 1.6.1 uses the current AndroidX generation. Pin its KTX companions so
          MAUI's older transitive minimums cannot produce mixed, incompatible pairs. -->
     <PackageReference Include="Xamarin.AndroidX.Activity.Ktx" />
@@ -43,8 +59,17 @@
     <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#0B0D10" BaseSize="256,256" />
     <MauiImage Include="Resources\Images\*.svg" />
   </ItemGroup>
-  <ItemGroup>
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
     <AndroidAsset Include="..\..\artifacts\models\yolo-v9-s-608-license-plates-end2end.onnx" Link="models\yolo-v9-s-608-license-plates-end2end.onnx" />
     <AndroidAsset Include="..\..\artifacts\models\cct_s_v2_global.onnx" Link="models\cct_s_v2_global.onnx" />
+  </ItemGroup>
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+    <Content Include="..\..\artifacts\models\yolo-v9-s-608-license-plates-end2end.onnx" Link="models\yolo-v9-s-608-license-plates-end2end.onnx" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\artifacts\models\cct_s_v2_global.onnx" Link="models\cct_s_v2_global.onnx" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Compile Remove="Camera\**\*.cs" />
+    <Compile Remove="Infrastructure\Android*.cs" />
+    <Compile Remove="Platforms\Android\**\*.cs" />
+    <Compile Remove="Services\DriveCoordinator.cs" />
+    <Compile Remove="Services\VideoAnalysisService.cs" />
   </ItemGroup>
 </Project>

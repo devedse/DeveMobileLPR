@@ -6,7 +6,8 @@ public partial class AnalyzePage : ContentPage
 {
     private static readonly FilePickerFileType VideoFiles = new(new Dictionary<DevicePlatform, IEnumerable<string>>
     {
-        [DevicePlatform.Android] = ["video/*"]
+        [DevicePlatform.Android] = ["video/*"],
+        [DevicePlatform.WinUI] = [".mp4", ".mov", ".m4v", ".avi", ".wmv", ".mkv"]
     });
     private readonly AnalyzeViewModel _viewModel;
 

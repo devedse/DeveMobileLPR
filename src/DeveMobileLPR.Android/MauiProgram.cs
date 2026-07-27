@@ -11,9 +11,12 @@ public static class MauiProgram
     public static MauiApp CreateMauiApp()
     {
         var builder = MauiApp.CreateBuilder();
-        builder
-            .UseMauiApp<App>()
-            .ConfigureMauiHandlers(handlers => handlers.AddHandler<CameraPreview, CameraPreviewHandler>());
+        builder.UseMauiApp<App>();
+    #if ANDROID
+        builder.ConfigureMauiHandlers(handlers => handlers.AddHandler<CameraPreview, CameraPreviewHandler>());
+    #elif WINDOWS
+        builder.ConfigureMauiHandlers(handlers => handlers.AddHandler<CameraPreview, CameraPreviewHandler>());
+    #endif
         builder.Services.AddSingleton<AppSettings>();
         builder.Services.AddSingleton<RdwDatabaseService>();
         builder.Services.AddSingleton(_ => new SqliteSightingRepository(Path.Combine(FileSystem.AppDataDirectory, "sightings.sqlite")));

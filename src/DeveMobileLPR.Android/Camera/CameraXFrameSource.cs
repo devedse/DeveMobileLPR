@@ -10,13 +10,12 @@ using AndroidX.Camera.View;
 using AndroidX.Core.Content;
 using AndroidX.Lifecycle;
 using AndroidX.Camera.Core.ResolutionSelector;
+using DeveMobileLPR.AndroidApp.Services;
 using DeveMobileLPR.Imaging;
 using Google.Common.Util.Concurrent;
 using Java.Util.Concurrent;
 
 namespace DeveMobileLPR.AndroidApp.Camera;
-
-internal sealed record CameraChoice(string Id, string Name);
 
 internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnalyzer, IDisposable
 {

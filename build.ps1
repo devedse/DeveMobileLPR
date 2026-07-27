@@ -23,7 +23,7 @@ if ($SkipAndroid) {
     }
 }
 else {
-    dotnet workload install maui-android --skip-manifest-update
+    dotnet workload install maui-android maui-windows --skip-manifest-update
     dotnet restore (Join-Path $root 'DeveMobileLPR.slnx') --locked-mode
     dotnet build (Join-Path $root 'DeveMobileLPR.slnx') --configuration $Configuration --no-restore
 }
@@ -34,6 +34,7 @@ foreach ($project in $testProjects) {
 dotnet test (Join-Path $root 'tests\DeveMobileLPR.Inference.Tests\DeveMobileLPR.Inference.Tests.csproj') --configuration $Configuration --no-build --filter 'Category=Model'
 
 & (Join-Path $root 'eng\Publish-RdwDownloader.ps1') -Configuration $Configuration
+& (Join-Path $root 'eng\Publish-Windows.ps1') -Configuration $Configuration
 
 if (-not $SkipAndroid) {
     & (Join-Path $root 'eng\Publish-Android.ps1') -Configuration $Configuration
