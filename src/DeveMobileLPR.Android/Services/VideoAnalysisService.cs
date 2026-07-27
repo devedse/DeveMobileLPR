@@ -12,17 +12,14 @@ namespace DeveMobileLPR.AndroidApp.Services;
 
 internal sealed class VideoAnalysisService : IDisposable
 {
-    private static readonly string StagingDirectory = IOPath.Combine(FileSystem.CacheDirectory, "video-analysis");
+    private const int DecodeWidth = 1280;
+    private static readonly string StagingDirectory = IOPath.Combine(FileSystem.AppDataDirectory, "video-sources");
     private readonly SemaphoreSlim _runGate = new(1, 1);
     private PlateRecognitionPipeline? _pipeline;
     private bool _disposed;
 
     public VideoAnalysisService()
     {
-        if (Directory.Exists(StagingDirectory))
-        {
-            Directory.Delete(StagingDirectory, true);
-        }
     }
 
     public async Task<string> StageAsync(FileResult file, CancellationToken cancellationToken)
@@ -51,12 +48,12 @@ internal sealed class VideoAnalysisService : IDisposable
             var pipeline = await EnsurePipelineAsync(cancellationToken).ConfigureAwait(false);
             using var retriever = CreateRetriever(sourcePath);
             var metadata = ReadMetadata(retriever);
-            var sampledFrameCount = (metadata.FrameCount + sampling.Interval - 1) / sampling.Interval;
+            var sampledFrameCount = (metadata.Timeline.FrameCount + sampling.Interval - 1) / sampling.Interval;
             var frames = new List<AnalyzedVideoFrame>(sampledFrameCount);
             var tracks = new PlateTrackManager();
             var processedFrames = 0;
 
-            for (var sourceFrameIndex = 0; sourceFrameIndex < metadata.FrameCount; sourceFrameIndex++)
+            for (var sourceFrameIndex = 0; sourceFrameIndex < metadata.Timeline.FrameCount; sourceFrameIndex++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (!sampling.Includes(sourceFrameIndex))
@@ -64,19 +61,17 @@ internal sealed class VideoAnalysisService : IDisposable
                     continue;
                 }
 
-                var position = metadata.PositionOf(sourceFrameIndex);
-                using var bitmap = retriever.GetFrameAtTime(
+                var position = metadata.Timeline.PositionOf(sourceFrameIndex);
+                using var bitmap = GetAnalysisFrame(
+                    retriever,
                     checked((long)(position.TotalMilliseconds * 1000)),
-                    Option.Closest);
+                    metadata.DecodeWidth,
+                    metadata.DecodeHeight);
                 if (bitmap is not null)
                 {
                     using var frame = BitmapToYuv420Frame(bitmap, sourceFrameIndex + 1, position);
                     var recognition = await pipeline.ProcessAsync(frame, cancellationToken).ConfigureAwait(false);
-                    frames.Add(new AnalyzedVideoFrame(
-                        sourceFrameIndex,
-                        position,
-                        recognition,
-                        tracks.Update(recognition)));
+                    frames.Add(CreateAnalyzedFrame(sourceFrameIndex, position, recognition, tracks.Update(recognition)));
                 }
 
                 processedFrames++;
@@ -84,11 +79,13 @@ internal sealed class VideoAnalysisService : IDisposable
             }
 
             return new VideoAnalysisResult(
+                Guid.NewGuid(),
                 sourcePath,
                 displayName,
-                metadata.Duration,
-                metadata.FrameRate,
-                metadata.FrameCount,
+                DateTimeOffset.UtcNow,
+                metadata.Timeline.Duration,
+                metadata.Timeline.FrameRate,
+                metadata.Timeline.FrameCount,
                 sampling,
                 frames);
         }
@@ -103,9 +100,12 @@ internal sealed class VideoAnalysisService : IDisposable
         {
             cancellationToken.ThrowIfCancellationRequested();
             using var retriever = CreateRetriever(sourcePath);
-            using var bitmap = retriever.GetFrameAtTime(
+            var metadata = ReadMetadata(retriever);
+            using var bitmap = GetAnalysisFrame(
+                retriever,
                 checked((long)(position.TotalMilliseconds * 1000)),
-                Option.Closest)
+                metadata.DecodeWidth,
+                metadata.DecodeHeight)
                 ?? throw new InvalidDataException("The selected video frame could not be decoded.");
             using var stream = new MemoryStream();
             if (!bitmap.Compress(Bitmap.CompressFormat.Jpeg!, 88, stream))
@@ -149,17 +149,27 @@ internal sealed class VideoAnalysisService : IDisposable
         }
     }
 
-    private static VideoFrameTimeline ReadMetadata(MediaMetadataRetriever retriever)
+    private static Bitmap? GetAnalysisFrame(MediaMetadataRetriever retriever, long timeMicroseconds, int width, int height) =>
+        OperatingSystem.IsAndroidVersionAtLeast(27)
+            ? retriever.GetScaledFrameAtTime(timeMicroseconds, Option.Closest, width, height)
+            : retriever.GetFrameAtTime(timeMicroseconds, Option.Closest);
+
+    private static VideoMetadata ReadMetadata(MediaMetadataRetriever retriever)
     {
         var durationMilliseconds = ParsePositiveDouble(retriever.ExtractMetadata(MetadataKey.Duration), "duration");
         var reportedFrameRate = ParseOptionalPositiveDouble(retriever.ExtractMetadata(MetadataKey.CaptureFramerate));
         var reportedFrameCount = OperatingSystem.IsAndroidVersionAtLeast(28)
             ? ParseOptionalPositiveDouble(retriever.ExtractMetadata(MetadataKey.VideoFrameCount))
             : null;
-        return VideoFrameTimeline.Create(
+        var timeline = VideoFrameTimeline.Create(
             TimeSpan.FromMilliseconds(durationMilliseconds),
             reportedFrameRate,
             reportedFrameCount is null ? null : checked((int)Math.Ceiling(reportedFrameCount.Value)));
+        var sourceWidth = ParsePositiveDouble(retriever.ExtractMetadata(MetadataKey.VideoWidth), "video width");
+        var sourceHeight = ParsePositiveDouble(retriever.ExtractMetadata(MetadataKey.VideoHeight), "video height");
+        var decodeWidth = checked((int)Math.Min(DecodeWidth, sourceWidth));
+        var decodeHeight = Math.Max(1, checked((int)Math.Round(sourceHeight * decodeWidth / sourceWidth)));
+        return new VideoMetadata(timeline, decodeWidth, decodeHeight);
     }
 
     private static double ParsePositiveDouble(string? value, string name) =>
@@ -249,6 +259,25 @@ internal sealed class VideoAnalysisService : IDisposable
     }
 
     private static byte Clamp(int value) => (byte)Math.Clamp(value, 0, 255);
+
+    private static AnalyzedVideoFrame CreateAnalyzedFrame(
+        long sourceFrameIndex,
+        TimeSpan position,
+        FrameRecognition recognition,
+        IReadOnlyList<ConfirmedPlate> confirmations) => new(
+            sourceFrameIndex,
+            position,
+            recognition.Observations.Select(static observation => new AnalyzedPlateRead(
+                observation.Read.Text,
+                observation.Read.Confidence,
+                observation.Detection.Confidence)).ToArray(),
+            confirmations.Select(static confirmation => new AnalyzedPlateConfirmation(
+                confirmation.Consensus.NormalizedPlate,
+                confirmation.Consensus.DisplayPlate,
+                confirmation.Consensus.Confidence,
+                confirmation.Consensus.ObservationCount)).ToArray());
+
+    private sealed record VideoMetadata(VideoFrameTimeline Timeline, int DecodeWidth, int DecodeHeight);
 
     public void Dispose()
     {

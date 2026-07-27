@@ -22,6 +22,7 @@ public static class MauiProgram
         builder.Services.AddSingleton(_ => new SqliteSightingRepository(Path.Combine(FileSystem.AppDataDirectory, "sightings.sqlite")));
         builder.Services.AddSingleton<DriveCoordinator>();
         builder.Services.AddSingleton<VideoAnalysisService>();
+        builder.Services.AddSingleton(_ => new VideoAnalysisRepository(Path.Combine(FileSystem.AppDataDirectory, "video-analyses")));
         builder.Services.AddSingleton<DriveViewModel>();
         builder.Services.AddSingleton<AnalyzeViewModel>();
         builder.Services.AddSingleton<HistoryViewModel>();

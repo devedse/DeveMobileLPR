@@ -13,12 +13,28 @@ internal sealed record VideoAnalysisProgress(
 internal sealed record AnalyzedVideoFrame(
     long SourceFrameIndex,
     TimeSpan Position,
-    FrameRecognition Recognition,
-    IReadOnlyList<ConfirmedPlate> Confirmations);
+    IReadOnlyList<AnalyzedPlateRead> Reads,
+    IReadOnlyList<AnalyzedPlateConfirmation> Confirmations)
+{
+    public bool HasDetections => Reads.Count > 0 || Confirmations.Count > 0;
+}
+
+internal sealed record AnalyzedPlateRead(
+    string Text,
+    float OcrConfidence,
+    float DetectorConfidence);
+
+internal sealed record AnalyzedPlateConfirmation(
+    string NormalizedPlate,
+    string DisplayPlate,
+    float Confidence,
+    int ObservationCount);
 
 internal sealed record VideoAnalysisResult(
+    Guid Id,
     string SourcePath,
     string DisplayName,
+    DateTimeOffset AnalyzedAt,
     TimeSpan Duration,
     double SourceFrameRate,
     int SourceFrameCount,

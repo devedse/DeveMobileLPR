@@ -17,6 +17,12 @@ public partial class AnalyzePage : ContentPage
         BindingContext = _viewModel = viewModel;
     }
 
+    protected override async void OnAppearing()
+    {
+        base.OnAppearing();
+        await _viewModel.InitializeAsync();
+    }
+
     private async void SelectVideoClicked(object? sender, EventArgs args)
     {
         var file = await FilePicker.Default.PickAsync(new PickOptions
@@ -31,4 +37,12 @@ public partial class AnalyzePage : ContentPage
     }
 
     private void CloseReviewClicked(object? sender, EventArgs args) => _viewModel.CloseReview();
+
+    private async void TimelineDragCompleted(object? sender, EventArgs args)
+    {
+        if (sender is Slider slider)
+        {
+            await _viewModel.SeekToFractionAsync(slider.Value);
+        }
+    }
 }

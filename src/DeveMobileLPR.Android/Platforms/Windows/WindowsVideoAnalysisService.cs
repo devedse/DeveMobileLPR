@@ -12,6 +12,7 @@ namespace DeveMobileLPR.AndroidApp.Services;
 
 internal sealed class VideoAnalysisService : IDisposable
 {
+    private const int DecodeWidth = 1280;
     private static readonly string StagingDirectory = Path.Combine(FileSystem.CacheDirectory, "video-analysis");
     private readonly SemaphoreSlim _runGate = new(1, 1);
     private PlateRecognitionPipeline? _pipeline;
@@ -19,15 +20,16 @@ internal sealed class VideoAnalysisService : IDisposable
 
     public VideoAnalysisService()
     {
-        if (Directory.Exists(StagingDirectory))
-        {
-            Directory.Delete(StagingDirectory, true);
-        }
     }
 
     public async Task<string> StageAsync(FileResult file, CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        if (!string.IsNullOrWhiteSpace(file.FullPath) && File.Exists(file.FullPath))
+        {
+            return file.FullPath;
+        }
+
         Directory.CreateDirectory(StagingDirectory);
         var target = Path.Combine(StagingDirectory, $"{Guid.NewGuid():N}{Path.GetExtension(file.FileName)}");
         await using var source = await file.OpenReadAsync().ConfigureAwait(false);
@@ -65,14 +67,16 @@ internal sealed class VideoAnalysisService : IDisposable
                 var position = timeline.PositionOf(sourceFrameIndex);
                 using var frame = await DecodeFrameAsync(composition, position, sourceFrameIndex + 1, cancellationToken).ConfigureAwait(false);
                 var recognition = await pipeline.ProcessAsync(frame, cancellationToken).ConfigureAwait(false);
-                frames.Add(new AnalyzedVideoFrame(sourceFrameIndex, position, recognition, tracks.Update(recognition)));
+                frames.Add(CreateAnalyzedFrame(sourceFrameIndex, position, recognition, tracks.Update(recognition)));
                 processedFrames++;
                 progress?.Report(new VideoAnalysisProgress(processedFrames, sampledFrameCount, position));
             }
 
             return new VideoAnalysisResult(
+                Guid.NewGuid(),
                 sourcePath,
                 displayName,
+                DateTimeOffset.UtcNow,
                 timeline.Duration,
                 timeline.FrameRate,
                 timeline.FrameCount,
@@ -88,7 +92,7 @@ internal sealed class VideoAnalysisService : IDisposable
     public async Task<byte[]> GetPreviewAsync(string sourcePath, TimeSpan position, CancellationToken cancellationToken)
     {
         var (composition, _) = await OpenCompositionAsync(sourcePath, cancellationToken).ConfigureAwait(false);
-        using var thumbnail = await composition.GetThumbnailAsync(position, 960, 0, VideoFramePrecision.NearestFrame);
+        using var thumbnail = await composition.GetThumbnailAsync(position, DecodeWidth, 0, VideoFramePrecision.NearestFrame);
         cancellationToken.ThrowIfCancellationRequested();
         using var reader = new DataReader(thumbnail.GetInputStreamAt(0));
         await reader.LoadAsync(checked((uint)thumbnail.Size));
@@ -133,7 +137,7 @@ internal sealed class VideoAnalysisService : IDisposable
         long sequence,
         CancellationToken cancellationToken)
     {
-        using var thumbnail = await composition.GetThumbnailAsync(position, 0, 0, VideoFramePrecision.NearestFrame);
+        using var thumbnail = await composition.GetThumbnailAsync(position, DecodeWidth, 0, VideoFramePrecision.NearestFrame);
         cancellationToken.ThrowIfCancellationRequested();
         var decoder = await BitmapDecoder.CreateAsync(thumbnail);
         using var bitmap = await decoder.GetSoftwareBitmapAsync(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Ignore);
@@ -220,6 +224,23 @@ internal sealed class VideoAnalysisService : IDisposable
     }
 
     private static byte Clamp(int value) => (byte)Math.Clamp(value, 0, 255);
+
+    private static AnalyzedVideoFrame CreateAnalyzedFrame(
+        long sourceFrameIndex,
+        TimeSpan position,
+        FrameRecognition recognition,
+        IReadOnlyList<ConfirmedPlate> confirmations) => new(
+            sourceFrameIndex,
+            position,
+            recognition.Observations.Select(static observation => new AnalyzedPlateRead(
+                observation.Read.Text,
+                observation.Read.Confidence,
+                observation.Detection.Confidence)).ToArray(),
+            confirmations.Select(static confirmation => new AnalyzedPlateConfirmation(
+                confirmation.Consensus.NormalizedPlate,
+                confirmation.Consensus.DisplayPlate,
+                confirmation.Consensus.Confidence,
+                confirmation.Consensus.ObservationCount)).ToArray());
 
     public void Dispose()
     {
