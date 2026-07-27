@@ -11,7 +11,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 $root = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$project = Join-Path $root 'src\DeveMobileLPR.Android\DeveMobileLPR.Android.csproj'
+$project = Join-Path $root 'src\DeveMobileLPR.App\DeveMobileLPR.App.csproj'
 $output = Join-Path $root "artifacts\windows\$RuntimeIdentifier"
 
 if (Test-Path -LiteralPath $output) {

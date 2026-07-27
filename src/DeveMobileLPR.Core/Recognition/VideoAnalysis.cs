@@ -1,4 +1,24 @@
+using DeveMobileLPR.Imaging;
+
 namespace DeveMobileLPR.Recognition;
+
+public interface IVideoFrameSource : IDisposable
+{
+    VideoFrameTimeline Timeline { get; }
+
+    ValueTask<Yuv420Frame?> DecodeAsync(
+        long sourceFrameIndex,
+        TimeSpan position,
+        CancellationToken cancellationToken);
+}
+
+public sealed record VideoAnalysisProgress(
+    int ProcessedFrames,
+    int TotalFrames,
+    TimeSpan Position)
+{
+    public double Fraction => TotalFrames == 0 ? 0 : (double)ProcessedFrames / TotalFrames;
+}
 
 public sealed record AnalyzedVideoFrame(
     long SourceFrameIndex,

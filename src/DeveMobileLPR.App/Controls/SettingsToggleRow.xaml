@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentView
+    x:Class="DeveMobileLPR.App.Controls.SettingsToggleRow"
+    x:DataType="controls:SettingsToggleRow"
+    x:Name="Root"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:controls="clr-namespace:DeveMobileLPR.App.Controls">
+    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="18" MinimumHeightRequest="56">
+        <VerticalStackLayout Spacing="3" VerticalOptions="Center">
+            <Label Style="{StaticResource SettingTitle}" Text="{Binding Title, Source={x:Reference Root}}" />
+            <Label Style="{StaticResource SettingDescription}" Text="{Binding Description, Source={x:Reference Root}}" />
+        </VerticalStackLayout>
+        <Switch
+            Grid.Column="1"
+            IsToggled="{Binding IsToggled, Mode=TwoWay, Source={x:Reference Root}}"
+            SemanticProperties.Description="{Binding Title, Source={x:Reference Root}}" />
+    </Grid>
+</ContentView>

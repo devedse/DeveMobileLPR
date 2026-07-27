@@ -18,7 +18,7 @@ The solution contains:
 1. `DeveMobileLPR.Core`: imaging primitives, Dutch plate normalization, tracking, and temporal consensus.
 2. `DeveMobileLPR.Inference`: detector/OCR preprocessing and ONNX Runtime model execution.
 3. `DeveMobileLPR.Storage`: SQLite sightings and RDW lookup.
-4. `DeveMobileLPR.Android`: CameraX, Android lifecycle, permissions, UI, and session orchestration.
+4. `DeveMobileLPR.App`: shared MAUI UI and platform adapters for Android and Windows.
 5. `tests`: unit, SQLite integration, and real-model contract tests.
 
 ## Architecture and invariants
