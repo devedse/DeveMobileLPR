@@ -67,13 +67,8 @@ internal sealed class HistoryViewModel : ViewModelBase
     public IReadOnlyList<string> MinimumValueOptions { get; } = [AnyValue, "Over €50k", "Over €100k", "Over €300k", "Over €500k", "Over €1m"];
     public IReadOnlyList<string> VehicleSortOptions { get; } = [MostRecent, "Highest value"];
     public bool IsBusy { get => _isBusy; private set => SetProperty(ref _isBusy, value); }
-    public bool ShowTrips { get => _showTrips; private set { if (SetProperty(ref _showTrips, value)) { OnPropertyChanged(nameof(ShowVehicles)); OnPropertyChanged(nameof(EmptyMessage)); } } }
+    public bool ShowTrips { get => _showTrips; private set { if (SetProperty(ref _showTrips, value)) OnPropertyChanged(nameof(ShowVehicles)); } }
     public bool ShowVehicles => !ShowTrips;
-    public string EmptyMessage => ShowTrips ? "Your completed drives will appear here." : "No confirmed vehicles match the current search and filters.";
-    public bool HasTrips => Trips.Count > 0;
-    public bool HasVehicles => Vehicles.Count > 0;
-    public bool ShowTripsEmpty => ShowTrips && !HasTrips && !IsBusy;
-    public bool ShowVehiclesEmpty => ShowVehicles && !HasVehicles && !IsBusy;
     public string TodayTrips { get => _todayTrips; private set => SetProperty(ref _todayTrips, value); }
     public string TodayUnique { get => _todayUnique; private set => SetProperty(ref _todayUnique, value); }
     public string TodayDistance { get => _todayDistance; private set => SetProperty(ref _todayDistance, value); }
@@ -116,7 +111,6 @@ internal sealed class HistoryViewModel : ViewModelBase
         try
         {
             IsBusy = true;
-            NotifyEmptyStates();
             await _coordinator.InitializeAsync();
             var repository = _coordinator.Repository;
             var localStart = new DateTimeOffset(DateTime.Today, TimeZoneInfo.Local.GetUtcOffset(DateTime.Today));
@@ -152,7 +146,6 @@ internal sealed class HistoryViewModel : ViewModelBase
         finally
         {
             IsBusy = false;
-            NotifyEmptyStates();
             _loadGate.Release();
         }
     }
@@ -230,15 +223,6 @@ internal sealed class HistoryViewModel : ViewModelBase
                 $"{FormatCount(vehicle.SightingCount, "sighting")} · {FormatCount(vehicle.TripCount, "trip")}",
                 vehicle.LastLocation is not null));
         }
-        NotifyEmptyStates();
-    }
-
-    private void NotifyEmptyStates()
-    {
-        OnPropertyChanged(nameof(HasTrips));
-        OnPropertyChanged(nameof(HasVehicles));
-        OnPropertyChanged(nameof(ShowTripsEmpty));
-        OnPropertyChanged(nameof(ShowVehiclesEmpty));
     }
 
     private static string FormatCount(int count, string noun) => count == 1 ? $"1 {noun}" : $"{count} {noun}s";

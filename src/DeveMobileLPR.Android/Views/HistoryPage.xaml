@@ -10,17 +10,17 @@
         <ControlTemplate x:Key="HistoryHeaderTemplate">
             <VerticalStackLayout Padding="0,0,0,12" Spacing="12">
             <controls:PageHeader Eyebrow="Your road journal" IsBusy="{Binding IsBusy}" Title="History" />
-                <controls:ResponsiveGrid ColumnSpacing="12" MaximumColumns="4" MinimumItemWidth="145" RowSpacing="12">
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="12" RowDefinitions="Auto,Auto" RowSpacing="12">
                     <Border Style="{StaticResource CompactCard}">
                         <VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding TodayTrips}" /><Label Style="{StaticResource MetricLabel}" Text="Drives today" /></VerticalStackLayout>
                     </Border>
-                    <Border Style="{StaticResource CompactCard}">
+                    <Border Grid.Column="1" Style="{StaticResource CompactCard}">
                         <VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding TodayUnique}" /><Label Style="{StaticResource MetricLabel}" Text="Unique cars" /></VerticalStackLayout>
                     </Border>
-                    <Border Style="{StaticResource CompactCard}">
+                    <Border Grid.Row="1" Style="{StaticResource CompactCard}">
                         <VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding TodayDistance}" /><Label Style="{StaticResource MetricLabel}" Text="Route distance" /></VerticalStackLayout>
                     </Border>
-                    <Border Style="{StaticResource CompactHighlightCard}">
+                    <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource CompactHighlightCard}">
                         <VerticalStackLayout Spacing="3">
                             <Label FontAttributes="Bold" FontSize="25" Text="{Binding TodayTopValue}" TextColor="{DynamicResource ValueAccent}" />
                             <Label FontSize="12" Text="Most expensive today" TextColor="{DynamicResource HighlightText}" />
@@ -29,7 +29,13 @@
                             </Border>
                         </VerticalStackLayout>
                     </Border>
-                </controls:ResponsiveGrid>
+                </Grid>
+            </VerticalStackLayout>
+        </ControlTemplate>
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto,*" RowSpacing="12" Style="{StaticResource PageGrid}">
+        <VerticalStackLayout Spacing="10">
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
                     <Button
                         BackgroundColor="{DynamicResource SurfaceRaised}"
@@ -59,21 +65,42 @@
                         </Button.Triggers>
                     </Button>
                 </Grid>
+            <VerticalStackLayout IsVisible="{Binding ShowVehicles}" Spacing="10">
+                <SearchBar Placeholder="Search plate, make, or model" Text="{Binding SearchText}" />
+                <controls:ResponsiveGrid ColumnSpacing="10" MaximumColumns="3" MinimumItemWidth="145" RowSpacing="8">
+                    <VerticalStackLayout Spacing="3">
+                        <Label Style="{StaticResource MutedText}" Text="SEEN WITHIN" />
+                        <Picker ItemsSource="{Binding PeriodOptions}" SelectedItem="{Binding SelectedPeriod}" />
+                    </VerticalStackLayout>
+                    <VerticalStackLayout Spacing="3">
+                        <Label Style="{StaticResource MutedText}" Text="VALUE" />
+                        <Picker ItemsSource="{Binding MinimumValueOptions}" SelectedItem="{Binding SelectedMinimumValue}" />
+                    </VerticalStackLayout>
+                    <VerticalStackLayout Spacing="3">
+                        <Label Style="{StaticResource MutedText}" Text="SORT BY" />
+                        <Picker ItemsSource="{Binding VehicleSortOptions}" SelectedItem="{Binding SelectedVehicleSort}" />
+                    </VerticalStackLayout>
+                </controls:ResponsiveGrid>
             </VerticalStackLayout>
-        </ControlTemplate>
-    </ContentPage.Resources>
+        </VerticalStackLayout>
 
-    <Grid Style="{StaticResource PageGrid}">
-                <RefreshView Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsBusy}" IsVisible="{Binding ShowTrips}">
+                <RefreshView Grid.Row="1" Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsBusy}" IsVisible="{Binding ShowTrips}">
                     <CollectionView x:Name="TripsList" ItemsSource="{Binding Trips}" SelectionChanged="TripSelected" SelectionMode="Single">
                         <CollectionView.Header>
                             <ContentView ControlTemplate="{StaticResource HistoryHeaderTemplate}" />
                         </CollectionView.Header>
+                        <CollectionView.EmptyView>
+                            <VerticalStackLayout Padding="0,32" HorizontalOptions="Center" Spacing="10">
+                                <Label FontSize="44" HorizontalTextAlignment="Center" Text="◇" TextColor="{DynamicResource Primary}" />
+                                <Label HorizontalTextAlignment="Center" Style="{StaticResource SectionTitle}" Text="No drives yet" />
+                                <Label HorizontalTextAlignment="Center" Style="{StaticResource SecondaryText}" Text="Your completed drives will appear here." />
+                            </VerticalStackLayout>
+                        </CollectionView.EmptyView>
                         <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Vertical" ItemSpacing="10" /></CollectionView.ItemsLayout>
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="vm:TripCardViewModel">
                                 <Border Style="{StaticResource CompactCard}">
-                                    <controls:ResponsiveGrid ColumnSpacing="20" MaximumColumns="2" MinimumItemWidth="245" RowSpacing="10">
+                                    <Grid RowDefinitions="Auto,Auto" RowSpacing="10">
                                         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="20">
                                             <VerticalStackLayout Spacing="2" WidthRequest="105">
                                                 <Label FontAttributes="Bold" FontSize="18" Text="{Binding Day}" />
@@ -85,42 +112,33 @@
                                                 <VerticalStackLayout Grid.Column="2" Spacing="1"><Label FontAttributes="Bold" Text="{Binding VehicleCount}" /><Label Style="{StaticResource MutedText}" Text="VEHICLES" /></VerticalStackLayout>
                                             </Grid>
                                         </Grid>
-                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalOptions="Center">
+                                        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalOptions="Center">
                                             <VerticalStackLayout Spacing="2">
                                                 <Label FontAttributes="Bold" Text="{Binding Highlight}" TextColor="{DynamicResource ValueAccent}" />
                                                 <Label Style="{StaticResource MutedText}" Text="{Binding HighlightPlate}" />
                                             </VerticalStackLayout>
                                             <Label Grid.Column="1" FontSize="24" Text="›" TextColor="{DynamicResource TextMuted}" VerticalOptions="Center" />
                                         </Grid>
-                                    </controls:ResponsiveGrid>
+                                    </Grid>
                                 </Border>
                             </DataTemplate>
                         </CollectionView.ItemTemplate>
                     </CollectionView>
                 </RefreshView>
 
-                <RefreshView Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsBusy}" IsVisible="{Binding ShowVehicles}">
+                <RefreshView Grid.Row="1" Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsBusy}" IsVisible="{Binding ShowVehicles}">
                     <CollectionView x:Name="VehiclesList" ItemsSource="{Binding Vehicles}" SelectionChanged="VehicleSelected" SelectionMode="Single">
                         <CollectionView.Header>
-                            <VerticalStackLayout Spacing="10">
-                                <ContentView ControlTemplate="{StaticResource HistoryHeaderTemplate}" />
-                                <SearchBar Placeholder="Search plate, make, or model" Text="{Binding SearchText}" />
-                                <controls:ResponsiveGrid ColumnSpacing="10" MaximumColumns="3" MinimumItemWidth="145" RowSpacing="8">
-                                    <VerticalStackLayout Spacing="3">
-                                        <Label Style="{StaticResource MutedText}" Text="SEEN WITHIN" />
-                                        <Picker ItemsSource="{Binding PeriodOptions}" SelectedItem="{Binding SelectedPeriod}" />
-                                    </VerticalStackLayout>
-                                    <VerticalStackLayout Spacing="3">
-                                        <Label Style="{StaticResource MutedText}" Text="VALUE" />
-                                        <Picker ItemsSource="{Binding MinimumValueOptions}" SelectedItem="{Binding SelectedMinimumValue}" />
-                                    </VerticalStackLayout>
-                                    <VerticalStackLayout Spacing="3">
-                                        <Label Style="{StaticResource MutedText}" Text="SORT BY" />
-                                        <Picker ItemsSource="{Binding VehicleSortOptions}" SelectedItem="{Binding SelectedVehicleSort}" />
-                                    </VerticalStackLayout>
-                                </controls:ResponsiveGrid>
-                            </VerticalStackLayout>
+                            <ContentView ControlTemplate="{StaticResource HistoryHeaderTemplate}" />
                         </CollectionView.Header>
+                        <CollectionView.EmptyView>
+                            <VerticalStackLayout Padding="0,32" HorizontalOptions="Center" Spacing="10">
+                                <Label FontSize="44" HorizontalTextAlignment="Center" Text="▱" TextColor="{DynamicResource ValueAccent}" />
+                                <Label HorizontalTextAlignment="Center" Style="{StaticResource SectionTitle}" Text="No vehicles found" />
+                                <Label HorizontalTextAlignment="Center" Style="{StaticResource SecondaryText}" Text="No confirmed vehicles match the current search and filters." />
+                                <Button Command="{Binding ResetVehicleFiltersCommand}" HorizontalOptions="Center" Style="{StaticResource CompactSecondaryButton}" Text="Reset filters" />
+                            </VerticalStackLayout>
+                        </CollectionView.EmptyView>
                         <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Vertical" ItemSpacing="10" /></CollectionView.ItemsLayout>
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="vm:VehicleCardViewModel">
@@ -146,16 +164,5 @@
                     </CollectionView>
                 </RefreshView>
 
-                <VerticalStackLayout HorizontalOptions="Center" IsVisible="{Binding ShowTripsEmpty}" Spacing="10" VerticalOptions="Center">
-                    <Label FontSize="44" HorizontalTextAlignment="Center" Text="◇" TextColor="{DynamicResource Primary}" />
-                    <Label Style="{StaticResource SectionTitle}" Text="No drives yet" />
-                    <Label HorizontalTextAlignment="Center" Style="{StaticResource SecondaryText}" Text="{Binding EmptyMessage}" />
-                </VerticalStackLayout>
-                <VerticalStackLayout HorizontalOptions="Center" IsVisible="{Binding ShowVehiclesEmpty}" Spacing="10" VerticalOptions="Center">
-                    <Label FontSize="44" HorizontalTextAlignment="Center" Text="▱" TextColor="{DynamicResource ValueAccent}" />
-                    <Label Style="{StaticResource SectionTitle}" Text="No vehicles found" />
-                    <Label HorizontalTextAlignment="Center" Style="{StaticResource SecondaryText}" Text="{Binding EmptyMessage}" />
-                    <Button Command="{Binding ResetVehicleFiltersCommand}" Style="{StaticResource CompactSecondaryButton}" Text="Reset filters" />
-                </VerticalStackLayout>
     </Grid>
 </ContentPage>
