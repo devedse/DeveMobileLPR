@@ -1,12 +1,13 @@
 # DeveMobileLPR
 
-DeveMobileLPR is an offline-first .NET MAUI license-plate recognition app for Android and Windows, written in C#. Drive mode is designed for a securely mounted Android phone looking through a car windscreen, while both platforms support recorded-video analysis. Media stays on the device: the app stores confirmed plate text, trips, optional route points, matched RDW vehicle facts, and compact video-analysis metadata, but does not store raw frames or plate crops.
+DeveMobileLPR is an offline-first .NET MAUI license-plate recognition app for Android and Windows, written in C#. Drive mode accepts CameraX capture from a securely mounted Android phone or live webcam capture on Windows, and both platforms support recorded-video analysis. Media stays on the device: the app stores confirmed plate text, trips, optional route points, matched RDW vehicle facts, and compact video-analysis metadata, but does not store raw frames or plate crops.
 
 The first implementation targets Android because direct CameraX access gives the required control over analysis resolution, YUV frames, zoom, and backpressure. The reusable recognition, inference, tracking, and SQLite layers target plain .NET.
 
 ## What is implemented
 
 - Direct CameraX preview and YUV analysis, requesting a practical 3840×2160 stream with device-specific fallback.
+- Live Windows webcam preview and frame analysis with camera selection and latest-frame backpressure.
 - A full-screen, low-distraction Drive mode with live plate boxes, OCR text, RDW vehicle labels, camera selection, 1×–4× zoom, and a visible road-region guide.
 - Latest-frame-only ingestion at up to four high-resolution samples per second. Slow inference drops stale frames instead of consuming more memory.
 - MIT-licensed YOLOv9-S 608 plate detection and CCT-S V2 global OCR through ONNX Runtime.
@@ -14,7 +15,7 @@ The first implementation targets Android because direct CameraX access gives the
 - IoU tracking and confidence/quality-weighted multi-frame consensus. A plate needs at least three supporting frames and character-level majority support.
 - Dutch sidecode validation and official three-group formatting for sidecodes 1–14.
 - Local SQLite trips, filtered route traces, duplicate merging within a drive, a searchable vehicle library, daily/drive statistics, CSV export, optional GPS, and “most expensive car” highlights.
-- Recorded-video analysis on Android and Windows with scaled decoding, temporal consensus, persisted analysis history, lazy previews, detection timelines, and plate-based seeking.
+- Recorded-video analysis on Android and Windows with scaled decoding, temporal consensus, a unified processing/history list, lazy previews, frame-snapped timelines, and plate-based seeking.
 - .NET MAUI Shell navigation with Drive, History, and Settings surfaces plus trip and vehicle detail views.
 - A resumable C# console downloader that builds the app's indexed SQLite database directly from official RDW Open Data.
 - Import of the generated RDW SQLite database through Android's document picker. Imports are validated and replaced atomically.
@@ -50,7 +51,7 @@ The important boundaries are deliberate:
 - `DeveMobileLPR.Inference` owns exact ONNX tensor contracts, preprocessing, execution providers, and decoding.
 - `DeveMobileLPR.Storage` owns sightings, compact video-analysis persistence, and the stable RDW view contract.
 - `DeveMobileLPR.RdwDownloader` owns official dataset paging, resumable imports, joining, and final database validation.
-- The MAUI app project owns the shared UI and platform hosts; its Android implementation owns CameraX, permissions, location, and model installation.
+- The MAUI app project owns the shared UI and platform hosts. Android owns CameraX, permissions, location, and model installation; Windows owns MediaCapture webcam and MediaComposition video adapters. Both feed shared recognition and persistence layers.
 
 See [docs/architecture.md](docs/architecture.md) for the implementation rationale and tuning points.
 

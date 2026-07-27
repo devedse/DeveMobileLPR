@@ -14,52 +14,32 @@
 
                 <Border Style="{StaticResource Card}">
                     <VerticalStackLayout Style="{StaticResource CardContent}">
-                        <Label Style="{StaticResource SectionTitle}" Text="Video source" />
+                        <Label Style="{StaticResource SectionTitle}" Text="New analysis" />
                         <Label LineBreakMode="MiddleTruncation" Style="{StaticResource SecondaryText}" Text="{Binding SelectedFileName}" />
                         <Button Clicked="SelectVideoClicked" IsEnabled="{Binding CanSelectVideo}" Style="{StaticResource SecondaryButton}" Text="Select video" />
-                    </VerticalStackLayout>
-                </Border>
-
-                <Border Style="{StaticResource Card}">
-                    <VerticalStackLayout Style="{StaticResource CardContent}">
-                        <Label Style="{StaticResource SectionTitle}" Text="Frame sampling" />
                         <Picker ItemsSource="{Binding SamplingOptions}" SelectedItem="{Binding SelectedSampling}" />
                         <Label Style="{StaticResource SecondaryText}" Text="{Binding SelectedSampling.Detail}" />
                         <Button Command="{Binding ProcessCommand}" Text="Process video" />
                     </VerticalStackLayout>
                 </Border>
 
-                <Border IsVisible="{Binding IsProcessing}" Style="{StaticResource HighlightCard}">
-                    <VerticalStackLayout Style="{StaticResource CardContent}">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <Label Style="{StaticResource SectionTitle}" Text="Processing" />
-                            <ActivityIndicator Grid.Column="1" IsRunning="True" />
-                        </Grid>
-                        <ProgressBar Progress="{Binding Progress}" ProgressColor="{DynamicResource Primary}" />
-                        <Label Style="{StaticResource SecondaryText}" Text="{Binding ProgressText}" />
-                        <Button Command="{Binding CancelCommand}" Style="{StaticResource CompactSecondaryButton}" Text="Cancel" />
-                    </VerticalStackLayout>
-                </Border>
-
-                <Border IsVisible="{Binding HasResult}" Style="{StaticResource HighlightCard}">
-                    <VerticalStackLayout Style="{StaticResource CardContent}">
-                        <Label Style="{StaticResource SectionTitle}" Text="Analysis ready" />
-                        <Label Style="{StaticResource SecondaryText}" Text="{Binding ResultSummary}" />
-                        <Button Command="{Binding OpenReviewCommand}" Text="Open frame review" />
-                    </VerticalStackLayout>
-                </Border>
-
-                <VerticalStackLayout IsVisible="{Binding HasSavedAnalyses}" Spacing="10">
-                    <Label Style="{StaticResource SectionTitle}" Text="Previous analyses" />
-                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding SavedAnalyses}" Spacing="10">
+                <VerticalStackLayout IsVisible="{Binding HasAnalyses}" Spacing="10">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Label Style="{StaticResource SectionTitle}" Text="Analyses" />
+                        <Button Command="{Binding CancelCommand}" Grid.Column="1" IsVisible="{Binding IsProcessing}" Style="{StaticResource CompactSecondaryButton}" Text="Cancel processing" />
+                    </Grid>
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Analyses}" Spacing="10">
                         <BindableLayout.ItemTemplate>
-                            <DataTemplate x:DataType="vm:SavedAnalysisListItem">
+                            <DataTemplate x:DataType="vm:AnalysisListItem">
                                 <Border Style="{StaticResource CompactCard}">
-                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" RowDefinitions="Auto,Auto,Auto">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding OpenCommand}" />
+                                    </Border.GestureRecognizers>
+                                    <Grid RowDefinitions="Auto,Auto,Auto" Padding="2">
+                                        <ProgressBar Grid.RowSpan="3" HeightRequest="8" HorizontalOptions="Fill" InputTransparent="True" IsVisible="{Binding IsProcessing}" Opacity="0.22" Progress="{Binding Progress}" ProgressColor="{DynamicResource Primary}" ScaleY="10" VerticalOptions="Center" />
                                         <Label Style="{StaticResource SettingTitle}" Text="{Binding Title}" />
                                         <Label Grid.Row="1" Style="{StaticResource MutedText}" Text="{Binding Detail}" />
                                         <Label Grid.Row="2" Style="{StaticResource MutedText}" Text="{Binding SourceStatus}" />
-                                        <Button Command="{Binding OpenCommand}" Grid.Column="1" Grid.RowSpan="3" Style="{StaticResource CompactSecondaryButton}" Text="Open" VerticalOptions="Center" />
                                     </Grid>
                                 </Border>
                             </DataTemplate>
@@ -121,8 +101,8 @@
                     </Border>
 
                     <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
-                        <Button Command="{Binding PreviousFrameCommand}" Style="{StaticResource SecondaryButton}" Text="Previous sample" />
-                        <Button Command="{Binding NextFrameCommand}" Grid.Column="1" Text="Next sample" />
+                        <Button Command="{Binding PreviousFrameCommand}" Style="{StaticResource SecondaryButton}" Text="Previous frame" />
+                        <Button Command="{Binding NextFrameCommand}" Grid.Column="1" Text="Next frame" />
                     </Grid>
                 </VerticalStackLayout>
             </ScrollView>

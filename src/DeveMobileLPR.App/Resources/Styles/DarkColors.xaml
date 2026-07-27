@@ -15,6 +15,7 @@
     <Color x:Key="TextSecondary">#AAB3C2</Color>
     <Color x:Key="TextMuted">#747E8E</Color>
     <Color x:Key="Danger">#FF6B6B</Color>
+    <Color x:Key="DangerPressed">#C94747</Color>
     <Color x:Key="Success">#58E0C2</Color>
     <Color x:Key="Divider">#303744</Color>
     <Color x:Key="HighlightSurface">#292517</Color>

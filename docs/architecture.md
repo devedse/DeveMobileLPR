@@ -8,6 +8,8 @@ License-plate OCR fails when characters occupy too few pixels, so the camera pat
 
 `ImageAnalysis.StrategyKeepOnlyLatest` is paired with an application-level slot of capacity one. There are therefore two independent backpressure boundaries: CameraX does not queue proxies, and inference does not queue copied frames. A slow/thermally throttled phone reduces sampling rate rather than increasing latency or memory.
 
+Windows Drive uses `MediaCapture` for the live preview and a `MediaFrameReader` for BGRA frames. The frame callback atomically replaces one pending `SoftwareBitmap`; a single worker converts only the latest bitmap into pooled planar YUV and submits it to the same capacity-one recognition slot. Camera enumeration, selection, preview, and frame conversion remain in the Windows adapter, while inference, consensus, lookup, and persistence stay shared.
+
 Camera planes are copied because an `ImageProxy` must be closed promptly and its buffers become invalid afterwards. Copies use pooled memory. Preprocessors bilinearly sample RGB values directly from rotated YUV planes into reusable detector/OCR tensors; they never materialize a 4K RGB bitmap.
 
 Zoom is applied with CameraX `CameraControl.SetZoomRatio` after preview and analysis are bound to the same camera, so both outputs receive the same sensor crop. The requested ratio is retained and reapplied after camera or lifecycle rebinding. The AndroidX `ZoomState` live-data value is a Java peer and must be converted with Android's Java-aware cast; a normal CLR interface cast silently yields `null` on affected runtimes. Zoom futures are observed and logged so camera failures cannot disappear silently again.
@@ -66,6 +68,8 @@ The Analyze tab is intentionally separate from Drive and History. Android copies
 Android's media retriever and Windows MediaComposition implement the shared `IVideoFrameSource` contract. These adapters own only native media opening, timeline metadata, timestamp-based decoding, and conversion into pooled planar YUV. Decoding is capped at 1280 pixels wide because the detector consumes a 608×608 tensor.
 
 The platform-independent `VideoAnalysisEngine` owns sampling, cancellation, progress, serialized runs, inference, tracking, temporal consensus, and compact result projection. Shared analysis records, `VideoFrameSampling`, and `VideoFrameTimeline` keep processing and persistence semantics consistent across Android and Windows. This boundary keeps native media APIs out of the recognition workflow while ensuring both platforms exercise the same behavior.
+
+The Analyze UI has one pending-video section and one analyses stream. Starting a run clears the pending selection and inserts a non-openable progress row; its background fills from left to right as sampled frames complete. Finished and previously saved rows share the same click-to-review behavior. Review seeks always resolve to an analyzed frame, so the slider, timestamp, decoded preview, and previous/next frame controls cannot disagree.
 
 Review previews are decoded lazily from the source video and held in a bounded in-memory cache. The timeline stores only normalized detection positions, and plate-index entries seek to the nearest analyzed frame. If a source video is missing, saved detection metadata remains reviewable without a preview.
 

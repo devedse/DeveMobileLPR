@@ -11,7 +11,27 @@ internal sealed record FrameSamplingOption(string Name, string Detail, int Inter
     public override string ToString() => Name;
 }
 
-internal sealed record SavedAnalysisListItem(string Title, string Detail, string SourceStatus, ICommand OpenCommand);
+internal sealed class AnalysisListItem : ViewModelBase
+{
+    private string _detail;
+    private double _progress;
+
+    public AnalysisListItem(string title, string detail, string sourceStatus, bool isProcessing, ICommand? openCommand)
+    {
+        Title = title;
+        _detail = detail;
+        SourceStatus = sourceStatus;
+        IsProcessing = isProcessing;
+        OpenCommand = openCommand;
+    }
+
+    public string Title { get; }
+    public string Detail { get => _detail; set => SetProperty(ref _detail, value); }
+    public string SourceStatus { get; }
+    public bool IsProcessing { get; }
+    public ICommand? OpenCommand { get; }
+    public double Progress { get => _progress; set => SetProperty(ref _progress, value); }
+}
 internal sealed record AnalyzedPlateIndexItem(string DisplayPlate, string Detail, ICommand OpenCommand);
 
 internal sealed class AnalyzeViewModel : ViewModelBase
@@ -20,7 +40,6 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     private readonly VideoAnalysisService _analysis;
     private readonly JsonVideoAnalysisRepository _repository;
     private readonly AsyncCommand _processCommand;
-    private readonly AsyncCommand _openReviewCommand;
     private readonly AsyncCommand _previousFrameCommand;
     private readonly AsyncCommand _nextFrameCommand;
     private readonly Command _cancelCommand;
@@ -29,6 +48,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     private CancellationTokenSource? _runCancellation;
     private CancellationTokenSource? _previewCancellation;
     private IReadOnlyList<VideoAnalysisResult> _savedResults = [];
+    private AnalysisListItem? _processingItem;
     private VideoAnalysisResult? _result;
     private string? _stagedPath;
     private string _selectedFileName = "No video selected";
@@ -38,7 +58,6 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     private double _progress;
     private string _progressText = string.Empty;
     private string _statusMessage = "Select a video to create a private, on-device analysis run.";
-    private string _resultSummary = string.Empty;
     private int _currentFrameIndex;
     private ImageSource? _currentPreview;
     private string _currentFrameTitle = string.Empty;
@@ -60,7 +79,6 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         ];
         _selectedSampling = SamplingOptions[2];
         _processCommand = new AsyncCommand(ProcessAsync, () => HasSelectedFile && !IsProcessing);
-        _openReviewCommand = new AsyncCommand(OpenReviewAsync, () => HasReviewFrames && !IsProcessing);
         _previousFrameCommand = new AsyncCommand(PreviousFrameAsync, () => IsReviewing && _currentFrameIndex > 0);
         _nextFrameCommand = new AsyncCommand(NextFrameAsync, () => IsReviewing && _result is not null && _currentFrameIndex < _result.Frames.Count - 1);
         _cancelCommand = new Command(Cancel, () => IsProcessing);
@@ -68,10 +86,9 @@ internal sealed class AnalyzeViewModel : ViewModelBase
 
     public IReadOnlyList<FrameSamplingOption> SamplingOptions { get; }
     public ObservableCollection<string> CurrentReads { get; } = [];
-    public ObservableCollection<SavedAnalysisListItem> SavedAnalyses { get; } = [];
+    public ObservableCollection<AnalysisListItem> Analyses { get; } = [];
     public ObservableCollection<AnalyzedPlateIndexItem> DetectedPlates { get; } = [];
     public ICommand ProcessCommand => _processCommand;
-    public ICommand OpenReviewCommand => _openReviewCommand;
     public ICommand PreviousFrameCommand => _previousFrameCommand;
     public ICommand NextFrameCommand => _nextFrameCommand;
     public ICommand CancelCommand => _cancelCommand;
@@ -92,14 +109,11 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     public bool CanSelectVideo => !IsProcessing;
     public bool IsReviewing { get => _isReviewing; private set { if (SetProperty(ref _isReviewing, value)) RefreshCommands(); } }
     public bool ShowSetup => !IsReviewing;
-    public bool HasResult => _result is not null;
-    public bool HasReviewFrames => _result?.Frames.Count > 0;
-    public bool HasSavedAnalyses => SavedAnalyses.Count > 0;
+    public bool HasAnalyses => Analyses.Count > 0;
     public bool HasDetectedPlates => DetectedPlates.Count > 0;
     public double Progress { get => _progress; private set => SetProperty(ref _progress, value); }
     public string ProgressText { get => _progressText; private set => SetProperty(ref _progressText, value); }
     public string StatusMessage { get => _statusMessage; private set => SetProperty(ref _statusMessage, value); }
-    public string ResultSummary { get => _resultSummary; private set => SetProperty(ref _resultSummary, value); }
     public ImageSource? CurrentPreview { get => _currentPreview; private set => SetProperty(ref _currentPreview, value); }
     public string CurrentFrameTitle { get => _currentFrameTitle; private set => SetProperty(ref _currentFrameTitle, value); }
     public string CurrentFrameDetail { get => _currentFrameDetail; private set => SetProperty(ref _currentFrameDetail, value); }
@@ -117,7 +131,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         if (_initialized) return;
         _initialized = true;
         _savedResults = await _repository.LoadAllAsync(CancellationToken.None);
-        RebuildSavedAnalyses();
+        RebuildAnalyses();
     }
 
     public async Task SelectFileAsync(FileResult file)
@@ -152,6 +166,8 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     public void CloseReview()
     {
         _previewCancellation?.Cancel();
+        _previewCancellation?.Dispose();
+        _previewCancellation = null;
         IsReviewing = false;
         CurrentPreview = null;
         OnPropertyChanged(nameof(ShowSetup));
@@ -164,43 +180,56 @@ internal sealed class AnalyzeViewModel : ViewModelBase
             return;
         }
 
+        var sourcePath = _stagedPath;
+        var displayName = SelectedFileName;
+        var sampling = SelectedSampling;
         ClearResult();
+        _stagedPath = null;
+        SelectedFileName = "No video selected";
+        OnPropertyChanged(nameof(HasSelectedFile));
         IsProcessing = true;
         ProgressText = "Preparing models…";
         StatusMessage = "Processing scaled frames on this device.";
+        var processingItem = new AnalysisListItem(displayName, ProgressText, sampling.Name, true, null);
+        _processingItem = processingItem;
+        RebuildAnalyses();
         _runCancellation = new CancellationTokenSource();
         var progress = new Progress<VideoAnalysisProgress>(update =>
         {
             Progress = update.Fraction;
             ProgressText = $"{update.Fraction:P0} · {update.ProcessedFrames:N0} of {update.TotalFrames:N0} frames · {FormatPosition(update.Position)}";
+            processingItem.Progress = update.Fraction;
+            processingItem.Detail = ProgressText;
         });
         try
         {
             _result = await _analysis.AnalyzeAsync(
-                _stagedPath,
-                SelectedFileName,
-                new VideoFrameSampling(SelectedSampling.Interval),
+                sourcePath,
+                displayName,
+                new VideoFrameSampling(sampling.Interval),
                 progress,
                 _runCancellation.Token);
             await _repository.SaveAsync(_result, _runCancellation.Token);
             _savedResults = [_result, .. _savedResults.Where(result => result.Id != _result.Id)];
-            RebuildSavedAnalyses();
+            _processingItem = null;
+            RebuildAnalyses();
             Progress = 1;
             ProgressText = "100% · processing complete";
-            ResultSummary = BuildResultSummary(_result);
-            StatusMessage = "Analysis saved. Open the timeline to review detections.";
-            OnPropertyChanged(nameof(HasResult));
-            OnPropertyChanged(nameof(HasReviewFrames));
+            StatusMessage = "Analysis saved. Select it below to review detections.";
         }
         catch (OperationCanceledException)
         {
             StatusMessage = "Processing cancelled. No analysis was saved.";
             ProgressText = "Cancelled";
+            _processingItem = null;
+            RebuildAnalyses();
         }
         catch (Exception exception)
         {
             StatusMessage = $"Video processing failed: {exception.Message}";
             ProgressText = "Processing failed";
+            _processingItem = null;
+            RebuildAnalyses();
         }
         finally
         {
@@ -209,20 +238,6 @@ internal sealed class AnalyzeViewModel : ViewModelBase
             IsProcessing = false;
             RefreshCommands();
         }
-    }
-
-    private async Task OpenReviewAsync()
-    {
-        if (!HasReviewFrames)
-        {
-            return;
-        }
-
-        PrepareReview();
-        _currentFrameIndex = FirstDetectionFrameIndex();
-        IsReviewing = true;
-        OnPropertyChanged(nameof(ShowSetup));
-        await LoadCurrentFrameAsync(_result!.Frames[_currentFrameIndex].Position);
     }
 
     private async Task PreviousFrameAsync()
@@ -242,7 +257,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         if (_result is null || _result.Frames.Count == 0) return;
         var position = TimeSpan.FromTicks(checked((long)(_result.Duration.Ticks * Math.Clamp(fraction, 0, 1))));
         _currentFrameIndex = FindClosestFrameIndex(position);
-        await LoadCurrentFrameAsync(position);
+        await LoadCurrentFrameAsync(_result.Frames[_currentFrameIndex].Position);
     }
 
     private async Task LoadCurrentFrameAsync(TimeSpan previewPosition)
@@ -306,7 +321,6 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     private void ClearResult()
     {
         _result = null;
-        ResultSummary = string.Empty;
         Progress = 0;
         ProgressText = string.Empty;
         CurrentPreview = null;
@@ -315,8 +329,6 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         DetectionMarkers = [];
         _previewCache.Clear();
         _previewCacheOrder.Clear();
-        OnPropertyChanged(nameof(HasResult));
-        OnPropertyChanged(nameof(HasReviewFrames));
         OnPropertyChanged(nameof(HasDetectedPlates));
         RefreshCommands();
     }
@@ -351,9 +363,13 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         OnPropertyChanged(nameof(HasDetectedPlates));
     }
 
-    private void RebuildSavedAnalyses()
+    private void RebuildAnalyses()
     {
-        SavedAnalyses.Clear();
+        Analyses.Clear();
+        if (_processingItem is not null)
+        {
+            Analyses.Add(_processingItem);
+        }
         foreach (var result in _savedResults)
         {
             var detectionCount = result.Frames.Sum(static frame => frame.Reads.Count);
@@ -361,24 +377,19 @@ internal sealed class AnalyzeViewModel : ViewModelBase
                 .Select(static confirmation => confirmation.NormalizedPlate)
                 .Distinct(StringComparer.Ordinal)
                 .Count();
-            SavedAnalyses.Add(new SavedAnalysisListItem(
+            Analyses.Add(new AnalysisListItem(
                 result.DisplayName,
                 $"{result.AnalyzedAt.LocalDateTime:g} · {FormatPosition(result.Duration)} · {detectionCount:N0} reads · {uniquePlateCount:N0} plates",
                 File.Exists(result.SourcePath) ? "Video available" : "Analysis only · source video unavailable",
+                false,
                 new Command(async () => await OpenSavedAnalysisAsync(result))));
         }
-        OnPropertyChanged(nameof(HasSavedAnalyses));
+        OnPropertyChanged(nameof(HasAnalyses));
     }
 
     private async Task OpenSavedAnalysisAsync(VideoAnalysisResult result)
     {
         _result = result;
-        _stagedPath = result.SourcePath;
-        SelectedFileName = result.DisplayName;
-        ResultSummary = BuildResultSummary(result);
-        OnPropertyChanged(nameof(HasSelectedFile));
-        OnPropertyChanged(nameof(HasResult));
-        OnPropertyChanged(nameof(HasReviewFrames));
         PrepareReview();
         _currentFrameIndex = FirstDetectionFrameIndex();
         IsReviewing = true;
@@ -391,15 +402,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     private int FindClosestFrameIndex(TimeSpan position)
     {
         var frames = _result?.Frames ?? [];
-        var low = 0;
-        var high = frames.Count - 1;
-        while (low < high)
-        {
-            var middle = (low + high) / 2;
-            if (frames[middle].Position < position) low = middle + 1;
-            else high = middle;
-        }
-        return low > 0 && position - frames[low - 1].Position <= frames[low].Position - position ? low - 1 : low;
+        return VideoFrameNavigation.FindClosestFrameIndex(frames, position);
     }
 
     private void AddPreviewToCache(long key, byte[] bytes)
@@ -415,17 +418,9 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     private void RefreshCommands()
     {
         _processCommand.RaiseCanExecuteChanged();
-        _openReviewCommand.RaiseCanExecuteChanged();
         _previousFrameCommand.RaiseCanExecuteChanged();
         _nextFrameCommand.RaiseCanExecuteChanged();
         _cancelCommand.ChangeCanExecute();
-    }
-
-    private static string BuildResultSummary(VideoAnalysisResult result)
-    {
-        var observationCount = result.Frames.Sum(static frame => frame.Reads.Count);
-        var confirmationCount = result.Frames.Sum(static frame => frame.Confirmations.Count);
-        return $"{result.Frames.Count:N0} frames reviewed · {observationCount:N0} plate reads · {confirmationCount:N0} confirmations";
     }
 
     private static string FormatPosition(TimeSpan position) => position.ToString(position.TotalHours >= 1 ? @"h\:mm\:ss\.fff" : @"m\:ss\.fff");

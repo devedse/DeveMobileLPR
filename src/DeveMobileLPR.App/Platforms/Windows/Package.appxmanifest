@@ -25,4 +25,7 @@
       </uap:VisualElements>
     </Application>
   </Applications>
+  <Capabilities>
+    <DeviceCapability Name="webcam" />
+  </Capabilities>
 </Package>

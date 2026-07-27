@@ -50,3 +50,25 @@ public sealed record VideoAnalysisResult(
     int SourceFrameCount,
     VideoFrameSampling Sampling,
     IReadOnlyList<AnalyzedVideoFrame> Frames);
+
+public static class VideoFrameNavigation
+{
+    public static int FindClosestFrameIndex(IReadOnlyList<AnalyzedVideoFrame> frames, TimeSpan position)
+    {
+        ArgumentNullException.ThrowIfNull(frames);
+        if (frames.Count == 0)
+        {
+            throw new ArgumentException("At least one analyzed frame is required.", nameof(frames));
+        }
+
+        var low = 0;
+        var high = frames.Count - 1;
+        while (low < high)
+        {
+            var middle = (low + high) / 2;
+            if (frames[middle].Position < position) low = middle + 1;
+            else high = middle;
+        }
+        return low > 0 && position - frames[low - 1].Position <= frames[low].Position - position ? low - 1 : low;
+    }
+}
