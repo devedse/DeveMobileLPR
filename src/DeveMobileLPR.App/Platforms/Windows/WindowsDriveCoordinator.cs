@@ -36,6 +36,8 @@ internal sealed class DriveCoordinator : IAsyncDisposable
     private Sighting? _mostExpensive;
     private IReadOnlyList<DriveOverlay> _overlays = [];
     private IReadOnlyList<CameraChoice> _cameraChoices = [];
+    private string? _cameraDiagnostic;
+    private bool _cameraHasError;
 
     public DriveCoordinator(SqliteSightingRepository repository, AppSettings settings, RdwDatabaseService rdw)
     {
@@ -85,7 +87,10 @@ internal sealed class DriveCoordinator : IAsyncDisposable
             {
                 _ready = true;
                 _initializing = false;
-                _status = _camera?.IsReady == true ? "Ready · Windows webcam available" : "Ready · waiting for a Windows webcam";
+                _status = _camera?.IsReady == true
+                    ? "Ready · Windows webcam available"
+                    : _cameraDiagnostic ?? "Ready · waiting for a Windows webcam";
+                _hasError = _camera?.IsReady != true && _cameraHasError;
             }
             Publish();
         }
@@ -309,7 +314,17 @@ internal sealed class DriveCoordinator : IAsyncDisposable
     }
 
     private void RecognitionFailed(object? sender, Exception exception) => SetStatus($"Recognition paused: {exception.Message}", true);
-    private void CameraDiagnostic(object? sender, string message) => SetStatus(message, message.StartsWith("Could not", StringComparison.Ordinal) || message.Contains("failed", StringComparison.OrdinalIgnoreCase));
+    private void CameraDiagnostic(object? sender, string message)
+    {
+        var error = message.StartsWith("Could not", StringComparison.Ordinal)
+            || message.Contains("failed", StringComparison.OrdinalIgnoreCase);
+        lock (_stateGate)
+        {
+            _cameraDiagnostic = message;
+            _cameraHasError = error;
+        }
+        SetStatus(message, error);
+    }
     private void CameraChoicesChanged(object? sender, IReadOnlyList<CameraChoice> choices)
     {
         lock (_stateGate) _cameraChoices = choices.ToArray();
