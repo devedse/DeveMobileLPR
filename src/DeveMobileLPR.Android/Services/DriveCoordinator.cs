@@ -499,7 +499,7 @@ internal sealed class DriveCoordinator : IAsyncDisposable
         }
         catch (Exception exception)
         {
-            global::Android.Util.Log.Warn("RoadLens.Haptics", $"Confirmation haptic failed: {exception}");
+            global::Android.Util.Log.Warn("DeveMobileLPR.Haptics", $"Confirmation haptic failed: {exception}");
         }
     }
 

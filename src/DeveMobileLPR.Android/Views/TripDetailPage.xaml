@@ -16,7 +16,12 @@
             <ActivityIndicator Grid.Column="2" IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}" VerticalOptions="Center" />
         </Grid>
 
-        <CollectionView Grid.Row="1" ItemsSource="{Binding Sightings}" SelectionMode="None">
+        <CollectionView
+            x:Name="VehiclesList"
+            Grid.Row="1"
+            ItemsSource="{Binding Vehicles}"
+            SelectionChanged="VehicleSelected"
+            SelectionMode="Single">
             <CollectionView.Header>
                 <VerticalStackLayout Style="{StaticResource DetailScrollContent}">
                     <Label Style="{StaticResource SecondaryText}" Text="{Binding Subtitle}" />
@@ -25,7 +30,7 @@
                         <Border Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding Duration}" /><Label Style="{StaticResource MetricLabel}" Text="Duration" /></VerticalStackLayout></Border>
                         <Border Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding Distance}" /><Label Style="{StaticResource MetricLabel}" Text="Distance" /></VerticalStackLayout></Border>
                         <Border Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding Unique}" /><Label Style="{StaticResource MetricLabel}" Text="Unique cars" /></VerticalStackLayout></Border>
-                        <Border Style="{StaticResource CompactHighlightCard}"><VerticalStackLayout Spacing="3"><Label FontAttributes="Bold" FontSize="22" Text="{Binding Highlight}" TextColor="{StaticResource PlateYellow}" /><Label FontSize="12" Text="Trip highlight" TextColor="{StaticResource HighlightText}" /></VerticalStackLayout></Border>
+                        <Border Style="{StaticResource CompactHighlightCard}"><VerticalStackLayout Spacing="3"><Label FontAttributes="Bold" FontSize="22" Text="{Binding Highlight}" TextColor="{DynamicResource ValueAccent}" /><Label FontSize="12" Text="Trip highlight" TextColor="{DynamicResource HighlightText}" /></VerticalStackLayout></Border>
                     </controls:ResponsiveGrid>
 
                     <Border Style="{StaticResource Card}">
@@ -43,12 +48,27 @@
                         </VerticalStackLayout>
                     </Border>
 
-                    <Label Style="{StaticResource SectionTitle}" Text="Vehicles on this drive" />
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                        <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                            <Label Style="{StaticResource SectionTitle}" Text="Vehicles on this drive" />
+                            <Label Style="{StaticResource MutedText}" Text="Tap a vehicle to see every earlier sighting and location." />
+                        </VerticalStackLayout>
+                        <Border Grid.Column="1" Style="{StaticResource InsetCard}">
+                            <Grid ColumnDefinitions="Auto,170" ColumnSpacing="10">
+                                <Label Style="{StaticResource FieldCaption}" Text="Sort" VerticalOptions="Center" />
+                                <Picker
+                                    Grid.Column="1"
+                                    ItemsSource="{Binding SortOptions}"
+                                    SelectedItem="{Binding SelectedSort}"
+                                    Title="Sort vehicles" />
+                            </Grid>
+                        </Border>
+                    </Grid>
                 </VerticalStackLayout>
             </CollectionView.Header>
             <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Vertical" ItemSpacing="10" /></CollectionView.ItemsLayout>
             <CollectionView.ItemTemplate>
-                <DataTemplate x:DataType="vm:SightingCardViewModel">
+                <DataTemplate x:DataType="vm:TripVehicleCardViewModel">
                     <Border Style="{StaticResource CompactCard}">
                         <controls:ResponsiveGrid ColumnSpacing="18" MaximumColumns="2" MinimumItemWidth="245" RowSpacing="10">
                             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
@@ -56,13 +76,15 @@
                                 <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
                                     <Label FontAttributes="Bold" Text="{Binding VehicleName}" />
                                     <Label Style="{StaticResource SettingDescription}" Text="{Binding Metadata}" />
+                                    <Label Style="{StaticResource MutedText}" Text="{Binding Seen}" />
                                     <Label Style="{StaticResource MutedText}" Text="{Binding Confidence}" />
                                 </VerticalStackLayout>
                             </Grid>
-                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalOptions="Center">
+                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12" VerticalOptions="Center">
                                 <VerticalStackLayout Spacing="2">
-                                    <Label FontAttributes="Bold" Text="{Binding Price}" TextColor="{StaticResource PlateYellow}" />
-                                    <Label Style="{StaticResource MutedText}" Text="{Binding Seen}" />
+                                    <Label FontAttributes="Bold" Text="{Binding Price}" TextColor="{DynamicResource ValueAccent}" />
+                                    <Label Style="{StaticResource SecondaryText}" Text="{Binding EarlierSightings}" />
+                                    <Label Style="{StaticResource MutedText}" Text="{Binding Encounters}" />
                                 </VerticalStackLayout>
                                 <Button
                                     Grid.Column="1"
@@ -71,6 +93,7 @@
                                     IsVisible="{Binding HasLocation}"
                                     Style="{StaticResource CompactSecondaryButton}"
                                     Text="Map" />
+                                <Label Grid.Column="2" FontSize="24" Text="›" TextColor="{DynamicResource TextMuted}" VerticalOptions="Center" />
                             </Grid>
                         </controls:ResponsiveGrid>
                     </Border>

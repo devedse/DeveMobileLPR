@@ -9,7 +9,7 @@ internal sealed class HistoryExportService(SqliteSightingRepository repository)
     public async Task<string> CreateCsvAsync(CancellationToken cancellationToken)
     {
         var sightings = await repository.GetAllSightingsAsync(cancellationToken);
-        var path = Path.Combine(FileSystem.CacheDirectory, $"roadlens-history-{DateTime.Now:yyyyMMdd-HHmmss}.csv");
+        var path = Path.Combine(FileSystem.CacheDirectory, $"devemobilelpr-history-{DateTime.Now:yyyyMMdd-HHmmss}.csv");
         var csv = new StringBuilder("trip_id,plate,first_seen,last_seen,confidence,reads,latitude,longitude,make,model,catalog_price,registration_year,fuel,body_type\r\n");
         foreach (var sighting in sightings)
         {

@@ -24,7 +24,7 @@ internal sealed record VehicleCardViewModel(
     string Metadata,
     string Price,
     string Seen,
-    string Trips,
+    string History,
     bool HasLocation);
 
 internal sealed class HistoryViewModel : ViewModelBase
@@ -56,10 +56,8 @@ internal sealed class HistoryViewModel : ViewModelBase
     public ICommand ShowVehiclesCommand { get; }
     public AsyncCommand RefreshCommand { get; }
     public bool IsBusy { get => _isBusy; private set => SetProperty(ref _isBusy, value); }
-    public bool ShowTrips { get => _showTrips; private set { if (SetProperty(ref _showTrips, value)) { OnPropertyChanged(nameof(ShowVehicles)); OnPropertyChanged(nameof(TripsTabColor)); OnPropertyChanged(nameof(VehiclesTabColor)); OnPropertyChanged(nameof(EmptyMessage)); } } }
+    public bool ShowTrips { get => _showTrips; private set { if (SetProperty(ref _showTrips, value)) { OnPropertyChanged(nameof(ShowVehicles)); OnPropertyChanged(nameof(EmptyMessage)); } } }
     public bool ShowVehicles => !ShowTrips;
-    public Color TripsTabColor => ShowTrips ? Color.FromArgb("#58E0C2") : Color.FromArgb("#202632");
-    public Color VehiclesTabColor => ShowVehicles ? Color.FromArgb("#58E0C2") : Color.FromArgb("#202632");
     public string EmptyMessage => ShowTrips ? "Your completed drives will appear here." : "Confirmed vehicles will appear here.";
     public bool HasTrips => Trips.Count > 0;
     public bool HasVehicles => Vehicles.Count > 0;
@@ -169,7 +167,7 @@ internal sealed class HistoryViewModel : ViewModelBase
                 string.IsNullOrWhiteSpace(metadata) ? "Import RDW for specifications" : metadata,
                 DisplayFormat.Price(vehicle.Vehicle?.CatalogPrice),
                 DisplayFormat.Relative(vehicle.LastSeenAt),
-                vehicle.TripCount == 1 ? "1 trip" : $"{vehicle.TripCount} trips",
+                $"{FormatCount(vehicle.SightingCount, "sighting")} · {FormatCount(vehicle.TripCount, "trip")}",
                 vehicle.LastLocation is not null));
         }
         NotifyEmptyStates();
@@ -182,4 +180,6 @@ internal sealed class HistoryViewModel : ViewModelBase
         OnPropertyChanged(nameof(ShowTripsEmpty));
         OnPropertyChanged(nameof(ShowVehiclesEmpty));
     }
+
+    private static string FormatCount(int count, string noun) => count == 1 ? $"1 {noun}" : $"{count} {noun}s";
 }

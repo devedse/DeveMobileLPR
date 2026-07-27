@@ -38,8 +38,8 @@
             </Border>
             <Border Style="{StaticResource CompactHighlightCard}">
                 <VerticalStackLayout Spacing="3">
-                    <Label FontAttributes="Bold" FontSize="25" Text="{Binding TodayTopValue}" TextColor="{StaticResource PlateYellow}" />
-                    <Label FontSize="12" Text="Most expensive today" TextColor="{StaticResource HighlightText}" />
+                    <Label FontAttributes="Bold" FontSize="25" Text="{Binding TodayTopValue}" TextColor="{DynamicResource ValueAccent}" />
+                    <Label FontSize="12" Text="Most expensive today" TextColor="{DynamicResource HighlightText}" />
                     <Border HorizontalOptions="Start" Style="{StaticResource SmallPlateBadge}">
                         <Label Style="{StaticResource SmallPlateBadgeText}" Text="{Binding TodayTopPlate}" />
                     </Border>
@@ -51,18 +51,32 @@
             <Grid RowDefinitions="Auto,Auto" RowSpacing="8">
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
                     <Button
-                        BackgroundColor="{Binding TripsTabColor}"
+                        BackgroundColor="{DynamicResource SurfaceRaised}"
                         Command="{Binding ShowTripsCommand}"
                         Style="{StaticResource CompactSecondaryButton}"
                         Text="Trips"
-                        TextColor="{StaticResource TextPrimary}" />
+                        TextColor="{DynamicResource TextPrimary}">
+                        <Button.Triggers>
+                            <DataTrigger Binding="{Binding ShowTrips}" TargetType="Button" Value="True">
+                                <Setter Property="BackgroundColor" Value="{DynamicResource Primary}" />
+                                <Setter Property="TextColor" Value="{DynamicResource OnPrimary}" />
+                            </DataTrigger>
+                        </Button.Triggers>
+                    </Button>
                     <Button
                         Grid.Column="1"
-                        BackgroundColor="{Binding VehiclesTabColor}"
+                        BackgroundColor="{DynamicResource SurfaceRaised}"
                         Command="{Binding ShowVehiclesCommand}"
                         Style="{StaticResource CompactSecondaryButton}"
                         Text="Vehicles"
-                        TextColor="{StaticResource TextPrimary}" />
+                        TextColor="{DynamicResource TextPrimary}">
+                        <Button.Triggers>
+                            <DataTrigger Binding="{Binding ShowVehicles}" TargetType="Button" Value="True">
+                                <Setter Property="BackgroundColor" Value="{DynamicResource Primary}" />
+                                <Setter Property="TextColor" Value="{DynamicResource OnPrimary}" />
+                            </DataTrigger>
+                        </Button.Triggers>
+                    </Button>
                 </Grid>
                 <SearchBar
                     Grid.Row="1"
@@ -92,10 +106,10 @@
                                         </Grid>
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalOptions="Center">
                                             <VerticalStackLayout Spacing="2">
-                                                <Label FontAttributes="Bold" Text="{Binding Highlight}" TextColor="{StaticResource PlateYellow}" />
+                                                <Label FontAttributes="Bold" Text="{Binding Highlight}" TextColor="{DynamicResource ValueAccent}" />
                                                 <Label Style="{StaticResource MutedText}" Text="{Binding HighlightPlate}" />
                                             </VerticalStackLayout>
-                                            <Label Grid.Column="1" FontSize="24" Text="›" TextColor="{StaticResource TextMuted}" VerticalOptions="Center" />
+                                            <Label Grid.Column="1" FontSize="24" Text="›" TextColor="{DynamicResource TextMuted}" VerticalOptions="Center" />
                                         </Grid>
                                     </controls:ResponsiveGrid>
                                 </Border>
@@ -110,25 +124,21 @@
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="vm:VehicleCardViewModel">
                                 <Border Style="{StaticResource CompactCard}">
-                                    <controls:ResponsiveGrid ColumnSpacing="20" MaximumColumns="2" MinimumItemWidth="245" RowSpacing="10">
-                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
-                                            <Border MinimumWidthRequest="112" Style="{StaticResource PlateBadge}">
-                                                <Label Style="{StaticResource PlateBadgeText}" Text="{Binding DisplayPlate}" />
-                                            </Border>
-                                            <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
-                                                <Label FontAttributes="Bold" FontSize="17" Text="{Binding VehicleName}" />
-                                                <Label Style="{StaticResource SecondaryText}" Text="{Binding Metadata}" />
-                                                <Label Style="{StaticResource MutedText}" Text="{Binding Seen}" />
-                                            </VerticalStackLayout>
-                                        </Grid>
-                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalOptions="Center">
-                                            <VerticalStackLayout Spacing="2">
-                                                <Label FontAttributes="Bold" Text="{Binding Price}" TextColor="{StaticResource PlateYellow}" />
-                                                <Label Style="{StaticResource MutedText}" Text="{Binding Trips}" />
-                                            </VerticalStackLayout>
-                                            <Label Grid.Column="1" FontSize="24" Text="›" TextColor="{StaticResource TextMuted}" VerticalOptions="Center" />
-                                        </Grid>
-                                    </controls:ResponsiveGrid>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
+                                        <Border MinimumWidthRequest="112" Style="{StaticResource PlateBadge}" VerticalOptions="Center">
+                                            <Label Style="{StaticResource PlateBadgeText}" Text="{Binding DisplayPlate}" />
+                                        </Border>
+                                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                            <Label FontAttributes="Bold" FontSize="17" LineBreakMode="TailTruncation" Text="{Binding VehicleName}" />
+                                            <Label LineBreakMode="TailTruncation" Style="{StaticResource SecondaryText}" Text="{Binding Metadata}" />
+                                            <Label Style="{StaticResource MutedText}" Text="{Binding Seen}" />
+                                            <Label Style="{StaticResource MutedText}" Text="{Binding History}" />
+                                        </VerticalStackLayout>
+                                        <VerticalStackLayout Grid.Column="2" HorizontalOptions="End" Spacing="4" VerticalOptions="Center">
+                                            <Label FontAttributes="Bold" HorizontalTextAlignment="End" Text="{Binding Price}" TextColor="{DynamicResource ValueAccent}" />
+                                            <Label FontSize="24" HorizontalTextAlignment="End" Text="›" TextColor="{DynamicResource TextMuted}" />
+                                        </VerticalStackLayout>
+                                    </Grid>
                                 </Border>
                             </DataTemplate>
                         </CollectionView.ItemTemplate>
@@ -136,12 +146,12 @@
                 </RefreshView>
 
                 <VerticalStackLayout HorizontalOptions="Center" IsVisible="{Binding ShowTripsEmpty}" Spacing="10" VerticalOptions="Center">
-                    <Label FontSize="44" HorizontalTextAlignment="Center" Text="◇" TextColor="{StaticResource Primary}" />
+                    <Label FontSize="44" HorizontalTextAlignment="Center" Text="◇" TextColor="{DynamicResource Primary}" />
                     <Label Style="{StaticResource SectionTitle}" Text="No drives yet" />
                     <Label HorizontalTextAlignment="Center" Style="{StaticResource SecondaryText}" Text="{Binding EmptyMessage}" />
                 </VerticalStackLayout>
                 <VerticalStackLayout HorizontalOptions="Center" IsVisible="{Binding ShowVehiclesEmpty}" Spacing="10" VerticalOptions="Center">
-                    <Label FontSize="44" HorizontalTextAlignment="Center" Text="▱" TextColor="{StaticResource PlateYellow}" />
+                    <Label FontSize="44" HorizontalTextAlignment="Center" Text="▱" TextColor="{DynamicResource ValueAccent}" />
                     <Label Style="{StaticResource SectionTitle}" Text="No vehicles found" />
                     <Label HorizontalTextAlignment="Center" Style="{StaticResource SecondaryText}" Text="{Binding EmptyMessage}" />
                 </VerticalStackLayout>

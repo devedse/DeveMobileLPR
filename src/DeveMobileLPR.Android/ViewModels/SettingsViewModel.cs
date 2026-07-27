@@ -32,7 +32,7 @@ internal sealed class SettingsViewModel : ViewModelBase
     public Color RdwColor => _rdw.IsInstalled ? Color.FromArgb("#58E0C2") : Color.FromArgb("#F5C542");
     public string HistoryDetail { get => _historyDetail; private set => SetProperty(ref _historyDetail, value); }
     public string PermissionsDetail { get => _permissionsDetail; private set => SetProperty(ref _permissionsDetail, value); }
-    public string Version => $"RoadLens {AppInfo.Current.VersionString} ({AppInfo.Current.BuildString})";
+    public string Version => $"DeveMobileLPR {AppInfo.Current.VersionString} ({AppInfo.Current.BuildString})";
 
     public bool TrackLocation
     {

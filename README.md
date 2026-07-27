@@ -1,6 +1,6 @@
 # DeveMobileLPR
 
-DeveMobileLPR (the app is presented as **RoadLens**) is an offline-first .NET MAUI Android license-plate recognition app written in C#. It is designed for a securely mounted phone looking through a car windscreen. Camera frames stay on the phone: the app stores confirmed plate text, trips, optional route points, and matched RDW vehicle facts, but does not store raw video or plate crops.
+DeveMobileLPR is an offline-first .NET MAUI Android license-plate recognition app written in C#. It is designed for a securely mounted phone looking through a car windscreen. Camera frames stay on the phone: the app stores confirmed plate text, trips, optional route points, and matched RDW vehicle facts, but does not store raw video or plate crops.
 
 The first implementation targets Android because direct CameraX access gives the required control over analysis resolution, YUV frames, zoom, and backpressure. The reusable recognition, inference, tracking, and SQLite layers target plain .NET.
 

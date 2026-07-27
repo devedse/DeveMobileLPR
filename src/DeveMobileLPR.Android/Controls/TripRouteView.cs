@@ -16,6 +16,20 @@ internal sealed class TripRouteView : GraphicsView
         HeightRequest = 230;
     }
 
+    protected override void OnParentSet()
+    {
+        if (Parent is null && Application.Current is { } oldApplication)
+        {
+            oldApplication.RequestedThemeChanged -= ThemeChanged;
+        }
+        base.OnParentSet();
+        if (Parent is not null && Application.Current is { } application)
+        {
+            application.RequestedThemeChanged -= ThemeChanged;
+            application.RequestedThemeChanged += ThemeChanged;
+        }
+    }
+
     public IReadOnlyList<TripPoint> Points
     {
         get => (IReadOnlyList<TripPoint>)GetValue(PointsProperty);
@@ -29,17 +43,19 @@ internal sealed class TripRouteView : GraphicsView
         view.Invalidate();
     }
 
+    private void ThemeChanged(object? sender, AppThemeChangedEventArgs args) => Dispatcher.Dispatch(Invalidate);
+
     private sealed class RouteDrawable : IDrawable
     {
         public IReadOnlyList<TripPoint> Points { get; set; } = [];
 
         public void Draw(ICanvas canvas, RectF dirtyRect)
         {
-            canvas.FillColor = Color.FromArgb("#10141A");
+            canvas.FillColor = ResolveColor("SurfaceRaised", "#202632");
             canvas.FillRoundedRectangle(dirtyRect, 20);
             if (Points.Count == 0)
             {
-                canvas.FontColor = Color.FromArgb("#747E8E");
+                canvas.FontColor = ResolveColor("TextMuted", "#747E8E");
                 canvas.FontSize = 14;
                 canvas.DrawString("No route points for this drive", dirtyRect, HorizontalAlignment.Center, VerticalAlignment.Center);
                 return;
@@ -64,18 +80,23 @@ internal sealed class TripRouteView : GraphicsView
                 var mapped = Map(point);
                 path.LineTo(mapped.X, mapped.Y);
             }
-            canvas.StrokeColor = Color.FromArgb("#58E0C2");
+            canvas.StrokeColor = ResolveColor("Primary", "#58E0C2");
             canvas.StrokeSize = 4;
             canvas.StrokeLineCap = LineCap.Round;
             canvas.DrawPath(path);
             var last = Map(Points[^1]);
-            canvas.FillColor = Color.FromArgb("#F5C542");
+            canvas.FillColor = ResolveColor("PlateYellow", "#F5C542");
             canvas.FillCircle(first, 7);
-            canvas.FillColor = Color.FromArgb("#58E0C2");
+            canvas.FillColor = ResolveColor("Primary", "#58E0C2");
             canvas.FillCircle(last, 8);
-            canvas.StrokeColor = Colors.White;
+            canvas.StrokeColor = ResolveColor("Surface", "#151922");
             canvas.StrokeSize = 2;
             canvas.DrawCircle(last, 8);
         }
+
+        private static Color ResolveColor(string key, string fallback) =>
+            Application.Current?.Resources.TryGetValue(key, out var value) == true && value is Color color
+                ? color
+                : Color.FromArgb(fallback);
     }
 }

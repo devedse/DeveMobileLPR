@@ -29,7 +29,7 @@ public partial class SettingsPage : ContentPage
     private async void ExportClicked(object? sender, EventArgs args)
     {
         var path = await _viewModel.CreateExportAsync();
-        await Share.Default.RequestAsync(new ShareFileRequest("RoadLens history export", new ShareFile(path)));
+        await Share.Default.RequestAsync(new ShareFileRequest("DeveMobileLPR history export", new ShareFile(path)));
     }
 
     private async void DeleteClicked(object? sender, EventArgs args)

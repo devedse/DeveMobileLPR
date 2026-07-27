@@ -1,6 +1,6 @@
-# RoadLens UI design system
+# DeveMobileLPR UI design system
 
-RoadLens uses a small application-level design system rather than styling each page independently. The MAUI equivalent of shared CSS lives in `Resources/Styles`: `Colors.xaml` owns semantic colors and `DesignSystem.xaml` owns spacing, typography, surfaces, controls, and purpose-specific variants. `App.xaml` merges both dictionaries once, so every page receives the same defaults.
+DeveMobileLPR uses a small application-level design system rather than styling each page independently. The MAUI equivalent of shared CSS lives in `Resources/Styles`: the light and dark color dictionaries own semantic colors, while `DesignSystem.xaml` owns spacing, typography, surfaces, controls, and purpose-specific variants. `App.xaml` loads the active palette alongside the shared design system.
 
 ## Rules for new UI
 

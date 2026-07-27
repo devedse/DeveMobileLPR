@@ -16,7 +16,7 @@
                         <Ellipse Fill="{Binding RdwColor}" HeightRequest="12" VerticalOptions="Center" WidthRequest="12" />
                         <VerticalStackLayout Grid.Column="1" Spacing="3">
                             <Label FontAttributes="Bold" FontSize="18" Text="{Binding RdwTitle}" />
-                            <Label FontSize="13" Text="{Binding RdwDetail}" TextColor="{StaticResource HighlightText}" />
+                            <Label FontSize="13" Text="{Binding RdwDetail}" TextColor="{DynamicResource HighlightText}" />
                         </VerticalStackLayout>
                     </Grid>
                     <Button

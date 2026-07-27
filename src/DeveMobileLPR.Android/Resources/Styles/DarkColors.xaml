@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <ResourceDictionary
+    x:Class="DeveMobileLPR.AndroidApp.Resources.Styles.DarkColors"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
     <Color x:Key="Background">#0B0D10</Color>
@@ -9,6 +10,7 @@
     <Color x:Key="Primary">#58E0C2</Color>
     <Color x:Key="PrimaryDark">#1A6659</Color>
     <Color x:Key="PlateYellow">#F5C542</Color>
+    <Color x:Key="ValueAccent">#F5C542</Color>
     <Color x:Key="TextPrimary">#F7F9FC</Color>
     <Color x:Key="TextSecondary">#AAB3C2</Color>
     <Color x:Key="TextMuted">#747E8E</Color>

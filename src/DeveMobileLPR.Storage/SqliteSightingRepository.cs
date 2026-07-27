@@ -215,6 +215,96 @@ public sealed class SqliteSightingRepository : ISightingRepository
     public Task<IReadOnlyList<Sighting>> GetSightingsForTripAsync(long tripId, CancellationToken cancellationToken) =>
         QuerySightingsAsync("SELECT * FROM sightings WHERE trip_id = @trip_id ORDER BY last_seen_at DESC;", command => command.Parameters.AddWithValue("@trip_id", tripId), cancellationToken);
 
+    public async Task<IReadOnlyList<TripVehicleSummary>> GetVehiclesForTripAsync(long tripId, CancellationToken cancellationToken)
+    {
+        await using var connection = _connections.Create();
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT
+                s.normalized_plate,
+                MAX(s.display_plate) AS display_plate,
+                MIN(s.first_seen_at) AS first_seen_at,
+                MAX(s.last_seen_at) AS last_seen_at,
+                MAX(s.confidence) AS confidence,
+                SUM(s.observation_count) AS observation_count,
+                COUNT(*) AS sighting_count,
+                (
+                    SELECT COUNT(*)
+                    FROM sightings earlier
+                    WHERE earlier.normalized_plate = s.normalized_plate
+                      AND earlier.last_seen_at < (SELECT started_at FROM trips WHERE id = @trip_id)
+                ) AS earlier_sighting_count,
+                MAX(s.make) AS make,
+                MAX(s.model) AS model,
+                MAX(s.catalog_price) AS catalog_price,
+                MAX(s.registration_year) AS registration_year,
+                MAX(s.fuel_description) AS fuel_description,
+                MAX(s.body_type) AS body_type,
+                (
+                    SELECT latitude
+                    FROM sightings latest
+                    WHERE latest.trip_id = @trip_id
+                      AND latest.normalized_plate = s.normalized_plate
+                      AND latest.latitude IS NOT NULL
+                    ORDER BY latest.last_seen_at DESC
+                    LIMIT 1
+                ) AS latitude,
+                (
+                    SELECT longitude
+                    FROM sightings latest
+                    WHERE latest.trip_id = @trip_id
+                      AND latest.normalized_plate = s.normalized_plate
+                      AND latest.latitude IS NOT NULL
+                    ORDER BY latest.last_seen_at DESC
+                    LIMIT 1
+                ) AS longitude,
+                (
+                    SELECT location_accuracy_meters
+                    FROM sightings latest
+                    WHERE latest.trip_id = @trip_id
+                      AND latest.normalized_plate = s.normalized_plate
+                      AND latest.latitude IS NOT NULL
+                    ORDER BY latest.last_seen_at DESC
+                    LIMIT 1
+                ) AS accuracy
+            FROM sightings s
+            WHERE s.trip_id = @trip_id
+            GROUP BY s.normalized_plate
+            ORDER BY first_seen_at;
+            """;
+        command.Parameters.AddWithValue("@trip_id", tripId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var results = new List<TripVehicleSummary>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var plate = reader.GetString(0);
+            var vehicle = reader.IsDBNull(8) && reader.IsDBNull(9) && reader.IsDBNull(10)
+                ? null
+                : new VehicleRecord(
+                    plate,
+                    GetNullableString(reader, 8),
+                    GetNullableString(reader, 9),
+                    GetNullableDecimal(reader, 10),
+                    GetNullableInt32(reader, 11),
+                    GetNullableString(reader, 12),
+                    GetNullableString(reader, 13));
+            results.Add(new TripVehicleSummary(
+                plate,
+                reader.GetString(1),
+                ParseTimestamp(reader.GetString(2)),
+                ParseTimestamp(reader.GetString(3)),
+                reader.GetFloat(4),
+                reader.GetInt32(5),
+                reader.GetInt32(6),
+                reader.GetInt32(7),
+                vehicle,
+                ReadLocation(reader, 14, 15, 16)));
+        }
+
+        return results;
+    }
+
     public async Task<IReadOnlyList<TripPoint>> GetTripPointsAsync(long tripId, CancellationToken cancellationToken)
     {
         await using var connection = _connections.Create();

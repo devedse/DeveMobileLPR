@@ -20,7 +20,7 @@ internal sealed record CameraChoice(string Id, string Name);
 
 internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnalyzer, IDisposable
 {
-    private const string LogTag = "RoadLens.Camera";
+    private const string LogTag = "DeveMobileLPR.Camera";
     private const int ZoomStateRetryCount = 8;
     private const long ZoomStateRetryDelayMilliseconds = 50;
     private static readonly global::Android.Util.Size RequestedAnalysisResolution = new(3840, 2160);

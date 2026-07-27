@@ -1,16 +1,19 @@
 using DeveMobileLPR.AndroidApp.ViewModels;
 using DeveMobileLPR.Recognition;
+using DeveMobileLPR.Storage;
 
 namespace DeveMobileLPR.AndroidApp.Views;
 
 public partial class TripDetailPage : ContentPage
 {
     private readonly TripDetailViewModel _viewModel;
+    private readonly SqliteSightingRepository _repository;
 
     internal TripDetailPage(HistoryViewModel history, long tripId)
     {
         InitializeComponent();
-        BindingContext = _viewModel = new TripDetailViewModel(history.Coordinator.Repository, tripId);
+        _repository = history.Coordinator.Repository;
+        BindingContext = _viewModel = new TripDetailViewModel(_repository, tripId);
     }
 
     protected override async void OnAppearing()
@@ -31,8 +34,25 @@ public partial class TripDetailPage : ContentPage
         if (sender is Button { CommandParameter: GeoPoint location }) await OpenMapAsync(location);
     }
 
-    private static Task OpenMapAsync(GeoPoint location) => Microsoft.Maui.ApplicationModel.Map.Default.OpenAsync(
-        location.Latitude,
-        location.Longitude,
-        new MapLaunchOptions { Name = "Vehicle sighting", NavigationMode = NavigationMode.None });
+    private async void VehicleSelected(object? sender, SelectionChangedEventArgs args)
+    {
+        if (args.CurrentSelection.FirstOrDefault() is not TripVehicleCardViewModel vehicle) return;
+        VehiclesList.SelectedItem = null;
+        await Navigation.PushAsync(new VehicleDetailPage(_repository, vehicle.NormalizedPlate));
+    }
+
+    private async Task OpenMapAsync(GeoPoint location)
+    {
+        try
+        {
+            await Microsoft.Maui.ApplicationModel.Map.Default.OpenAsync(
+                location.Latitude,
+                location.Longitude,
+                new MapLaunchOptions { Name = "Vehicle sighting", NavigationMode = NavigationMode.None });
+        }
+        catch (Exception)
+        {
+            await DisplayAlertAsync("Map unavailable", "Install or enable a maps application to open this sighting.", "OK");
+        }
+    }
 }

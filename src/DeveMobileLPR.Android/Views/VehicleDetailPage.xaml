@@ -29,19 +29,37 @@
                                 </VerticalStackLayout>
                             </Grid>
                             <VerticalStackLayout Spacing="3" VerticalOptions="Center">
-                                <Label FontAttributes="Bold" FontSize="25" Text="{Binding Price}" TextColor="{StaticResource PlateYellow}" />
+                                <Label FontAttributes="Bold" FontSize="25" Text="{Binding Price}" TextColor="{DynamicResource ValueAccent}" />
                                 <Label Style="{StaticResource SecondaryText}" Text="Original catalog price" />
                             </VerticalStackLayout>
                         </controls:ResponsiveGrid>
                     </Border>
 
-                    <controls:ResponsiveGrid ColumnSpacing="12" MaximumColumns="3" MinimumItemWidth="145" RowSpacing="12">
+                    <controls:ResponsiveGrid ColumnSpacing="12" MaximumColumns="4" MinimumItemWidth="145" RowSpacing="12">
                         <Border Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding Appearances}" /><Label Style="{StaticResource MetricLabel}" Text="Appearances" /></VerticalStackLayout></Border>
+                        <Border Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding Trips}" /><Label Style="{StaticResource MetricLabel}" Text="Trips" /></VerticalStackLayout></Border>
                         <Border Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label FontAttributes="Bold" FontSize="20" Text="{Binding FirstSeen}" /><Label Style="{StaticResource MetricLabel}" Text="First seen" /></VerticalStackLayout></Border>
                         <Border Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label FontAttributes="Bold" FontSize="20" Text="{Binding LastSeen}" /><Label Style="{StaticResource MetricLabel}" Text="Last seen" /></VerticalStackLayout></Border>
                     </controls:ResponsiveGrid>
 
-                    <Label Style="{StaticResource SectionTitle}" Text="Sightings" />
+                    <Border IsVisible="{Binding HasLocations}" Style="{StaticResource Card}">
+                        <VerticalStackLayout Style="{StaticResource CardContent}">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Style="{StaticResource SectionTitle}" Text="Where you saw it" />
+                                    <Label Style="{StaticResource SecondaryText}" Text="{Binding LocationSummary}" />
+                                </VerticalStackLayout>
+                                <Label Grid.Column="1" Style="{StaticResource MutedText}" Text="Older → latest" VerticalOptions="Center" />
+                            </Grid>
+                            <controls:VehicleSightingsView Sightings="{Binding LocationSightings}" />
+                            <Label Style="{StaticResource MutedText}" Text="Offline sighting trace · yellow is earlier, mint is latest. Open a row below for the exact map location." />
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <VerticalStackLayout Spacing="2">
+                        <Label Style="{StaticResource SectionTitle}" Text="Sighting timeline" />
+                        <Label Style="{StaticResource MutedText}" Text="Newest first" />
+                    </VerticalStackLayout>
                 </VerticalStackLayout>
             </CollectionView.Header>
             <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Vertical" ItemSpacing="10" /></CollectionView.ItemsLayout>
@@ -49,12 +67,18 @@
                 <DataTemplate x:DataType="vm:SightingCardViewModel">
                     <Border Style="{StaticResource CompactCard}">
                         <controls:ResponsiveGrid ColumnSpacing="18" MaximumColumns="2" MinimumItemWidth="220" RowSpacing="10">
-                            <VerticalStackLayout Spacing="2">
+                            <VerticalStackLayout Spacing="3">
+                                <Label Style="{StaticResource Eyebrow}" Text="{Binding Sequence}" />
                                 <Label FontAttributes="Bold" Text="{Binding Seen}" />
+                                <Label Style="{StaticResource MutedText}" Text="{Binding RelativeSeen}" />
+                                <Label Style="{StaticResource SecondaryText}" Text="{Binding Trip}" />
                                 <Label Style="{StaticResource MutedText}" Text="{Binding Confidence}" />
                             </VerticalStackLayout>
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalOptions="Center">
-                                <Label Text="{Binding Price}" TextColor="{StaticResource PlateYellow}" VerticalOptions="Center" />
+                                <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                                    <Label Style="{StaticResource FieldCaption}" Text="Location" />
+                                    <Label Style="{StaticResource SecondaryText}" Text="{Binding LocationLabel}" />
+                                </VerticalStackLayout>
                                 <Button
                                     Grid.Column="1"
                                     Clicked="OpenLocationClicked"

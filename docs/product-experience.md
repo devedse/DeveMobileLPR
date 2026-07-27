@@ -1,6 +1,6 @@
-# RoadLens product experience
+# DeveMobileLPR product experience
 
-RoadLens is a road journal, not a dashboard to operate while a vehicle is moving. Its two modes therefore have intentionally different information density:
+DeveMobileLPR is a road journal, not a dashboard to operate while a vehicle is moving. Its two modes therefore have intentionally different information density:
 
 - **Drive** is full-screen, glanceable, and has one dominant action: stop and save.
 - **Parked use** supports exploration: daily highlights, trips, vehicle search, route traces, RDW management, export, and deletion.

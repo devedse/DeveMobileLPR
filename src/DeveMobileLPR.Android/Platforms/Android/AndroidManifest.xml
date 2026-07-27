@@ -4,12 +4,13 @@
       android:allowBackup="false"
       android:icon="@mipmap/appicon"
       android:roundIcon="@mipmap/appicon_round"
-      android:label="RoadLens"
+      android:label="DeveMobileLPR"
       android:supportsRtl="true"
       android:usesCleartextTraffic="false" />
   <uses-permission android:name="android.permission.CAMERA" />
   <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
   <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+  <uses-permission android:name="android.permission.VIBRATE" />
   <uses-feature android:name="android.hardware.camera" android:required="true" />
   <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 </manifest>

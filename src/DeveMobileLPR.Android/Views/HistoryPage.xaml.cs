@@ -42,6 +42,6 @@ public partial class HistoryPage : ContentPage
     {
         if (args.CurrentSelection.FirstOrDefault() is not VehicleCardViewModel vehicle) return;
         VehiclesList.SelectedItem = null;
-        await Navigation.PushAsync(new VehicleDetailPage(_viewModel, vehicle.NormalizedPlate));
+        await Navigation.PushAsync(new VehicleDetailPage(_viewModel.Coordinator.Repository, vehicle.NormalizedPlate));
     }
 }

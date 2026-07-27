@@ -148,6 +148,29 @@ public sealed class SqliteSightingRepositoryTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task TripVehicles_GroupCurrentSightingsAndCountEarlierAppearances()
+    {
+        var now = new DateTimeOffset(2026, 7, 26, 8, 0, 0, TimeSpan.Zero);
+        var earlierTrip = await _repository.StartTripAsync(now, null, CancellationToken.None);
+        await _repository.AddOrMergeAsync(Confirmed("AB1234", now.AddMinutes(1), 3), new GeoPoint(52.1, 5.1, 4), null, earlierTrip.Id, CancellationToken.None);
+        await _repository.EndTripAsync(earlierTrip.Id, now.AddMinutes(2), null, CancellationToken.None);
+
+        var currentTrip = await _repository.StartTripAsync(now.AddHours(1), null, CancellationToken.None);
+        var vehicle = new VehicleRecord("AB1234", "Audi", "A6", 85_000m, 2024, "Benzine", "sedan");
+        await _repository.AddOrMergeAsync(Confirmed("AB1234", now.AddHours(1).AddMinutes(1), 3), new GeoPoint(52.2, 5.2, 3), vehicle, currentTrip.Id, CancellationToken.None);
+        await _repository.AddOrMergeAsync(Confirmed("AB1234", now.AddHours(1).AddMinutes(10), 4), new GeoPoint(52.3, 5.3, 2), vehicle, currentTrip.Id, CancellationToken.None);
+
+        var summary = Assert.Single(await _repository.GetVehiclesForTripAsync(currentTrip.Id, CancellationToken.None));
+
+        Assert.Equal("AB1234", summary.NormalizedPlate);
+        Assert.Equal(2, summary.SightingCount);
+        Assert.Equal(1, summary.EarlierSightingCount);
+        Assert.Equal(7, summary.ObservationCount);
+        Assert.Equal(85_000m, summary.Vehicle?.CatalogPrice);
+        Assert.Equal(52.3, summary.LastLocation?.Latitude);
+    }
+
+    [Fact]
     public async Task InitializeAsync_MigratesVersionOneSightingsWithoutDataLoss()
     {
         var legacyPath = Path.Combine(Path.GetTempPath(), $"DeveMobileLPR-legacy-{Guid.NewGuid():N}.sqlite");

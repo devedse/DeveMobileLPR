@@ -1,6 +1,6 @@
 # Architecture and engineering decisions
 
-The visual architecture, reusable components, and responsive-layout rules are documented in [RoadLens UI design system](ui-design-system.md).
+The visual architecture, reusable components, and responsive-layout rules are documented in [DeveMobileLPR UI design system](ui-design-system.md).
 
 ## Resolution before frame rate
 
