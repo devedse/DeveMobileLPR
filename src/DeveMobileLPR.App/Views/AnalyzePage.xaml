@@ -71,7 +71,7 @@
                     <VerticalStackLayout Spacing="2">
                         <Grid HeightRequest="34">
                             <controls:DetectionTimelineView Markers="{Binding DetectionMarkers}" VerticalOptions="Center" />
-                            <Slider DragCompleted="TimelineDragCompleted" Maximum="1" Minimum="0" Value="{Binding CurrentPositionFraction, Mode=OneWay}" />
+                            <controls:FrameSnapSlider DragCompleted="TimelineDragCompleted" Maximum="1" Minimum="0" SnapPoints="{Binding FramePositions}" Value="{Binding CurrentPositionFraction, Mode=OneWay}" />
                         </Grid>
                         <Grid ColumnDefinitions="Auto,*,Auto">
                             <Label Style="{StaticResource MutedText}" Text="0:00" />

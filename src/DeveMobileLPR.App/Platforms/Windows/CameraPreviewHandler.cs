@@ -12,6 +12,7 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, WinUIGri
 {
     private WindowsWebcamFrameSource? _source;
     private DriveCoordinator? _coordinator;
+    private WindowsDetectionOverlay? _overlay;
 
     public static readonly IPropertyMapper<CameraPreview, CameraPreviewHandler> Mapper =
         new PropertyMapper<CameraPreview, CameraPreviewHandler>(ViewHandler.ViewMapper);
@@ -34,11 +35,17 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, WinUIGri
             Stretch = Microsoft.UI.Xaml.Media.Stretch.UniformToFill
         };
         root.Children.Add(preview);
+        _overlay = new WindowsDetectionOverlay();
+        root.Children.Add(_overlay);
         _source = new WindowsWebcamFrameSource(preview, frame => _coordinator.SubmitFrame(frame));
         _coordinator.AttachCamera(_source);
+        _coordinator.SnapshotChanged += SnapshotChanged;
+        _overlay.Update(_coordinator.Snapshot);
         _ = InitializeSourceAsync(_source, settings.CameraId);
         return root;
     }
+
+    private void SnapshotChanged(object? sender, DriveSnapshot snapshot) => _overlay?.Update(snapshot);
 
     private static async Task InitializeSourceAsync(WindowsWebcamFrameSource source, string cameraId)
     {
@@ -54,12 +61,17 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, WinUIGri
 
     protected override void DisconnectHandler(WinUIGrid platformView)
     {
+        if (_coordinator is not null)
+        {
+            _coordinator.SnapshotChanged -= SnapshotChanged;
+        }
         if (_source is not null)
         {
             _coordinator?.DetachCamera(_source);
             _ = _source.DisposeAsync().AsTask();
             _source = null;
         }
+        _overlay = null;
         _coordinator = null;
         base.DisconnectHandler(platformView);
     }

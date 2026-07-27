@@ -64,6 +64,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     private string _currentFrameDetail = string.Empty;
     private double _currentPositionFraction;
     private IReadOnlyList<double> _detectionMarkers = [];
+    private IReadOnlyList<double> _framePositions = [];
     private bool _initialized;
 
     public AnalyzeViewModel(VideoAnalysisService analysis, JsonVideoAnalysisRepository repository)
@@ -119,6 +120,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     public string CurrentFrameDetail { get => _currentFrameDetail; private set => SetProperty(ref _currentFrameDetail, value); }
     public double CurrentPositionFraction { get => _currentPositionFraction; private set => SetProperty(ref _currentPositionFraction, value); }
     public IReadOnlyList<double> DetectionMarkers { get => _detectionMarkers; private set => SetProperty(ref _detectionMarkers, value); }
+    public IReadOnlyList<double> FramePositions { get => _framePositions; private set => SetProperty(ref _framePositions, value); }
 
     public FrameSamplingOption SelectedSampling
     {
@@ -327,6 +329,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         CurrentReads.Clear();
         DetectedPlates.Clear();
         DetectionMarkers = [];
+        FramePositions = [];
         _previewCache.Clear();
         _previewCacheOrder.Clear();
         OnPropertyChanged(nameof(HasDetectedPlates));
@@ -343,6 +346,9 @@ internal sealed class AnalyzeViewModel : ViewModelBase
             : _result.Frames.Where(static frame => frame.HasDetections)
                 .Select(frame => frame.Position.Ticks / (double)_result.Duration.Ticks)
                 .ToArray();
+        FramePositions = _result.Duration.Ticks == 0
+            ? [0]
+            : _result.Frames.Select(frame => frame.Position.Ticks / (double)_result.Duration.Ticks).ToArray();
         DetectedPlates.Clear();
         foreach (var plateGroup in _result.Frames
                      .SelectMany(frame => frame.Confirmations.Select(confirmation => (Frame: frame, Confirmation: confirmation)))
