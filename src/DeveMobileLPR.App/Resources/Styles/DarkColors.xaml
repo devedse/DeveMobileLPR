@@ -9,6 +9,7 @@
     <Color x:Key="SurfaceMuted">#2A303B</Color>
     <Color x:Key="Primary">#58E0C2</Color>
     <Color x:Key="PrimaryDark">#1A6659</Color>
+    <Color x:Key="AnalysisProgressFill">#4058E0C2</Color>
     <Color x:Key="PlateYellow">#F5C542</Color>
     <Color x:Key="ValueAccent">#F5C542</Color>
     <Color x:Key="TextPrimary">#F7F9FC</Color>

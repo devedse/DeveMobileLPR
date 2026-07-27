@@ -36,7 +36,7 @@
                                         <TapGestureRecognizer Command="{Binding OpenCommand}" />
                                     </Border.GestureRecognizers>
                                     <Grid RowDefinitions="Auto,Auto,Auto" Padding="2">
-                                        <ProgressBar Grid.RowSpan="3" HeightRequest="8" HorizontalOptions="Fill" InputTransparent="True" IsVisible="{Binding IsProcessing}" Opacity="0.22" Progress="{Binding Progress}" ProgressColor="{DynamicResource Primary}" ScaleY="10" VerticalOptions="Center" />
+                                        <controls:AnalysisProgressFillView FillColor="{DynamicResource AnalysisProgressFill}" Grid.RowSpan="3" IsVisible="{Binding IsProcessing}" Progress="{Binding Progress}" />
                                         <Label Style="{StaticResource SettingTitle}" Text="{Binding Title}" />
                                         <Label Grid.Row="1" Style="{StaticResource MutedText}" Text="{Binding Detail}" />
                                         <Label Grid.Row="2" Style="{StaticResource MutedText}" Text="{Binding SourceStatus}" />
