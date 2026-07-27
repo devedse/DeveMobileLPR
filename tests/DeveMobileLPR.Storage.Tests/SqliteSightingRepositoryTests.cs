@@ -138,13 +138,53 @@ public sealed class SqliteSightingRepositoryTests : IAsyncLifetime
         await _repository.AddOrMergeAsync(Confirmed("AB1234", now.AddHours(1), 3), null, null, secondTrip.Id, CancellationToken.None);
         await _repository.EndTripAsync(secondTrip.Id, now.AddHours(1).AddMinutes(1), null, CancellationToken.None);
 
-        var vehicle = Assert.Single(await _repository.GetVehicleHistoryAsync("AB-12-34", 100, CancellationToken.None));
+        var vehicle = Assert.Single(await _repository.GetVehicleHistoryAsync(
+            new VehicleHistoryQuery("AB-12-34", null, null, VehicleHistorySort.MostRecent, 100),
+            CancellationToken.None));
         Assert.Equal(2, vehicle.SightingCount);
         Assert.Equal(2, vehicle.TripCount);
 
         await _repository.DeleteHistoryAsync(CancellationToken.None);
         Assert.Empty(await _repository.GetTripsAsync(100, CancellationToken.None));
         Assert.Empty(await _repository.GetRecentAsync(100, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task VehicleHistory_AppliesCombinedFiltersAndSortsByValue()
+    {
+        var now = new DateTimeOffset(2026, 7, 27, 12, 0, 0, TimeSpan.Zero);
+        await _repository.AddOrMergeAsync(Confirmed("AB1234", now.AddDays(-2), 3), null, new VehicleRecord("AB1234", "Audi", "A6", 85_000m, 2024, null, null), null, CancellationToken.None);
+        await _repository.AddOrMergeAsync(Confirmed("CD5678", now.AddHours(-2), 3), null, new VehicleRecord("CD5678", "BMW", "M5", 160_000m, 2025, null, null), null, CancellationToken.None);
+        await _repository.AddOrMergeAsync(Confirmed("EF9012", now.AddHours(-1), 3), null, new VehicleRecord("EF9012", "Porsche", "911", 140_000m, 2025, null, null), null, CancellationToken.None);
+        await _repository.AddOrMergeAsync(Confirmed("GH3456", now.AddHours(-3), 3), null, null, null, CancellationToken.None);
+
+        var results = await _repository.GetVehicleHistoryAsync(
+            new VehicleHistoryQuery(null, now.AddDays(-1), 100_000m, VehicleHistorySort.HighestValue, 100),
+            CancellationToken.None);
+
+        Assert.Collection(
+            results,
+            vehicle => Assert.Equal("CD5678", vehicle.NormalizedPlate),
+            vehicle => Assert.Equal("EF9012", vehicle.NormalizedPlate));
+    }
+
+    [Fact]
+    public async Task VehicleHistory_SortsByRecentAndCombinesSearchWithFilters()
+    {
+        var now = new DateTimeOffset(2026, 7, 27, 12, 0, 0, TimeSpan.Zero);
+        await _repository.AddOrMergeAsync(Confirmed("AB1234", now.AddHours(-3), 3), null, new VehicleRecord("AB1234", "Audi", "A6", 85_000m, 2024, null, null), null, CancellationToken.None);
+        await _repository.AddOrMergeAsync(Confirmed("CD5678", now.AddHours(-1), 3), null, new VehicleRecord("CD5678", "Audi", "Q8", 125_000m, 2025, null, null), null, CancellationToken.None);
+        await _repository.AddOrMergeAsync(Confirmed("EF9012", now.AddHours(-2), 3), null, new VehicleRecord("EF9012", "BMW", "M5", 160_000m, 2025, null, null), null, CancellationToken.None);
+
+        var recent = await _repository.GetVehicleHistoryAsync(
+            new VehicleHistoryQuery(null, null, null, VehicleHistorySort.MostRecent, 100),
+            CancellationToken.None);
+        var filtered = await _repository.GetVehicleHistoryAsync(
+            new VehicleHistoryQuery("Audi", now.AddHours(-2), 100_000m, VehicleHistorySort.MostRecent, 100),
+            CancellationToken.None);
+
+        Assert.Equal(["CD5678", "EF9012", "AB1234"], recent.Select(vehicle => vehicle.NormalizedPlate));
+        Assert.Equal("CD5678", Assert.Single(filtered).NormalizedPlate);
     }
 
     [Fact]

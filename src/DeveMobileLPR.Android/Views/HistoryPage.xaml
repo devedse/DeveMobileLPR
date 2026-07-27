@@ -6,49 +6,30 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:controls="clr-namespace:DeveMobileLPR.AndroidApp.Controls"
     xmlns:vm="clr-namespace:DeveMobileLPR.AndroidApp.ViewModels">
-    <Grid RowDefinitions="Auto,Auto,*" Style="{StaticResource PageGrid}">
-        <Grid>
+    <ContentPage.Resources>
+        <ControlTemplate x:Key="HistoryHeaderTemplate">
+            <VerticalStackLayout Padding="0,0,0,12" Spacing="12">
             <controls:PageHeader Eyebrow="Your road journal" IsBusy="{Binding IsBusy}" Title="History" />
-            <Label x:Name="LandscapeSummary" HorizontalOptions="End" IsVisible="False" Style="{StaticResource SecondaryText}" VerticalOptions="Center">
-                <Label.Text>
-                    <MultiBinding StringFormat="{}{0} drives · {1} cars · {2}">
-                        <Binding Path="TodayTrips" />
-                        <Binding Path="TodayUnique" />
-                        <Binding Path="TodayDistance" />
-                    </MultiBinding>
-                </Label.Text>
-            </Label>
-        </Grid>
-
-        <controls:ResponsiveGrid
-            x:Name="HistoryMetrics"
-            Grid.Row="1"
-            ColumnSpacing="12"
-            MaximumColumns="4"
-            MinimumItemWidth="145"
-            RowSpacing="12">
-            <Border Style="{StaticResource CompactCard}">
-                <VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding TodayTrips}" /><Label Style="{StaticResource MetricLabel}" Text="Drives today" /></VerticalStackLayout>
-            </Border>
-            <Border Style="{StaticResource CompactCard}">
-                <VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding TodayUnique}" /><Label Style="{StaticResource MetricLabel}" Text="Unique cars" /></VerticalStackLayout>
-            </Border>
-            <Border Style="{StaticResource CompactCard}">
-                <VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding TodayDistance}" /><Label Style="{StaticResource MetricLabel}" Text="Route distance" /></VerticalStackLayout>
-            </Border>
-            <Border Style="{StaticResource CompactHighlightCard}">
-                <VerticalStackLayout Spacing="3">
-                    <Label FontAttributes="Bold" FontSize="25" Text="{Binding TodayTopValue}" TextColor="{DynamicResource ValueAccent}" />
-                    <Label FontSize="12" Text="Most expensive today" TextColor="{DynamicResource HighlightText}" />
-                    <Border HorizontalOptions="Start" Style="{StaticResource SmallPlateBadge}">
-                        <Label Style="{StaticResource SmallPlateBadgeText}" Text="{Binding TodayTopPlate}" />
+                <controls:ResponsiveGrid ColumnSpacing="12" MaximumColumns="4" MinimumItemWidth="145" RowSpacing="12">
+                    <Border Style="{StaticResource CompactCard}">
+                        <VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding TodayTrips}" /><Label Style="{StaticResource MetricLabel}" Text="Drives today" /></VerticalStackLayout>
                     </Border>
-                </VerticalStackLayout>
-            </Border>
-        </controls:ResponsiveGrid>
-
-        <Grid Grid.Row="2" RowDefinitions="Auto,*" RowSpacing="12">
-            <Grid RowDefinitions="Auto,Auto" RowSpacing="8">
+                    <Border Style="{StaticResource CompactCard}">
+                        <VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding TodayUnique}" /><Label Style="{StaticResource MetricLabel}" Text="Unique cars" /></VerticalStackLayout>
+                    </Border>
+                    <Border Style="{StaticResource CompactCard}">
+                        <VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding TodayDistance}" /><Label Style="{StaticResource MetricLabel}" Text="Route distance" /></VerticalStackLayout>
+                    </Border>
+                    <Border Style="{StaticResource CompactHighlightCard}">
+                        <VerticalStackLayout Spacing="3">
+                            <Label FontAttributes="Bold" FontSize="25" Text="{Binding TodayTopValue}" TextColor="{DynamicResource ValueAccent}" />
+                            <Label FontSize="12" Text="Most expensive today" TextColor="{DynamicResource HighlightText}" />
+                            <Border HorizontalOptions="Start" Style="{StaticResource SmallPlateBadge}">
+                                <Label Style="{StaticResource SmallPlateBadgeText}" Text="{Binding TodayTopPlate}" />
+                            </Border>
+                        </VerticalStackLayout>
+                    </Border>
+                </controls:ResponsiveGrid>
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
                     <Button
                         BackgroundColor="{DynamicResource SurfaceRaised}"
@@ -78,16 +59,16 @@
                         </Button.Triggers>
                     </Button>
                 </Grid>
-                <SearchBar
-                    Grid.Row="1"
-                    IsVisible="{Binding ShowVehicles}"
-                    Placeholder="Search plate, make, or model"
-                    Text="{Binding SearchText}" />
-            </Grid>
+            </VerticalStackLayout>
+        </ControlTemplate>
+    </ContentPage.Resources>
 
-            <Grid Grid.Row="1">
+    <Grid Style="{StaticResource PageGrid}">
                 <RefreshView Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsBusy}" IsVisible="{Binding ShowTrips}">
                     <CollectionView x:Name="TripsList" ItemsSource="{Binding Trips}" SelectionChanged="TripSelected" SelectionMode="Single">
+                        <CollectionView.Header>
+                            <ContentView ControlTemplate="{StaticResource HistoryHeaderTemplate}" />
+                        </CollectionView.Header>
                         <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Vertical" ItemSpacing="10" /></CollectionView.ItemsLayout>
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="vm:TripCardViewModel">
@@ -120,6 +101,26 @@
 
                 <RefreshView Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsBusy}" IsVisible="{Binding ShowVehicles}">
                     <CollectionView x:Name="VehiclesList" ItemsSource="{Binding Vehicles}" SelectionChanged="VehicleSelected" SelectionMode="Single">
+                        <CollectionView.Header>
+                            <VerticalStackLayout Spacing="10">
+                                <ContentView ControlTemplate="{StaticResource HistoryHeaderTemplate}" />
+                                <SearchBar Placeholder="Search plate, make, or model" Text="{Binding SearchText}" />
+                                <controls:ResponsiveGrid ColumnSpacing="10" MaximumColumns="3" MinimumItemWidth="145" RowSpacing="8">
+                                    <VerticalStackLayout Spacing="3">
+                                        <Label Style="{StaticResource MutedText}" Text="SEEN WITHIN" />
+                                        <Picker ItemsSource="{Binding PeriodOptions}" SelectedItem="{Binding SelectedPeriod}" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Spacing="3">
+                                        <Label Style="{StaticResource MutedText}" Text="VALUE" />
+                                        <Picker ItemsSource="{Binding MinimumValueOptions}" SelectedItem="{Binding SelectedMinimumValue}" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Spacing="3">
+                                        <Label Style="{StaticResource MutedText}" Text="SORT BY" />
+                                        <Picker ItemsSource="{Binding VehicleSortOptions}" SelectedItem="{Binding SelectedVehicleSort}" />
+                                    </VerticalStackLayout>
+                                </controls:ResponsiveGrid>
+                            </VerticalStackLayout>
+                        </CollectionView.Header>
                         <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Vertical" ItemSpacing="10" /></CollectionView.ItemsLayout>
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="vm:VehicleCardViewModel">
@@ -154,8 +155,7 @@
                     <Label FontSize="44" HorizontalTextAlignment="Center" Text="▱" TextColor="{DynamicResource ValueAccent}" />
                     <Label Style="{StaticResource SectionTitle}" Text="No vehicles found" />
                     <Label HorizontalTextAlignment="Center" Style="{StaticResource SecondaryText}" Text="{Binding EmptyMessage}" />
+                    <Button Command="{Binding ResetVehicleFiltersCommand}" Style="{StaticResource CompactSecondaryButton}" Text="Reset filters" />
                 </VerticalStackLayout>
-            </Grid>
-        </Grid>
     </Grid>
 </ContentPage>

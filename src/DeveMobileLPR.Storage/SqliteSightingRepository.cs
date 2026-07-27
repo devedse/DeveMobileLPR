@@ -326,9 +326,9 @@ public sealed class SqliteSightingRepository : ISightingRepository
         return results;
     }
 
-    public async Task<IReadOnlyList<VehicleHistorySummary>> GetVehicleHistoryAsync(string? search, int limit, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<VehicleHistorySummary>> GetVehicleHistoryAsync(VehicleHistoryQuery query, CancellationToken cancellationToken)
     {
-        var normalizedSearch = string.IsNullOrWhiteSpace(search) ? null : PlateText.Normalize(search);
+        var normalizedSearch = string.IsNullOrWhiteSpace(query.Search) ? null : PlateText.Normalize(query.Search);
         await using var connection = _connections.Create();
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = connection.CreateCommand();
@@ -352,12 +352,19 @@ public sealed class SqliteSightingRepository : ISightingRepository
             FROM sightings
             WHERE @search IS NULL OR normalized_plate LIKE '%' || @search || '%' OR make LIKE '%' || @raw_search || '%' OR model LIKE '%' || @raw_search || '%'
             GROUP BY normalized_plate
-            ORDER BY last_seen_at DESC
+            HAVING (@seen_since IS NULL OR MAX(last_seen_at) >= @seen_since)
+                AND (@minimum_price IS NULL OR MAX(catalog_price) > @minimum_price)
+            ORDER BY
+                CASE WHEN @sort = 1 THEN MAX(catalog_price) END DESC,
+                MAX(last_seen_at) DESC
             LIMIT @limit;
             """;
         command.Parameters.AddWithValue("@search", DbValue(normalizedSearch));
-        command.Parameters.AddWithValue("@raw_search", DbValue(string.IsNullOrWhiteSpace(search) ? null : search.Trim()));
-        command.Parameters.AddWithValue("@limit", Math.Clamp(limit, 1, 1000));
+        command.Parameters.AddWithValue("@raw_search", DbValue(string.IsNullOrWhiteSpace(query.Search) ? null : query.Search.Trim()));
+        command.Parameters.AddWithValue("@seen_since", DbValue(query.SeenSince is null ? null : Timestamp(query.SeenSince.Value)));
+        command.Parameters.AddWithValue("@minimum_price", query.MinimumCatalogPrice is null ? DBNull.Value : decimal.ToDouble(query.MinimumCatalogPrice.Value));
+        command.Parameters.AddWithValue("@sort", (int)query.Sort);
+        command.Parameters.AddWithValue("@limit", Math.Clamp(query.Limit, 1, 1000));
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         var results = new List<VehicleHistorySummary>();
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))

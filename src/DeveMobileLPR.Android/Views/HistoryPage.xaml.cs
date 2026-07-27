@@ -10,19 +10,6 @@ public partial class HistoryPage : ContentPage
     {
         InitializeComponent();
         BindingContext = _viewModel = viewModel;
-        SizeChanged += PageSizeChanged;
-    }
-
-    private void PageSizeChanged(object? sender, EventArgs args)
-    {
-        if (Width <= 0 || Height <= 0)
-        {
-            return;
-        }
-
-        var compactLandscape = Width > Height;
-        HistoryMetrics.IsVisible = !compactLandscape;
-        LandscapeSummary.IsVisible = compactLandscape;
     }
 
     protected override async void OnAppearing()

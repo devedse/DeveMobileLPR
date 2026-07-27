@@ -29,6 +29,9 @@ internal sealed record VehicleCardViewModel(
 
 internal sealed class HistoryViewModel : ViewModelBase
 {
+    private const string AllTime = "All time";
+    private const string AnyValue = "Any value";
+    private const string MostRecent = "Most recent";
     private readonly DriveCoordinator _coordinator;
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private bool _isBusy;
@@ -39,6 +42,9 @@ internal sealed class HistoryViewModel : ViewModelBase
     private string _todayDistance = "0 km";
     private string _todayTopValue = "—";
     private string _todayTopPlate = "No valued car yet";
+    private string _selectedPeriod = AllTime;
+    private string _selectedMinimumValue = AnyValue;
+    private string _selectedVehicleSort = MostRecent;
     private CancellationTokenSource? _searchCancellation;
 
     public HistoryViewModel(DriveCoordinator coordinator)
@@ -46,6 +52,7 @@ internal sealed class HistoryViewModel : ViewModelBase
         _coordinator = coordinator;
         ShowTripsCommand = new Command(() => ShowTrips = true);
         ShowVehiclesCommand = new Command(() => ShowTrips = false);
+        ResetVehicleFiltersCommand = new Command(ResetVehicleFilters);
         RefreshCommand = new AsyncCommand(LoadAsync);
     }
 
@@ -54,11 +61,15 @@ internal sealed class HistoryViewModel : ViewModelBase
     public ObservableCollection<VehicleCardViewModel> Vehicles { get; } = [];
     public ICommand ShowTripsCommand { get; }
     public ICommand ShowVehiclesCommand { get; }
+    public ICommand ResetVehicleFiltersCommand { get; }
     public AsyncCommand RefreshCommand { get; }
+    public IReadOnlyList<string> PeriodOptions { get; } = ["Last 24 hours", "Last 7 days", "Last 30 days", "Last 90 days", AllTime];
+    public IReadOnlyList<string> MinimumValueOptions { get; } = [AnyValue, "Over €50k", "Over €100k", "Over €300k", "Over €500k", "Over €1m"];
+    public IReadOnlyList<string> VehicleSortOptions { get; } = [MostRecent, "Highest value"];
     public bool IsBusy { get => _isBusy; private set => SetProperty(ref _isBusy, value); }
     public bool ShowTrips { get => _showTrips; private set { if (SetProperty(ref _showTrips, value)) { OnPropertyChanged(nameof(ShowVehicles)); OnPropertyChanged(nameof(EmptyMessage)); } } }
     public bool ShowVehicles => !ShowTrips;
-    public string EmptyMessage => ShowTrips ? "Your completed drives will appear here." : "Confirmed vehicles will appear here.";
+    public string EmptyMessage => ShowTrips ? "Your completed drives will appear here." : "No confirmed vehicles match the current search and filters.";
     public bool HasTrips => Trips.Count > 0;
     public bool HasVehicles => Vehicles.Count > 0;
     public bool ShowTripsEmpty => ShowTrips && !HasTrips && !IsBusy;
@@ -69,6 +80,24 @@ internal sealed class HistoryViewModel : ViewModelBase
     public string TodayTopValue { get => _todayTopValue; private set => SetProperty(ref _todayTopValue, value); }
     public string TodayTopPlate { get => _todayTopPlate; private set => SetProperty(ref _todayTopPlate, value); }
 
+    public string SelectedPeriod
+    {
+        get => _selectedPeriod;
+        set { if (SetProperty(ref _selectedPeriod, value)) _ = ReloadVehiclesAfterDelayAsync(); }
+    }
+
+    public string SelectedMinimumValue
+    {
+        get => _selectedMinimumValue;
+        set { if (SetProperty(ref _selectedMinimumValue, value)) _ = ReloadVehiclesAfterDelayAsync(); }
+    }
+
+    public string SelectedVehicleSort
+    {
+        get => _selectedVehicleSort;
+        set { if (SetProperty(ref _selectedVehicleSort, value)) _ = ReloadVehiclesAfterDelayAsync(); }
+    }
+
     public string SearchText
     {
         get => _searchText;
@@ -76,7 +105,7 @@ internal sealed class HistoryViewModel : ViewModelBase
         {
             if (SetProperty(ref _searchText, value))
             {
-                _ = SearchAfterDelayAsync();
+                _ = ReloadVehiclesAfterDelayAsync();
             }
         }
     }
@@ -93,7 +122,7 @@ internal sealed class HistoryViewModel : ViewModelBase
             var localStart = new DateTimeOffset(DateTime.Today, TimeZoneInfo.Local.GetUtcOffset(DateTime.Today));
             var todayTask = repository.GetStatisticsAsync(localStart.ToUniversalTime(), localStart.AddDays(1).ToUniversalTime(), CancellationToken.None);
             var tripsTask = repository.GetTripsAsync(250, CancellationToken.None);
-            var vehiclesTask = repository.GetVehicleHistoryAsync(SearchText, 500, CancellationToken.None);
+            var vehiclesTask = repository.GetVehicleHistoryAsync(CreateVehicleQuery(), CancellationToken.None);
             await Task.WhenAll(todayTask, tripsTask, vehiclesTask);
 
             var today = todayTask.Result;
@@ -128,7 +157,7 @@ internal sealed class HistoryViewModel : ViewModelBase
         }
     }
 
-    private async Task SearchAfterDelayAsync()
+    private async Task ReloadVehiclesAfterDelayAsync()
     {
         _searchCancellation?.Cancel();
         _searchCancellation?.Dispose();
@@ -137,7 +166,7 @@ internal sealed class HistoryViewModel : ViewModelBase
         try
         {
             await Task.Delay(250, token);
-            var results = await _coordinator.Repository.GetVehicleHistoryAsync(SearchText, 500, token);
+            var results = await _coordinator.Repository.GetVehicleHistoryAsync(CreateVehicleQuery(), token);
             if (!token.IsCancellationRequested)
             {
                 ReplaceVehicles(results);
@@ -146,6 +175,37 @@ internal sealed class HistoryViewModel : ViewModelBase
         catch (OperationCanceledException)
         {
         }
+    }
+
+    private VehicleHistoryQuery CreateVehicleQuery()
+    {
+        var seenSince = SelectedPeriod switch
+        {
+            "Last 24 hours" => DateTimeOffset.UtcNow.AddDays(-1),
+            "Last 7 days" => DateTimeOffset.UtcNow.AddDays(-7),
+            "Last 30 days" => DateTimeOffset.UtcNow.AddDays(-30),
+            "Last 90 days" => DateTimeOffset.UtcNow.AddDays(-90),
+            _ => (DateTimeOffset?)null
+        };
+        var minimumValue = SelectedMinimumValue switch
+        {
+            "Over €50k" => 50_000m,
+            "Over €100k" => 100_000m,
+            "Over €300k" => 300_000m,
+            "Over €500k" => 500_000m,
+            "Over €1m" => 1_000_000m,
+            _ => (decimal?)null
+        };
+        var sort = SelectedVehicleSort == "Highest value" ? VehicleHistorySort.HighestValue : VehicleHistorySort.MostRecent;
+        return new VehicleHistoryQuery(SearchText, seenSince, minimumValue, sort, 500);
+    }
+
+    private void ResetVehicleFilters()
+    {
+        SearchText = string.Empty;
+        SelectedPeriod = AllTime;
+        SelectedMinimumValue = AnyValue;
+        SelectedVehicleSort = MostRecent;
     }
 
     private void ReplaceVehicles(IReadOnlyList<VehicleHistorySummary> results)

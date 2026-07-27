@@ -104,6 +104,19 @@ public sealed record VehicleHistorySummary(
     VehicleRecord? Vehicle,
     GeoPoint? LastLocation);
 
+public enum VehicleHistorySort
+{
+    MostRecent,
+    HighestValue
+}
+
+public sealed record VehicleHistoryQuery(
+    string? Search,
+    DateTimeOffset? SeenSince,
+    decimal? MinimumCatalogPrice,
+    VehicleHistorySort Sort,
+    int Limit);
+
 public sealed record TripVehicleSummary(
     string NormalizedPlate,
     string DisplayPlate,
@@ -160,7 +173,7 @@ public interface ISightingRepository
     Task<IReadOnlyList<Sighting>> GetSightingsForTripAsync(long tripId, CancellationToken cancellationToken);
     Task<IReadOnlyList<TripVehicleSummary>> GetVehiclesForTripAsync(long tripId, CancellationToken cancellationToken);
     Task<IReadOnlyList<TripPoint>> GetTripPointsAsync(long tripId, CancellationToken cancellationToken);
-    Task<IReadOnlyList<VehicleHistorySummary>> GetVehicleHistoryAsync(string? search, int limit, CancellationToken cancellationToken);
+    Task<IReadOnlyList<VehicleHistorySummary>> GetVehicleHistoryAsync(VehicleHistoryQuery query, CancellationToken cancellationToken);
     Task<HistoryStatistics> GetStatisticsAsync(DateTimeOffset from, DateTimeOffset until, CancellationToken cancellationToken);
     Task<IReadOnlyList<Sighting>> GetRecentAsync(int limit, CancellationToken cancellationToken);
     Task<IReadOnlyList<Sighting>> GetAllSightingsAsync(CancellationToken cancellationToken);
