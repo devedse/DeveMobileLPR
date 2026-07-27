@@ -16,9 +16,23 @@ $testProjects = @(
     (Join-Path $root 'tests\DeveMobileLPR.RdwDownloader.Tests\DeveMobileLPR.RdwDownloader.Tests.csproj')
 )
 
+$requiredWorkloads = @('maui-windows')
+if (-not $SkipAndroid) {
+    $requiredWorkloads += 'maui-android'
+}
+$installedWorkloads = dotnet workload list
+$missingWorkloads = @()
+foreach ($workload in $requiredWorkloads) {
+    if (-not ($installedWorkloads -match "^\s*$([regex]::Escape($workload))\s")) {
+        $missingWorkloads += $workload
+    }
+}
+if ($missingWorkloads.Count -ne 0) {
+    throw "Missing .NET workload(s): $($missingWorkloads -join ', '). Install them once from an elevated terminal: dotnet workload install $($missingWorkloads -join ' ')"
+}
+
 if ($SkipAndroid) {
     $windowsProject = Join-Path $root 'src\DeveMobileLPR.App\DeveMobileLPR.App.csproj'
-    dotnet workload install maui-android maui-windows --skip-manifest-update
     dotnet restore (Join-Path $root 'DeveMobileLPR.slnx') --locked-mode
     dotnet build $windowsProject --framework net10.0-windows10.0.19041.0 --configuration $Configuration --runtime win-x64 --no-restore
     foreach ($project in $testProjects) {
@@ -27,7 +41,6 @@ if ($SkipAndroid) {
     }
 }
 else {
-    dotnet workload install maui-android maui-windows --skip-manifest-update
     dotnet restore (Join-Path $root 'DeveMobileLPR.slnx') --locked-mode
     dotnet build (Join-Path $root 'DeveMobileLPR.slnx') --configuration $Configuration --no-restore
 }

@@ -23,12 +23,6 @@ public partial class AnalyzePage : ContentPage
         await _viewModel.InitializeAsync();
     }
 
-    protected override void OnDisappearing()
-    {
-        _viewModel.CloseReview();
-        base.OnDisappearing();
-    }
-
     private async void SelectVideoClicked(object? sender, EventArgs args)
     {
         var file = await FilePicker.Default.PickAsync(new PickOptions

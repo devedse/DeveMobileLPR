@@ -74,9 +74,29 @@ internal sealed class HistoryViewModel : ViewModelBase
     public IReadOnlyList<string> PeriodOptions { get; } = ["Last 24 hours", "Last 7 days", "Last 30 days", "Last 90 days", AllTime];
     public IReadOnlyList<string> MinimumValueOptions { get; } = [AnyValue, "Over €50k", "Over €100k", "Over €300k", "Over €500k", "Over €1m"];
     public IReadOnlyList<string> VehicleSortOptions { get; } = [MostRecent, "Highest value"];
-    public bool IsBusy { get => _isBusy; private set => SetProperty(ref _isBusy, value); }
-    public bool ShowTrips { get => _showTrips; private set { if (SetProperty(ref _showTrips, value)) OnPropertyChanged(nameof(ShowVehicles)); } }
+    public bool IsBusy
+    {
+        get => _isBusy;
+        private set
+        {
+            if (SetProperty(ref _isBusy, value)) NotifyEmptyStates();
+        }
+    }
+    public bool ShowTrips
+    {
+        get => _showTrips;
+        private set
+        {
+            if (SetProperty(ref _showTrips, value))
+            {
+                OnPropertyChanged(nameof(ShowVehicles));
+                NotifyEmptyStates();
+            }
+        }
+    }
     public bool ShowVehicles => !ShowTrips;
+    public bool ShowTripsEmpty => ShowTrips && !IsBusy && Trips.Count == 0;
+    public bool ShowVehiclesEmpty => ShowVehicles && !IsBusy && Vehicles.Count == 0;
     public string TodayTrips { get => _todayTrips; private set => SetProperty(ref _todayTrips, value); }
     public string TodayUnique { get => _todayUnique; private set => SetProperty(ref _todayUnique, value); }
     public string TodayDistance { get => _todayDistance; private set => SetProperty(ref _todayDistance, value); }
@@ -140,6 +160,7 @@ internal sealed class HistoryViewModel : ViewModelBase
 
             ReplaceVehicles(vehiclesTask.Result);
             SetHasMoreVehicles(vehiclesTask.Result.Count == PageSize);
+            NotifyEmptyStates();
         }
         finally
         {
@@ -261,6 +282,7 @@ internal sealed class HistoryViewModel : ViewModelBase
     {
         Vehicles.Clear();
         AppendVehicles(results);
+        NotifyEmptyStates();
     }
 
     private void AppendVehicles(IEnumerable<VehicleHistorySummary> results)
@@ -287,4 +309,10 @@ internal sealed class HistoryViewModel : ViewModelBase
     }
 
     private static string FormatCount(int count, string noun) => count == 1 ? $"1 {noun}" : $"{count} {noun}s";
+
+    private void NotifyEmptyStates()
+    {
+        OnPropertyChanged(nameof(ShowTripsEmpty));
+        OnPropertyChanged(nameof(ShowVehiclesEmpty));
+    }
 }
