@@ -1,3 +1,4 @@
+using DeveMobileLPR.Geometry;
 using DeveMobileLPR.Recognition;
 using DeveMobileLPR.Storage;
 
@@ -22,6 +23,10 @@ public sealed class JsonVideoAnalysisRepositoryTests : IDisposable
         var frame = Assert.Single(results[0].Frames);
         Assert.Equal("AB1234", Assert.Single(frame.Reads).Text);
         Assert.Equal("AB-12-34", Assert.Single(frame.Confirmations).DisplayPlate);
+        Assert.Equal(1280, frame.SourceWidth);
+        Assert.Equal(720, frame.SourceHeight);
+        Assert.Equal(new BoundingBox(100, 200, 300, 260), Assert.Single(frame.Reads).Bounds);
+        Assert.Equal(new BoundingBox(105, 202, 298, 258), Assert.Single(frame.Confirmations).Bounds);
         var json = await File.ReadAllTextAsync(Assert.Single(Directory.GetFiles(_directory, $"{newer.Id:N}.json")));
         Assert.DoesNotContain("preview", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("image", json, StringComparison.OrdinalIgnoreCase);
@@ -39,6 +44,21 @@ public sealed class JsonVideoAnalysisRepositoryTests : IDisposable
         var result = Assert.Single(await repository.LoadAllAsync(CancellationToken.None));
 
         Assert.Equal(valid.Id, result.Id);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_RemovesOnlySelectedAnalysis()
+    {
+        var repository = new JsonVideoAnalysisRepository(_directory);
+        var retained = CreateResult(DateTimeOffset.UtcNow, "retained.mp4");
+        var deleted = CreateResult(DateTimeOffset.UtcNow, "deleted.mp4");
+        await repository.SaveAsync(retained, CancellationToken.None);
+        await repository.SaveAsync(deleted, CancellationToken.None);
+
+        await repository.DeleteAsync(deleted.Id, CancellationToken.None);
+
+        var result = Assert.Single(await repository.LoadAllAsync(CancellationToken.None));
+        Assert.Equal(retained.Id, result.Id);
     }
 
     public void Dispose()
@@ -62,7 +82,9 @@ public sealed class JsonVideoAnalysisRepositoryTests : IDisposable
             new AnalyzedVideoFrame(
                 40,
                 TimeSpan.FromSeconds(2),
-                [new AnalyzedPlateRead("AB1234", 0.95f, 0.9f)],
-                [new AnalyzedPlateConfirmation("AB1234", "AB-12-34", 0.95f, 3)])
+                [new AnalyzedPlateRead("AB1234", 0.95f, 0.9f, new BoundingBox(100, 200, 300, 260))],
+                [new AnalyzedPlateConfirmation("AB1234", "AB-12-34", 0.95f, 3, new BoundingBox(105, 202, 298, 258))],
+                1280,
+                720)
         ]);
 }

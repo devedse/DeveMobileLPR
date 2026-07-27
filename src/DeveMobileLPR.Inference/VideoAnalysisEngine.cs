@@ -75,12 +75,16 @@ public sealed class VideoAnalysisEngine(IFrameRecognitionPipeline pipeline) : ID
             recognition.Observations.Select(static observation => new AnalyzedPlateRead(
                 observation.Read.Text,
                 observation.Read.Confidence,
-                observation.Detection.Confidence)).ToArray(),
+                observation.Detection.Confidence,
+                observation.Detection.Bounds)).ToArray(),
             confirmations.Select(static confirmation => new AnalyzedPlateConfirmation(
                 confirmation.Consensus.NormalizedPlate,
                 confirmation.Consensus.DisplayPlate,
                 confirmation.Consensus.Confidence,
-                confirmation.Consensus.ObservationCount)).ToArray());
+                confirmation.Consensus.ObservationCount,
+                confirmation.LastBounds)).ToArray(),
+            recognition.SourceWidth,
+            recognition.SourceHeight);
 
     public void Dispose()
     {

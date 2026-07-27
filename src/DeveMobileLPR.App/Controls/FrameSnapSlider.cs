@@ -35,7 +35,7 @@ internal sealed class FrameSnapSlider : Slider
         }
 
         _isSnapping = true;
-        Value = snapped;
+        SetValue(ValueProperty, snapped);
         _isSnapping = false;
     }
 

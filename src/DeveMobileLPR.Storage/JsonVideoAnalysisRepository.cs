@@ -63,5 +63,12 @@ public sealed class JsonVideoAnalysisRepository
         return results.OrderByDescending(static result => result.AnalyzedAt).ToArray();
     }
 
+    public Task DeleteAsync(Guid id, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        File.Delete(GetPath(id));
+        return Task.CompletedTask;
+    }
+
     private string GetPath(Guid id) => Path.Combine(_directory, $"{id:N}.json");
 }

@@ -16,20 +16,29 @@ internal sealed class AnalysisListItem : ViewModelBase
     private string _detail;
     private double _progress;
 
-    public AnalysisListItem(string title, string detail, string sourceStatus, bool isProcessing, ICommand? openCommand)
+    public AnalysisListItem(
+        string title,
+        string detail,
+        string sourceStatus,
+        bool isProcessing,
+        ICommand? openCommand,
+        ICommand? deleteCommand = null)
     {
         Title = title;
         _detail = detail;
         SourceStatus = sourceStatus;
         IsProcessing = isProcessing;
         OpenCommand = openCommand;
+        DeleteCommand = deleteCommand;
     }
 
     public string Title { get; }
     public string Detail { get => _detail; set => SetProperty(ref _detail, value); }
     public string SourceStatus { get; }
     public bool IsProcessing { get; }
+    public bool CanDelete => DeleteCommand is not null;
     public ICommand? OpenCommand { get; }
+    public ICommand? DeleteCommand { get; }
     public double Progress { get => _progress; set => SetProperty(ref _progress, value); }
 }
 internal sealed record AnalyzedPlateIndexItem(string DisplayPlate, string Detail, ICommand OpenCommand);
@@ -60,6 +69,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     private string _statusMessage = "Select a video to create a private, on-device analysis run.";
     private int _currentFrameIndex;
     private ImageSource? _currentPreview;
+    private AnalyzedVideoFrame? _currentFrame;
     private string _currentFrameTitle = string.Empty;
     private string _currentFrameDetail = string.Empty;
     private double _currentPositionFraction;
@@ -116,9 +126,10 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     public string ProgressText { get => _progressText; private set => SetProperty(ref _progressText, value); }
     public string StatusMessage { get => _statusMessage; private set => SetProperty(ref _statusMessage, value); }
     public ImageSource? CurrentPreview { get => _currentPreview; private set => SetProperty(ref _currentPreview, value); }
+    public AnalyzedVideoFrame? CurrentFrame { get => _currentFrame; private set => SetProperty(ref _currentFrame, value); }
     public string CurrentFrameTitle { get => _currentFrameTitle; private set => SetProperty(ref _currentFrameTitle, value); }
     public string CurrentFrameDetail { get => _currentFrameDetail; private set => SetProperty(ref _currentFrameDetail, value); }
-    public double CurrentPositionFraction { get => _currentPositionFraction; private set => SetProperty(ref _currentPositionFraction, value); }
+    public double CurrentPositionFraction { get => _currentPositionFraction; set => SetProperty(ref _currentPositionFraction, value); }
     public IReadOnlyList<double> DetectionMarkers { get => _detectionMarkers; private set => SetProperty(ref _detectionMarkers, value); }
     public IReadOnlyList<double> FramePositions { get => _framePositions; private set => SetProperty(ref _framePositions, value); }
 
@@ -167,6 +178,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
 
     public void CloseReview()
     {
+        _runCancellation?.Cancel();
         _previewCancellation?.Cancel();
         _previewCancellation?.Dispose();
         _previewCancellation = null;
@@ -273,8 +285,9 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         _previewCancellation?.Dispose();
         _previewCancellation = new CancellationTokenSource();
         var frame = _result.Frames[_currentFrameIndex];
-        CurrentPositionFraction = _result.Duration.Ticks == 0 ? 0 : previewPosition.Ticks / (double)_result.Duration.Ticks;
-        CurrentFrameTitle = $"{FormatPosition(previewPosition)} / {FormatPosition(_result.Duration)}";
+        CurrentFrame = frame;
+        CurrentPositionFraction = _result.Duration.Ticks == 0 ? 0 : frame.Position.Ticks / (double)_result.Duration.Ticks;
+        CurrentFrameTitle = $"{FormatPosition(frame.Position)} / {FormatPosition(_result.Duration)}";
         CurrentFrameDetail = $"Nearest analyzed frame {frame.SourceFrameIndex + 1:N0} · {frame.Reads.Count} reads · {frame.Confirmations.Count} confirmations";
         CurrentReads.Clear();
         foreach (var read in frame.Reads)
@@ -288,6 +301,10 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         if (CurrentReads.Count == 0)
         {
             CurrentReads.Add("No plate observations near this point.");
+        }
+        else if (frame.SourceWidth <= 0 || frame.SourceHeight <= 0)
+        {
+            CurrentReads.Add("Bounding boxes were not saved with this older analysis. Process the video again to add them.");
         }
 
         RefreshCommands();
@@ -326,6 +343,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         Progress = 0;
         ProgressText = string.Empty;
         CurrentPreview = null;
+        CurrentFrame = null;
         CurrentReads.Clear();
         DetectedPlates.Clear();
         DetectionMarkers = [];
@@ -388,9 +406,25 @@ internal sealed class AnalyzeViewModel : ViewModelBase
                 $"{result.AnalyzedAt.LocalDateTime:g} · {FormatPosition(result.Duration)} · {detectionCount:N0} reads · {uniquePlateCount:N0} plates",
                 File.Exists(result.SourcePath) ? "Video available" : "Analysis only · source video unavailable",
                 false,
-                new Command(async () => await OpenSavedAnalysisAsync(result))));
+                new Command(async () => await OpenSavedAnalysisAsync(result)),
+                new Command(async () => await DeleteAnalysisAsync(result))));
         }
         OnPropertyChanged(nameof(HasAnalyses));
+    }
+
+    private async Task DeleteAnalysisAsync(VideoAnalysisResult result)
+    {
+        try
+        {
+            await _repository.DeleteAsync(result.Id, CancellationToken.None);
+            _savedResults = _savedResults.Where(item => item.Id != result.Id).ToArray();
+            RebuildAnalyses();
+            StatusMessage = $"Deleted analysis for {result.DisplayName}.";
+        }
+        catch (Exception exception)
+        {
+            StatusMessage = $"Could not delete the analysis: {exception.Message}";
+        }
     }
 
     private async Task OpenSavedAnalysisAsync(VideoAnalysisResult result)
@@ -401,7 +435,60 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         IsReviewing = true;
         OnPropertyChanged(nameof(ShowSetup));
         await LoadCurrentFrameAsync(result.Frames[_currentFrameIndex].Position);
+        if (NeedsGeometryUpgrade(result) && File.Exists(result.SourcePath))
+        {
+            await UpgradeGeometryAsync(result);
+        }
     }
+
+    private async Task UpgradeGeometryAsync(VideoAnalysisResult legacyResult)
+    {
+        var selectedPosition = legacyResult.Frames[_currentFrameIndex].Position;
+        IsProcessing = true;
+        _runCancellation = new CancellationTokenSource();
+        var progress = new Progress<VideoAnalysisProgress>(update =>
+        {
+            Progress = update.Fraction;
+            CurrentFrameDetail = $"Adding detection boxes · {update.Fraction:P0} · {update.ProcessedFrames:N0} of {update.TotalFrames:N0} frames";
+        });
+        try
+        {
+            var enriched = await _analysis.AnalyzeAsync(
+                legacyResult.SourcePath,
+                legacyResult.DisplayName,
+                legacyResult.Sampling,
+                progress,
+                _runCancellation.Token);
+            enriched = enriched with
+            {
+                Id = legacyResult.Id,
+                AnalyzedAt = legacyResult.AnalyzedAt
+            };
+            await _repository.SaveAsync(enriched, _runCancellation.Token);
+            _savedResults = _savedResults.Select(item => item.Id == enriched.Id ? enriched : item).ToArray();
+            _result = enriched;
+            PrepareReview();
+            _currentFrameIndex = FindClosestFrameIndex(selectedPosition);
+            await LoadCurrentFrameAsync(enriched.Frames[_currentFrameIndex].Position);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            CurrentReads.Add($"Could not add detection boxes: {exception.Message}");
+        }
+        finally
+        {
+            _runCancellation.Dispose();
+            _runCancellation = null;
+            IsProcessing = false;
+            RebuildAnalyses();
+        }
+    }
+
+    private static bool NeedsGeometryUpgrade(VideoAnalysisResult result) =>
+        result.Frames.Any(static frame => frame.HasDetections && (frame.SourceWidth <= 0 || frame.SourceHeight <= 0));
 
     private int FirstDetectionFrameIndex() => Math.Max(0, _result!.Frames.ToList().FindIndex(static frame => frame.HasDetections));
 

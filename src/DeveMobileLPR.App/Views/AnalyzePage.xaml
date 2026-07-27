@@ -35,11 +35,12 @@
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding OpenCommand}" />
                                     </Border.GestureRecognizers>
-                                    <Grid RowDefinitions="Auto,Auto,Auto" Padding="2">
-                                        <controls:AnalysisProgressFillView FillColor="{DynamicResource AnalysisProgressFill}" Grid.RowSpan="3" IsVisible="{Binding IsProcessing}" Progress="{Binding Progress}" />
+                                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" Padding="2">
+                                        <controls:AnalysisProgressFillView FillColor="{DynamicResource AnalysisProgressFill}" Grid.ColumnSpan="2" Grid.RowSpan="3" IsVisible="{Binding IsProcessing}" Progress="{Binding Progress}" />
                                         <Label Style="{StaticResource SettingTitle}" Text="{Binding Title}" />
                                         <Label Grid.Row="1" Style="{StaticResource MutedText}" Text="{Binding Detail}" />
                                         <Label Grid.Row="2" Style="{StaticResource MutedText}" Text="{Binding SourceStatus}" />
+                                        <Button Command="{Binding DeleteCommand}" Grid.Column="1" Grid.RowSpan="3" IsVisible="{Binding CanDelete}" SemanticProperties.Description="Delete analysis" Style="{StaticResource CompactSecondaryButton}" Text="Delete" VerticalOptions="Center" />
                                     </Grid>
                                 </Border>
                             </DataTemplate>
@@ -53,7 +54,7 @@
             </VerticalStackLayout>
         </ScrollView>
 
-        <Grid IsVisible="{Binding IsReviewing}" RowDefinitions="Auto,*" Style="{StaticResource PageGrid}">
+        <Grid IsVisible="{Binding IsReviewing}" RowDefinitions="Auto,*,Auto,Auto" RowSpacing="8" Style="{StaticResource PageGrid}">
             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
                 <Button Clicked="CloseReviewClicked" Style="{StaticResource CompactSecondaryButton}" Text="Back" />
                 <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
@@ -62,50 +63,51 @@
                 </VerticalStackLayout>
             </Grid>
 
-            <ScrollView Grid.Row="1">
-                <VerticalStackLayout Spacing="12">
-                    <Border BackgroundColor="#000000" Padding="0" Stroke="{DynamicResource Divider}" StrokeShape="RoundRectangle 8">
-                        <Image Aspect="AspectFit" HeightRequest="360" Source="{Binding CurrentPreview}" />
-                    </Border>
+            <Border BackgroundColor="#000000" Grid.Row="1" Padding="0" Stroke="{DynamicResource Divider}" StrokeShape="RoundRectangle 8">
+                <Grid>
+                    <Image Aspect="AspectFit" Source="{Binding CurrentPreview}" />
+                    <controls:AnalysisFrameOverlay AnalysisFrame="{Binding CurrentFrame}" />
+                </Grid>
+            </Border>
 
-                    <VerticalStackLayout Spacing="2">
-                        <Grid HeightRequest="34">
-                            <controls:DetectionTimelineView Markers="{Binding DetectionMarkers}" VerticalOptions="Center" />
-                            <controls:FrameSnapSlider DragCompleted="TimelineDragCompleted" Maximum="1" Minimum="0" SnapPoints="{Binding FramePositions}" Value="{Binding CurrentPositionFraction, Mode=OneWay}" />
-                        </Grid>
-                        <Grid ColumnDefinitions="Auto,*,Auto">
-                            <Label Style="{StaticResource MutedText}" Text="0:00" />
-                            <Label Grid.Column="2" Style="{StaticResource MutedText}" Text="{Binding CurrentFrameTitle}" />
-                        </Grid>
-                    </VerticalStackLayout>
+            <Grid Grid.Row="2" ColumnDefinitions="40,*,40" ColumnSpacing="8">
+                <Button Command="{Binding PreviousFrameCommand}" FontSize="24" HeightRequest="40" Padding="0" SemanticProperties.Description="Previous frame" Style="{StaticResource CompactSecondaryButton}" Text="‹" ToolTipProperties.Text="Previous frame" WidthRequest="40" />
+                <VerticalStackLayout Grid.Column="1" Spacing="0">
+                    <Grid HeightRequest="30">
+                        <controls:DetectionTimelineView Markers="{Binding DetectionMarkers}" VerticalOptions="Center" />
+                        <controls:FrameSnapSlider DragCompleted="TimelineDragCompleted" Maximum="1" Minimum="0" SnapPoints="{Binding FramePositions}" Value="{Binding CurrentPositionFraction, Mode=TwoWay}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <Label Style="{StaticResource MutedText}" Text="0:00" />
+                        <Label Grid.Column="2" Style="{StaticResource MutedText}" Text="{Binding CurrentFrameTitle}" />
+                    </Grid>
+                </VerticalStackLayout>
+                <Button Command="{Binding NextFrameCommand}" FontSize="24" Grid.Column="2" HeightRequest="40" Padding="0" SemanticProperties.Description="Next frame" Text="›" ToolTipProperties.Text="Next frame" WidthRequest="40" />
+            </Grid>
 
-                    <VerticalStackLayout IsVisible="{Binding HasDetectedPlates}" Spacing="8">
-                        <Label Style="{StaticResource SectionTitle}" Text="Confirmed plates" />
-                        <CollectionView HeightRequest="76" ItemsSource="{Binding DetectedPlates}" ItemsLayout="HorizontalList" SelectionMode="None">
-                            <CollectionView.ItemTemplate>
-                                <DataTemplate x:DataType="vm:AnalyzedPlateIndexItem">
-                                    <Button Command="{Binding OpenCommand}" Margin="0,0,8,0" Style="{StaticResource CompactSecondaryButton}" Text="{Binding DisplayPlate}" />
-                                </DataTemplate>
-                            </CollectionView.ItemTemplate>
-                        </CollectionView>
-                    </VerticalStackLayout>
-
-                    <Border Style="{StaticResource CompactCard}">
-                        <VerticalStackLayout BindableLayout.ItemsSource="{Binding CurrentReads}" Spacing="8">
+            <Grid Grid.Row="3" ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                <VerticalStackLayout IsVisible="{Binding HasDetectedPlates}" Spacing="4">
+                    <Label Style="{StaticResource MutedText}" Text="Confirmed plates" />
+                    <CollectionView HeightRequest="44" ItemsSource="{Binding DetectedPlates}" ItemsLayout="HorizontalList" SelectionMode="None">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="vm:AnalyzedPlateIndexItem">
+                                <Button Command="{Binding OpenCommand}" Margin="0,0,6,0" Style="{StaticResource CompactSecondaryButton}" Text="{Binding DisplayPlate}" />
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </VerticalStackLayout>
+                <Border Grid.Column="1" Padding="10,6" Style="{StaticResource CompactCard}">
+                    <ScrollView MaximumHeightRequest="64">
+                        <VerticalStackLayout BindableLayout.ItemsSource="{Binding CurrentReads}" Spacing="3">
                             <BindableLayout.ItemTemplate>
                                 <DataTemplate x:DataType="x:String">
-                                    <Label Style="{StaticResource SecondaryText}" Text="{Binding .}" />
+                                    <Label Style="{StaticResource MutedText}" Text="{Binding .}" />
                                 </DataTemplate>
                             </BindableLayout.ItemTemplate>
                         </VerticalStackLayout>
-                    </Border>
-
-                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
-                        <Button Command="{Binding PreviousFrameCommand}" Style="{StaticResource SecondaryButton}" Text="Previous frame" />
-                        <Button Command="{Binding NextFrameCommand}" Grid.Column="1" Text="Next frame" />
-                    </Grid>
-                </VerticalStackLayout>
-            </ScrollView>
+                    </ScrollView>
+                </Border>
+            </Grid>
         </Grid>
     </Grid>
 </ContentPage>

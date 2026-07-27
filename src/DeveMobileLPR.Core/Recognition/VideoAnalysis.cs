@@ -1,3 +1,4 @@
+using DeveMobileLPR.Geometry;
 using DeveMobileLPR.Imaging;
 
 namespace DeveMobileLPR.Recognition;
@@ -24,7 +25,9 @@ public sealed record AnalyzedVideoFrame(
     long SourceFrameIndex,
     TimeSpan Position,
     IReadOnlyList<AnalyzedPlateRead> Reads,
-    IReadOnlyList<AnalyzedPlateConfirmation> Confirmations)
+    IReadOnlyList<AnalyzedPlateConfirmation> Confirmations,
+    int SourceWidth = 0,
+    int SourceHeight = 0)
 {
     public bool HasDetections => Reads.Count > 0 || Confirmations.Count > 0;
 }
@@ -32,13 +35,15 @@ public sealed record AnalyzedVideoFrame(
 public sealed record AnalyzedPlateRead(
     string Text,
     float OcrConfidence,
-    float DetectorConfidence);
+    float DetectorConfidence,
+    BoundingBox Bounds = default);
 
 public sealed record AnalyzedPlateConfirmation(
     string NormalizedPlate,
     string DisplayPlate,
     float Confidence,
-    int ObservationCount);
+    int ObservationCount,
+    BoundingBox Bounds = default);
 
 public sealed record VideoAnalysisResult(
     Guid Id,
