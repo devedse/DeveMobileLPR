@@ -46,7 +46,7 @@ jobs:
 
       - name: Restore workloads
         shell: pwsh
-        run: dotnet workload install maui-android --skip-manifest-update
+        run: dotnet workload install maui-android maui-windows --skip-manifest-update
 
       - name: Download and verify model assets
         shell: pwsh
@@ -71,6 +71,10 @@ jobs:
       - name: Package portable RDW downloader
         shell: pwsh
         run: ./eng/Publish-RdwDownloader.ps1 -Configuration Release -Version $env:BUILD_VERSION
+
+      - name: Package Windows executable
+        shell: pwsh
+        run: ./eng/Publish-Windows.ps1 -Configuration Release -Version $env:BUILD_VERSION
 
       - name: Detect signing configuration
         id: signing
@@ -112,6 +116,14 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Upload Windows executable on every build
+        uses: actions/upload-artifact@v7
+        with:
+          name: DeveMobileLPR-Windows-${{ env.BUILD_VERSION }}
+          path: artifacts/windows/win-x64/DeveMobileLPR.exe
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Upload RDW downloader on every build
         uses: actions/upload-artifact@v7
         with:
@@ -148,6 +160,12 @@ jobs:
           name: RdwDownloader-1.0.${{ needs.generate_version_number.outputs.build_number }}
           path: artifacts/rdw-downloader
 
+      - name: Download Windows executable
+        uses: actions/download-artifact@v8
+        with:
+          name: DeveMobileLPR-Windows-1.0.${{ needs.generate_version_number.outputs.build_number }}
+          path: artifacts/windows/win-x64
+
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v3
         with:
@@ -157,6 +175,7 @@ jobs:
             ${{ github.event.head_commit.message }}
           files: |
             artifacts/android/*.apk
+            artifacts/windows/win-x64/DeveMobileLPR.exe
             artifacts/rdw-downloader/*.zip
           fail_on_unmatched_files: true
           make_latest: true
