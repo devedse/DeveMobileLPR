@@ -75,7 +75,7 @@ From the repository root:
 That command:
 
 1. downloads and SHA-256-verifies both models;
-2. ensures the Android and Windows workloads are installed;
+2. checks that the Android and Windows workloads are already installed without requesting elevation;
 3. restores the locked dependency graph;
 4. builds with warnings as errors;
 5. runs unit/integration tests and the real-model contract test;
