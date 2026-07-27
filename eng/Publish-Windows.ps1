@@ -2,7 +2,7 @@
 param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
-    [ValidateSet('win-x64', 'win-arm64')]
+        [ValidateSet('win-x64')]
     [string]$RuntimeIdentifier = 'win-x64',
     [ValidatePattern('^\d+\.\d+\.\d+$')]
     [string]$Version

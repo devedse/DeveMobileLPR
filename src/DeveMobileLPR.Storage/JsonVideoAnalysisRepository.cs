@@ -1,19 +1,22 @@
 using System.Text.Json;
+using DeveMobileLPR.Recognition;
 
-namespace DeveMobileLPR.AndroidApp.Services;
+namespace DeveMobileLPR.Storage;
 
-internal sealed class VideoAnalysisRepository
+public sealed class JsonVideoAnalysisRepository
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
     private readonly string _directory;
 
-    public VideoAnalysisRepository(string directory)
+    public JsonVideoAnalysisRepository(string directory)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
         _directory = directory;
     }
 
     public async Task SaveAsync(VideoAnalysisResult result, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(result);
         Directory.CreateDirectory(_directory);
         var path = GetPath(result.Id);
         var temporaryPath = $"{path}.{Guid.NewGuid():N}.tmp";

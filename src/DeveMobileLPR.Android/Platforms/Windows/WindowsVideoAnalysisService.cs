@@ -1,6 +1,7 @@
 using System.Buffers;
 using DeveMobileLPR.Imaging;
 using DeveMobileLPR.Inference;
+using DeveMobileLPR.Inference.Models;
 using DeveMobileLPR.Inference.Onnx;
 using DeveMobileLPR.Recognition;
 using Windows.Graphics.Imaging;
@@ -49,7 +50,7 @@ internal sealed class VideoAnalysisService : IDisposable
         await _runGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var pipeline = EnsurePipeline();
+            var pipeline = await EnsurePipelineAsync(cancellationToken).ConfigureAwait(false);
             var (composition, timeline) = await OpenCompositionAsync(sourcePath, cancellationToken).ConfigureAwait(false);
             var sampledFrameCount = (timeline.FrameCount + sampling.Interval - 1) / sampling.Interval;
             var frames = new List<AnalyzedVideoFrame>(sampledFrameCount);
@@ -101,7 +102,7 @@ internal sealed class VideoAnalysisService : IDisposable
         return bytes;
     }
 
-    private PlateRecognitionPipeline EnsurePipeline()
+    private async Task<PlateRecognitionPipeline> EnsurePipelineAsync(CancellationToken cancellationToken)
     {
         if (_pipeline is not null)
         {
@@ -109,9 +110,11 @@ internal sealed class VideoAnalysisService : IDisposable
         }
 
         var modelDirectory = Path.Combine(AppContext.BaseDirectory, "models");
-        var detector = new OnnxYoloV9PlateDetector(Path.Combine(modelDirectory, "yolo-v9-s-608-license-plates-end2end.onnx"));
-        var recognizer = new OnnxCctPlateRecognizer(Path.Combine(modelDirectory, "cct_s_v2_global.onnx"));
-        _pipeline = new PlateRecognitionPipeline(detector, recognizer);
+        var detectorPath = Path.Combine(modelDirectory, ModelCatalog.Detector.FileName);
+        var recognizerPath = Path.Combine(modelDirectory, ModelCatalog.Recognizer.FileName);
+        await ModelArtifactVerifier.VerifyAsync(detectorPath, ModelCatalog.Detector, cancellationToken).ConfigureAwait(false);
+        await ModelArtifactVerifier.VerifyAsync(recognizerPath, ModelCatalog.Recognizer, cancellationToken).ConfigureAwait(false);
+        _pipeline = OnnxPlateRecognitionPipelineFactory.Create(detectorPath, recognizerPath);
         return _pipeline;
     }
 

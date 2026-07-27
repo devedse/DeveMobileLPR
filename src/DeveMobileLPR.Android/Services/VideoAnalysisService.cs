@@ -128,9 +128,7 @@ internal sealed class VideoAnalysisService : IDisposable
             context.Assets ?? throw new InvalidOperationException("Application assets are unavailable."),
             files,
             cancellationToken).ConfigureAwait(false);
-        var detector = new OnnxYoloV9PlateDetector(models.Detector);
-        var recognizer = new OnnxCctPlateRecognizer(models.Ocr);
-        _pipeline = new PlateRecognitionPipeline(detector, recognizer);
+        _pipeline = OnnxPlateRecognitionPipelineFactory.Create(models.Detector, models.Ocr);
         return _pipeline;
     }
 

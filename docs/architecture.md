@@ -40,7 +40,7 @@ SQLite uses WAL mode and indexes plate/time, trip/time, route points, and catalo
 - Models and RDW data are read locally.
 - Raw frames and crops are never persisted.
 - The Android manifest disallows cleartext traffic.
-- Models are verified by byte length and SHA-256 before use.
+- Models are verified by byte length and SHA-256 before use on Android and Windows.
 - RDW imports are copied to a temporary file, schema-validated, and atomically moved.
 - Location is optional and a missing permission does not block recognition.
 
@@ -61,8 +61,10 @@ False confirmations are more damaging than missed sightings because they poison 
 
 ## Offline video analysis
 
-The Analyze tab is intentionally separate from Drive and History. A user-selected video is staged in the application's private cache because Android document-provider streams cannot be reopened reliably by the platform media decoder. Stale staged videos are removed when the analysis service starts, and selecting another video removes the previous staged copy. Analysis metadata is held only for the current app session; detections and confirmations are never inserted into sighting history.
+The Analyze tab is intentionally separate from Drive and History. Android copies a selected document-provider video into durable private app storage because those streams cannot be reopened reliably by the platform media decoder. Windows reuses the selected local path when available and falls back to a private staged copy. A source is removed only when no saved analysis references it. Detections and confirmations are persisted as compact JSON metadata, atomically replaced, and remain separate from sighting history. Raw frames, previews, and plate crops are never persisted.
 
-Android's media retriever supplies decoded bitmaps at sampled source-frame timestamps. Frames are converted into pooled planar YUV and passed through the same detector, OCR, tracking, and temporal-consensus code as camera frames. The shared `VideoFrameSampling` and `VideoFrameTimeline` types keep sampling semantics independent of Android so future Windows or stream decoders can use the same schedule.
+Android's media retriever and Windows MediaComposition supply decoded images at sampled source-frame timestamps. Decoding is capped at 1280 pixels wide because the detector consumes a 608×608 tensor. Frames are converted into pooled planar YUV and passed through the same detector, OCR, tracking, and temporal-consensus code as camera frames. Shared analysis records, `VideoFrameSampling`, and `VideoFrameTimeline` keep processing and persistence semantics platform-independent.
+
+Review previews are decoded lazily from the source video and held in a bounded in-memory cache. The timeline stores only normalized detection positions, and plate-index entries seek to the nearest analyzed frame. If a source video is missing, saved detection metadata remains reviewable without a preview.
 
 Offline analysis applies backpressure and processes every requested sample. Unlike the live camera's latest-frame slot, it does not drop selected frames. Sampling can process every frame or every second, fourth, or eighth source frame. When frame-rate metadata is absent, timing is derived from reported frame count and duration before falling back to 30 fps.

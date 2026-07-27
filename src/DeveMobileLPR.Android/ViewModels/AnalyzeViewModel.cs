@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using DeveMobileLPR.AndroidApp.Services;
 using DeveMobileLPR.Recognition;
+using DeveMobileLPR.Storage;
 
 namespace DeveMobileLPR.AndroidApp.ViewModels;
 
@@ -17,7 +18,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
 {
     private const int MaximumPreviewCacheEntries = 8;
     private readonly VideoAnalysisService _analysis;
-    private readonly VideoAnalysisRepository _repository;
+    private readonly JsonVideoAnalysisRepository _repository;
     private readonly AsyncCommand _processCommand;
     private readonly AsyncCommand _openReviewCommand;
     private readonly AsyncCommand _previousFrameCommand;
@@ -46,7 +47,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     private IReadOnlyList<double> _detectionMarkers = [];
     private bool _initialized;
 
-    public AnalyzeViewModel(VideoAnalysisService analysis, VideoAnalysisRepository repository)
+    public AnalyzeViewModel(VideoAnalysisService analysis, JsonVideoAnalysisRepository repository)
     {
         _analysis = analysis;
         _repository = repository;

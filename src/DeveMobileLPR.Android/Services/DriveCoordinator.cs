@@ -88,9 +88,7 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                 files,
                 cancellationToken).ConfigureAwait(false);
 
-            var detector = new OnnxYoloV9PlateDetector(models.Detector, diagnostic: SetStatus);
-            var recognizer = new OnnxCctPlateRecognizer(models.Ocr, diagnostic: SetStatus);
-            var pipeline = new PlateRecognitionPipeline(detector, recognizer);
+            var pipeline = OnnxPlateRecognitionPipelineFactory.Create(models.Detector, models.Ocr, SetStatus);
             _location = new AndroidLocationTracker(context);
             _recognition = new RecognitionSession(
                 pipeline,

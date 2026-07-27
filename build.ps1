@@ -17,6 +17,10 @@ $testProjects = @(
 )
 
 if ($SkipAndroid) {
+    $windowsProject = Join-Path $root 'src\DeveMobileLPR.Android\DeveMobileLPR.Android.csproj'
+    dotnet workload install maui-android maui-windows --skip-manifest-update
+    dotnet restore (Join-Path $root 'DeveMobileLPR.slnx') --locked-mode
+    dotnet build $windowsProject --framework net10.0-windows10.0.19041.0 --configuration $Configuration --runtime win-x64 --no-restore
     foreach ($project in $testProjects) {
         dotnet restore $project --locked-mode
         dotnet build $project --configuration $Configuration --no-restore

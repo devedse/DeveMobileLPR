@@ -24,7 +24,7 @@ internal static class AndroidModelInstaller
         CancellationToken cancellationToken)
     {
         var target = Path.Combine(modelDirectory, artifact.FileName);
-        if (await IsValidAsync(target, artifact, cancellationToken).ConfigureAwait(false))
+        if (await ModelArtifactVerifier.IsValidAsync(target, artifact, cancellationToken).ConfigureAwait(false))
         {
             return target;
         }
@@ -37,7 +37,7 @@ internal static class AndroidModelInstaller
             await source.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
         }
 
-        if (!await IsValidAsync(temporary, artifact, cancellationToken).ConfigureAwait(false))
+        if (!await ModelArtifactVerifier.IsValidAsync(temporary, artifact, cancellationToken).ConfigureAwait(false))
         {
             File.Delete(temporary);
             throw new InvalidDataException($"Bundled model failed its integrity check: {artifact.FileName}");
@@ -45,17 +45,5 @@ internal static class AndroidModelInstaller
 
         File.Move(temporary, target, true);
         return target;
-    }
-
-    private static async Task<bool> IsValidAsync(string path, ModelArtifact artifact, CancellationToken cancellationToken)
-    {
-        if (!File.Exists(path) || new FileInfo(path).Length != artifact.Length)
-        {
-            return false;
-        }
-
-        await using var stream = File.OpenRead(path);
-        var hash = await System.Security.Cryptography.SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false);
-        return Convert.ToHexString(hash).Equals(artifact.Sha256, StringComparison.OrdinalIgnoreCase);
     }
 }
