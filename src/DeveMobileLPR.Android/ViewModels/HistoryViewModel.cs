@@ -29,6 +29,7 @@ internal sealed record VehicleCardViewModel(
 
 internal sealed class HistoryViewModel : ViewModelBase
 {
+    private const int PageSize = 50;
     private const string AllTime = "All time";
     private const string AnyValue = "Any value";
     private const string MostRecent = "Most recent";
@@ -45,6 +46,9 @@ internal sealed class HistoryViewModel : ViewModelBase
     private string _selectedPeriod = AllTime;
     private string _selectedMinimumValue = AnyValue;
     private string _selectedVehicleSort = MostRecent;
+    private bool _hasMoreTrips;
+    private bool _hasMoreVehicles;
+    private int _vehicleQueryVersion;
     private CancellationTokenSource? _searchCancellation;
 
     public HistoryViewModel(DriveCoordinator coordinator)
@@ -54,6 +58,8 @@ internal sealed class HistoryViewModel : ViewModelBase
         ShowVehiclesCommand = new Command(() => ShowTrips = false);
         ResetVehicleFiltersCommand = new Command(ResetVehicleFilters);
         RefreshCommand = new AsyncCommand(LoadAsync);
+        LoadMoreTripsCommand = new AsyncCommand(LoadMoreTripsAsync, () => _hasMoreTrips);
+        LoadMoreVehiclesCommand = new AsyncCommand(LoadMoreVehiclesAsync, () => _hasMoreVehicles);
     }
 
     public ObservableCollection<TripCardViewModel> Trips { get; } = [];
@@ -63,6 +69,8 @@ internal sealed class HistoryViewModel : ViewModelBase
     public ICommand ShowVehiclesCommand { get; }
     public ICommand ResetVehicleFiltersCommand { get; }
     public AsyncCommand RefreshCommand { get; }
+    public AsyncCommand LoadMoreTripsCommand { get; }
+    public AsyncCommand LoadMoreVehiclesCommand { get; }
     public IReadOnlyList<string> PeriodOptions { get; } = ["Last 24 hours", "Last 7 days", "Last 30 days", "Last 90 days", AllTime];
     public IReadOnlyList<string> MinimumValueOptions { get; } = [AnyValue, "Over €50k", "Over €100k", "Over €300k", "Over €500k", "Over €1m"];
     public IReadOnlyList<string> VehicleSortOptions { get; } = [MostRecent, "Highest value"];
@@ -115,8 +123,8 @@ internal sealed class HistoryViewModel : ViewModelBase
             var repository = _coordinator.Repository;
             var localStart = new DateTimeOffset(DateTime.Today, TimeZoneInfo.Local.GetUtcOffset(DateTime.Today));
             var todayTask = repository.GetStatisticsAsync(localStart.ToUniversalTime(), localStart.AddDays(1).ToUniversalTime(), CancellationToken.None);
-            var tripsTask = repository.GetTripsAsync(250, CancellationToken.None);
-            var vehiclesTask = repository.GetVehicleHistoryAsync(CreateVehicleQuery(), CancellationToken.None);
+            var tripsTask = repository.GetTripsAsync(0, PageSize, CancellationToken.None);
+            var vehiclesTask = repository.GetVehicleHistoryAsync(CreateVehicleQuery(0), CancellationToken.None);
             await Task.WhenAll(todayTask, tripsTask, vehiclesTask);
 
             var today = todayTask.Result;
@@ -127,21 +135,11 @@ internal sealed class HistoryViewModel : ViewModelBase
             TodayTopPlate = today.MostExpensiveSighting?.DisplayPlate ?? "No valued car yet";
 
             Trips.Clear();
-            foreach (var trip in tripsTask.Result)
-            {
-                Trips.Add(new TripCardViewModel(
-                    trip.Id,
-                    trip.StartedAt.ToLocalTime().ToString("ddd d MMM"),
-                    trip.StartedAt.ToLocalTime().ToString("HH:mm"),
-                    DisplayFormat.Duration(trip.Duration),
-                    DisplayFormat.Distance(trip.DistanceMeters),
-                    $"{trip.UniqueVehicleCount} unique",
-                    $"{trip.SightingCount} confirmed",
-                    DisplayFormat.CompactPrice(trip.MostExpensiveCatalogPrice),
-                    trip.MostExpensiveDisplayPlate ?? "No RDW value"));
-            }
+            AppendTrips(tripsTask.Result);
+            SetHasMoreTrips(tripsTask.Result.Count == PageSize);
 
             ReplaceVehicles(vehiclesTask.Result);
+            SetHasMoreVehicles(vehiclesTask.Result.Count == PageSize);
         }
         finally
         {
@@ -152,6 +150,7 @@ internal sealed class HistoryViewModel : ViewModelBase
 
     private async Task ReloadVehiclesAfterDelayAsync()
     {
+        var queryVersion = Interlocked.Increment(ref _vehicleQueryVersion);
         _searchCancellation?.Cancel();
         _searchCancellation?.Dispose();
         _searchCancellation = new CancellationTokenSource();
@@ -159,10 +158,11 @@ internal sealed class HistoryViewModel : ViewModelBase
         try
         {
             await Task.Delay(250, token);
-            var results = await _coordinator.Repository.GetVehicleHistoryAsync(CreateVehicleQuery(), token);
-            if (!token.IsCancellationRequested)
+            var results = await _coordinator.Repository.GetVehicleHistoryAsync(CreateVehicleQuery(0), token);
+            if (!token.IsCancellationRequested && queryVersion == Volatile.Read(ref _vehicleQueryVersion))
             {
                 ReplaceVehicles(results);
+                SetHasMoreVehicles(results.Count == PageSize);
             }
         }
         catch (OperationCanceledException)
@@ -170,7 +170,7 @@ internal sealed class HistoryViewModel : ViewModelBase
         }
     }
 
-    private VehicleHistoryQuery CreateVehicleQuery()
+    private VehicleHistoryQuery CreateVehicleQuery(int offset)
     {
         var seenSince = SelectedPeriod switch
         {
@@ -190,7 +190,63 @@ internal sealed class HistoryViewModel : ViewModelBase
             _ => (decimal?)null
         };
         var sort = SelectedVehicleSort == "Highest value" ? VehicleHistorySort.HighestValue : VehicleHistorySort.MostRecent;
-        return new VehicleHistoryQuery(SearchText, seenSince, minimumValue, sort, 500);
+        return new VehicleHistoryQuery(SearchText, seenSince, minimumValue, sort, offset, PageSize);
+    }
+
+    private async Task LoadMoreTripsAsync()
+    {
+        if (!_hasMoreTrips) return;
+        var results = await _coordinator.Repository.GetTripsAsync(Trips.Count, PageSize, CancellationToken.None);
+        AppendTrips(results);
+        SetHasMoreTrips(results.Count == PageSize);
+    }
+
+    private async Task LoadMoreVehiclesAsync()
+    {
+        if (!_hasMoreVehicles) return;
+        var queryVersion = Volatile.Read(ref _vehicleQueryVersion);
+        var token = _searchCancellation?.Token ?? CancellationToken.None;
+        try
+        {
+            var results = await _coordinator.Repository.GetVehicleHistoryAsync(CreateVehicleQuery(Vehicles.Count), token);
+            if (!token.IsCancellationRequested && queryVersion == Volatile.Read(ref _vehicleQueryVersion))
+            {
+                AppendVehicles(results);
+                SetHasMoreVehicles(results.Count == PageSize);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void AppendTrips(IEnumerable<TripSummary> trips)
+    {
+        foreach (var trip in trips)
+        {
+            Trips.Add(new TripCardViewModel(
+                trip.Id,
+                trip.StartedAt.ToLocalTime().ToString("ddd d MMM"),
+                trip.StartedAt.ToLocalTime().ToString("HH:mm"),
+                DisplayFormat.Duration(trip.Duration),
+                DisplayFormat.Distance(trip.DistanceMeters),
+                $"{trip.UniqueVehicleCount} unique",
+                $"{trip.SightingCount} confirmed",
+                DisplayFormat.CompactPrice(trip.MostExpensiveCatalogPrice),
+                trip.MostExpensiveDisplayPlate ?? "No RDW value"));
+        }
+    }
+
+    private void SetHasMoreTrips(bool value)
+    {
+        _hasMoreTrips = value;
+        LoadMoreTripsCommand.RaiseCanExecuteChanged();
+    }
+
+    private void SetHasMoreVehicles(bool value)
+    {
+        _hasMoreVehicles = value;
+        LoadMoreVehiclesCommand.RaiseCanExecuteChanged();
     }
 
     private void ResetVehicleFilters()
@@ -204,6 +260,11 @@ internal sealed class HistoryViewModel : ViewModelBase
     private void ReplaceVehicles(IReadOnlyList<VehicleHistorySummary> results)
     {
         Vehicles.Clear();
+        AppendVehicles(results);
+    }
+
+    private void AppendVehicles(IEnumerable<VehicleHistorySummary> results)
+    {
         foreach (var vehicle in results)
         {
             var name = string.Join(' ', new[] { vehicle.Vehicle?.Make, vehicle.Vehicle?.Model }.Where(value => !string.IsNullOrWhiteSpace(value)));

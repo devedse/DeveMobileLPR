@@ -85,7 +85,13 @@
         </VerticalStackLayout>
 
                 <RefreshView Grid.Row="1" Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsBusy}" IsVisible="{Binding ShowTrips}">
-                    <CollectionView x:Name="TripsList" ItemsSource="{Binding Trips}" SelectionChanged="TripSelected" SelectionMode="Single">
+                    <CollectionView
+                        x:Name="TripsList"
+                        ItemsSource="{Binding Trips}"
+                        RemainingItemsThreshold="5"
+                        RemainingItemsThresholdReachedCommand="{Binding LoadMoreTripsCommand}"
+                        SelectionChanged="TripSelected"
+                        SelectionMode="Single">
                         <CollectionView.Header>
                             <ContentView ControlTemplate="{StaticResource HistoryHeaderTemplate}" />
                         </CollectionView.Header>
@@ -127,7 +133,13 @@
                 </RefreshView>
 
                 <RefreshView Grid.Row="1" Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsBusy}" IsVisible="{Binding ShowVehicles}">
-                    <CollectionView x:Name="VehiclesList" ItemsSource="{Binding Vehicles}" SelectionChanged="VehicleSelected" SelectionMode="Single">
+                    <CollectionView
+                        x:Name="VehiclesList"
+                        ItemsSource="{Binding Vehicles}"
+                        RemainingItemsThreshold="5"
+                        RemainingItemsThresholdReachedCommand="{Binding LoadMoreVehiclesCommand}"
+                        SelectionChanged="VehicleSelected"
+                        SelectionMode="Single">
                         <CollectionView.Header>
                             <ContentView ControlTemplate="{StaticResource HistoryHeaderTemplate}" />
                         </CollectionView.Header>

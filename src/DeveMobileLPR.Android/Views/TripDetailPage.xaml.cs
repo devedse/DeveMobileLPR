@@ -34,6 +34,19 @@ public partial class TripDetailPage : ContentPage
         if (sender is Button { CommandParameter: GeoPoint location }) await OpenMapAsync(location);
     }
 
+    private async void SortClicked(object? sender, EventArgs args)
+    {
+        var selected = await DisplayActionSheetAsync(
+            "Sort vehicles",
+            "Cancel",
+            null,
+            _viewModel.SortOptions.ToArray());
+        if (selected is not null && selected != "Cancel")
+        {
+            _viewModel.SelectedSort = selected;
+        }
+    }
+
     private async void VehicleSelected(object? sender, SelectionChangedEventArgs args)
     {
         if (args.CurrentSelection.FirstOrDefault() is not TripVehicleCardViewModel vehicle) return;

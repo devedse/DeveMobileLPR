@@ -115,6 +115,7 @@ public sealed record VehicleHistoryQuery(
     DateTimeOffset? SeenSince,
     decimal? MinimumCatalogPrice,
     VehicleHistorySort Sort,
+    int Offset,
     int Limit);
 
 public sealed record TripVehicleSummary(
@@ -168,7 +169,7 @@ public interface ISightingRepository
     Task<TripSummary> StartTripAsync(DateTimeOffset startedAt, GeoPoint? location, CancellationToken cancellationToken);
     Task<TripSummary> EndTripAsync(long tripId, DateTimeOffset endedAt, GeoPoint? location, CancellationToken cancellationToken);
     Task AddTripPointAsync(long tripId, DateTimeOffset recordedAt, GeoPoint location, CancellationToken cancellationToken);
-    Task<IReadOnlyList<TripSummary>> GetTripsAsync(int limit, CancellationToken cancellationToken);
+    Task<IReadOnlyList<TripSummary>> GetTripsAsync(int offset, int limit, CancellationToken cancellationToken);
     Task<TripSummary?> GetTripAsync(long tripId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Sighting>> GetSightingsForTripAsync(long tripId, CancellationToken cancellationToken);
     Task<IReadOnlyList<TripVehicleSummary>> GetVehiclesForTripAsync(long tripId, CancellationToken cancellationToken);

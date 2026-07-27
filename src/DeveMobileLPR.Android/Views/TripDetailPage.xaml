@@ -53,16 +53,11 @@
                             <Label Style="{StaticResource SectionTitle}" Text="Vehicles on this drive" />
                             <Label Style="{StaticResource MutedText}" Text="Tap a vehicle to see every earlier sighting and location." />
                         </VerticalStackLayout>
-                        <Border Grid.Column="1" Style="{StaticResource InsetCard}">
-                            <Grid ColumnDefinitions="Auto,170" ColumnSpacing="10">
-                                <Label Style="{StaticResource FieldCaption}" Text="Sort" VerticalOptions="Center" />
-                                <Picker
-                                    Grid.Column="1"
-                                    ItemsSource="{Binding SortOptions}"
-                                    SelectedItem="{Binding SelectedSort}"
-                                    Title="Sort vehicles" />
-                            </Grid>
-                        </Border>
+                        <Button
+                            Grid.Column="1"
+                            Clicked="SortClicked"
+                            Style="{StaticResource CompactSecondaryButton}"
+                            Text="{Binding SelectedSort, StringFormat='Sort: {0}'}" />
                     </Grid>
                 </VerticalStackLayout>
             </CollectionView.Header>

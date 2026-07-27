@@ -139,13 +139,13 @@ public sealed class SqliteSightingRepositoryTests : IAsyncLifetime
         await _repository.EndTripAsync(secondTrip.Id, now.AddHours(1).AddMinutes(1), null, CancellationToken.None);
 
         var vehicle = Assert.Single(await _repository.GetVehicleHistoryAsync(
-            new VehicleHistoryQuery("AB-12-34", null, null, VehicleHistorySort.MostRecent, 100),
+            new VehicleHistoryQuery("AB-12-34", null, null, VehicleHistorySort.MostRecent, 0, 100),
             CancellationToken.None));
         Assert.Equal(2, vehicle.SightingCount);
         Assert.Equal(2, vehicle.TripCount);
 
         await _repository.DeleteHistoryAsync(CancellationToken.None);
-        Assert.Empty(await _repository.GetTripsAsync(100, CancellationToken.None));
+        Assert.Empty(await _repository.GetTripsAsync(0, 100, CancellationToken.None));
         Assert.Empty(await _repository.GetRecentAsync(100, CancellationToken.None));
     }
 
@@ -159,7 +159,7 @@ public sealed class SqliteSightingRepositoryTests : IAsyncLifetime
         await _repository.AddOrMergeAsync(Confirmed("GH3456", now.AddHours(-3), 3), null, null, null, CancellationToken.None);
 
         var results = await _repository.GetVehicleHistoryAsync(
-            new VehicleHistoryQuery(null, now.AddDays(-1), 100_000m, VehicleHistorySort.HighestValue, 100),
+            new VehicleHistoryQuery(null, now.AddDays(-1), 100_000m, VehicleHistorySort.HighestValue, 0, 100),
             CancellationToken.None);
 
         Assert.Collection(
@@ -177,14 +177,39 @@ public sealed class SqliteSightingRepositoryTests : IAsyncLifetime
         await _repository.AddOrMergeAsync(Confirmed("EF9012", now.AddHours(-2), 3), null, new VehicleRecord("EF9012", "BMW", "M5", 160_000m, 2025, null, null), null, CancellationToken.None);
 
         var recent = await _repository.GetVehicleHistoryAsync(
-            new VehicleHistoryQuery(null, null, null, VehicleHistorySort.MostRecent, 100),
+            new VehicleHistoryQuery(null, null, null, VehicleHistorySort.MostRecent, 0, 100),
             CancellationToken.None);
         var filtered = await _repository.GetVehicleHistoryAsync(
-            new VehicleHistoryQuery("Audi", now.AddHours(-2), 100_000m, VehicleHistorySort.MostRecent, 100),
+            new VehicleHistoryQuery("Audi", now.AddHours(-2), 100_000m, VehicleHistorySort.MostRecent, 0, 100),
             CancellationToken.None);
 
         Assert.Equal(["CD5678", "EF9012", "AB1234"], recent.Select(vehicle => vehicle.NormalizedPlate));
         Assert.Equal("CD5678", Assert.Single(filtered).NormalizedPlate);
+    }
+
+    [Fact]
+    public async Task HistoryQueries_ReturnStableNonOverlappingPages()
+    {
+        var now = new DateTimeOffset(2026, 7, 27, 12, 0, 0, TimeSpan.Zero);
+        for (var index = 0; index < 3; index++)
+        {
+            var trip = await _repository.StartTripAsync(now.AddHours(-index), null, CancellationToken.None);
+            var plate = $"AB12{index}C";
+            await _repository.AddOrMergeAsync(Confirmed(plate, now.AddHours(-index), 3), null, null, trip.Id, CancellationToken.None);
+            await _repository.EndTripAsync(trip.Id, now.AddHours(-index).AddMinutes(10), null, CancellationToken.None);
+        }
+
+        var firstTrips = await _repository.GetTripsAsync(0, 2, CancellationToken.None);
+        var secondTrips = await _repository.GetTripsAsync(2, 2, CancellationToken.None);
+        var firstVehicles = await _repository.GetVehicleHistoryAsync(new VehicleHistoryQuery(null, null, null, VehicleHistorySort.MostRecent, 0, 2), CancellationToken.None);
+        var secondVehicles = await _repository.GetVehicleHistoryAsync(new VehicleHistoryQuery(null, null, null, VehicleHistorySort.MostRecent, 2, 2), CancellationToken.None);
+
+        Assert.Equal(2, firstTrips.Count);
+        Assert.Single(secondTrips);
+        Assert.Empty(firstTrips.Select(trip => trip.Id).Intersect(secondTrips.Select(trip => trip.Id)));
+        Assert.Equal(2, firstVehicles.Count);
+        Assert.Single(secondVehicles);
+        Assert.Empty(firstVehicles.Select(vehicle => vehicle.NormalizedPlate).Intersect(secondVehicles.Select(vehicle => vehicle.NormalizedPlate)));
     }
 
     [Fact]

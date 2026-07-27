@@ -203,8 +203,12 @@ public sealed class SqliteSightingRepository : ISightingRepository
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    public Task<IReadOnlyList<TripSummary>> GetTripsAsync(int limit, CancellationToken cancellationToken) =>
-        QueryTripsAsync("ORDER BY t.started_at DESC LIMIT @limit", command => command.Parameters.AddWithValue("@limit", Math.Clamp(limit, 1, 1000)), cancellationToken);
+    public Task<IReadOnlyList<TripSummary>> GetTripsAsync(int offset, int limit, CancellationToken cancellationToken) =>
+        QueryTripsAsync("ORDER BY t.started_at DESC, t.id DESC LIMIT @limit OFFSET @offset", command =>
+        {
+            command.Parameters.AddWithValue("@limit", Math.Clamp(limit, 1, 1000));
+            command.Parameters.AddWithValue("@offset", Math.Max(0, offset));
+        }, cancellationToken);
 
     public async Task<TripSummary?> GetTripAsync(long tripId, CancellationToken cancellationToken)
     {
@@ -356,8 +360,9 @@ public sealed class SqliteSightingRepository : ISightingRepository
                 AND (@minimum_price IS NULL OR MAX(catalog_price) > @minimum_price)
             ORDER BY
                 CASE WHEN @sort = 1 THEN MAX(catalog_price) END DESC,
-                MAX(last_seen_at) DESC
-            LIMIT @limit;
+                MAX(last_seen_at) DESC,
+                normalized_plate
+            LIMIT @limit OFFSET @offset;
             """;
         command.Parameters.AddWithValue("@search", DbValue(normalizedSearch));
         command.Parameters.AddWithValue("@raw_search", DbValue(string.IsNullOrWhiteSpace(query.Search) ? null : query.Search.Trim()));
@@ -365,6 +370,7 @@ public sealed class SqliteSightingRepository : ISightingRepository
         command.Parameters.AddWithValue("@minimum_price", query.MinimumCatalogPrice is null ? DBNull.Value : decimal.ToDouble(query.MinimumCatalogPrice.Value));
         command.Parameters.AddWithValue("@sort", (int)query.Sort);
         command.Parameters.AddWithValue("@limit", Math.Clamp(query.Limit, 1, 1000));
+        command.Parameters.AddWithValue("@offset", Math.Max(0, query.Offset));
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         var results = new List<VehicleHistorySummary>();
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))

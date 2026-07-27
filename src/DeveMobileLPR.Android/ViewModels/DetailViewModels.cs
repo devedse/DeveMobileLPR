@@ -135,14 +135,25 @@ internal sealed class TripDetailViewModel(SqliteSightingRepository repository, l
 
     private void ApplySort()
     {
-        var ordered = SelectedSort switch
+        var ordered = (SelectedSort switch
         {
             SortByValue => _loadedVehicles.OrderByDescending(vehicle => vehicle.CatalogPrice ?? decimal.MinValue).ThenBy(vehicle => vehicle.FirstSeenAt),
             SortByEarlierSightings => _loadedVehicles.OrderByDescending(vehicle => vehicle.EarlierSightingCount).ThenBy(vehicle => vehicle.FirstSeenAt),
             _ => _loadedVehicles.OrderBy(vehicle => vehicle.FirstSeenAt)
-        };
-        Vehicles.Clear();
-        foreach (var vehicle in ordered) Vehicles.Add(vehicle);
+        }).ToArray();
+
+        for (var targetIndex = 0; targetIndex < ordered.Length; targetIndex++)
+        {
+            var currentIndex = Vehicles.IndexOf(ordered[targetIndex]);
+            if (currentIndex < 0)
+            {
+                Vehicles.Insert(targetIndex, ordered[targetIndex]);
+            }
+            else if (currentIndex != targetIndex)
+            {
+                Vehicles.Move(currentIndex, targetIndex);
+            }
+        }
     }
 }
 
