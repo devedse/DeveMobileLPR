@@ -4,9 +4,7 @@ using DeveMobileLPR.Streaming;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Devices.Enumeration;
-using Windows.Graphics.DirectX;
 using Windows.Graphics.Imaging;
-using Windows.Media;
 using Windows.Media.Capture;
 using Windows.Media.Capture.Frames;
 using Windows.Media.Core;
@@ -27,6 +25,9 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable
     private readonly Task _frameWorker;
     private MediaCapture? _capture;
     private MediaPlayer? _player;
+    private WindowsMediaFoundationLiveFrameReader? _networkReader;
+    private Task? _networkReaderTask;
+    private CancellationTokenSource? _networkReaderCancellation;
     private MediaFrameSource? _frameSource;
     private MediaFrameReader? _reader;
     private SoftwareBitmap? _latestBitmap;
@@ -37,7 +38,6 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable
     private bool _disposed;
     private long _sequence;
     private long _nextStreamFrameTicks;
-    private int _streamFramePending;
     private TaskCompletionSource? _streamOpened;
 
     public WindowsWebcamFrameSource(
@@ -242,25 +242,23 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable
             throw new InvalidOperationException("Enter a valid HTTP or HTTPS .m3u8 URL before starting the OME stream.");
         }
 
+        var feed = new WindowsHlsCompletedSegmentFeed(stream!.Uri);
+        var first = await feed.GetNextAsync(cancellationToken);
+        var reader = await WindowsMediaFoundationLiveFrameReader.CreateForSegmentAsync(first.Initialization, first.Media, cancellationToken);
         var opened = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var player = new MediaPlayer
-        {
-            AutoPlay = false,
-            IsVideoFrameServerEnabled = true,
-            RealTimePlayback = true,
-            Source = MediaSource.CreateFromUri(stream!.Uri)
-        };
-        player.MediaOpened += StreamOpened;
-        player.MediaFailed += StreamFailed;
-        player.VideoFrameAvailable += StreamFrameAvailable;
+        var readerCancellation = CancellationTokenSource.CreateLinkedTokenSource(_cancellation.Token);
         _streamOpened = opened;
-        _player = player;
+        _networkReader = reader;
+        _networkReaderCancellation = readerCancellation;
+        _preview.SetMediaPlayer(null);
+        _preview.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
+        _streamPreview.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
         _analyzing = true;
-        player.Play();
+        _networkReaderTask = Task.Run(() => ReadNetworkFramesAsync(feed, reader, opened, readerCancellation.Token), CancellationToken.None);
         try
         {
             await opened.Task.WaitAsync(TimeSpan.FromSeconds(15), cancellationToken);
-            Diagnostic?.Invoke(this, "OME LL-HLS stream active · processing stays on this device");
+            Diagnostic?.Invoke(this, "OME stream active · native Media Foundation software decoding");
         }
         catch
         {
@@ -269,49 +267,52 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable
         }
     }
 
-    private void StreamOpened(MediaPlayer sender, object args) => _streamOpened?.TrySetResult();
-
-    private void StreamFailed(MediaPlayer sender, MediaPlayerFailedEventArgs args) =>
-        _streamOpened?.TrySetException(new InvalidDataException($"OME LL-HLS playback failed: {args.ErrorMessage}"));
-
-    private async void StreamFrameAvailable(MediaPlayer sender, object args)
+    private async Task ReadNetworkFramesAsync(
+        WindowsHlsCompletedSegmentFeed feed,
+        WindowsMediaFoundationLiveFrameReader initialReader,
+        TaskCompletionSource opened,
+        CancellationToken cancellationToken)
     {
-        var now = Environment.TickCount64;
-        if (now < Interlocked.Read(ref _nextStreamFrameTicks)
-            || Interlocked.CompareExchange(ref _streamFramePending, 1, 0) != 0)
-        {
-            return;
-        }
-
-        Interlocked.Exchange(ref _nextStreamFrameTicks, now + 250);
+        var reader = initialReader;
         try
         {
-            var width = checked((int)sender.PlaybackSession.NaturalVideoWidth);
-            var height = checked((int)sender.PlaybackSession.NaturalVideoHeight);
-            if (width <= 0 || height <= 0)
+            while (!cancellationToken.IsCancellationRequested)
             {
-                return;
+                using var bitmap = reader.ReadNext();
+                if (bitmap is null)
+                {
+                    reader.Dispose();
+                    var next = await feed.GetNextAsync(cancellationToken).ConfigureAwait(false);
+                    reader = await WindowsMediaFoundationLiveFrameReader.CreateForSegmentAsync(next.Initialization, next.Media, cancellationToken).ConfigureAwait(false);
+                    _networkReader = reader;
+                    continue;
+                }
+                var now = Environment.TickCount64;
+                if (now < Interlocked.Read(ref _nextStreamFrameTicks))
+                {
+                    continue;
+                }
+                Interlocked.Exchange(ref _nextStreamFrameTicks, now + 250);
+                Interlocked.Exchange(ref _latestBitmap, SoftwareBitmap.Copy(bitmap))?.Dispose();
+                if (_frameSignal.CurrentCount == 0)
+                {
+                    try { _frameSignal.Release(); } catch (SemaphoreFullException) { }
+                }
+                opened.TrySetResult();
             }
-
-            using var gpuFrame = VideoFrame.CreateAsDirect3D11SurfaceBacked(
-                DirectXPixelFormat.B8G8R8A8UIntNormalized,
-                width,
-                height);
-            sender.CopyFrameToVideoSurface(gpuFrame.Direct3DSurface);
-            var owned = await SoftwareBitmap.CreateCopyFromSurfaceAsync(gpuFrame.Direct3DSurface);
-            Interlocked.Exchange(ref _latestBitmap, owned)?.Dispose();
-            if (_frameSignal.CurrentCount == 0)
-            {
-                try { _frameSignal.Release(); } catch (SemaphoreFullException) { }
-            }
+        }
+        catch (Exception) when (cancellationToken.IsCancellationRequested)
+        {
+            opened.TrySetCanceled(cancellationToken);
         }
         catch (Exception exception)
         {
-            Diagnostic?.Invoke(this, $"OME stream frame processing failed: {exception.Message}");
+            opened.TrySetException(exception);
+            Diagnostic?.Invoke(this, $"OME software decoding failed: {exception.Message}");
         }
         finally
         {
-            Volatile.Write(ref _streamFramePending, 0);
+            reader.Dispose();
         }
     }
 
@@ -371,6 +372,20 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable
     {
         _analyzing = false;
         _streamOpened = null;
+        if (_networkReader is not null)
+        {
+            _networkReaderCancellation?.Cancel();
+            _networkReader.Dispose();
+            _networkReader = null;
+            if (_networkReaderTask is not null)
+            {
+                try { await _networkReaderTask.ConfigureAwait(false); }
+                catch (OperationCanceledException) { }
+            }
+            _networkReaderTask = null;
+            _networkReaderCancellation?.Dispose();
+            _networkReaderCancellation = null;
+        }
         if (_reader is null)
         {
             ReleasePlayer();
@@ -383,28 +398,6 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable
         _reader.Dispose();
         _reader = null;
         Interlocked.Exchange(ref _latestBitmap, null)?.Dispose();
-    }
-
-    private async Task UpdateStreamPreviewAsync(SoftwareBitmap bitmap)
-    {
-        using var previewBitmap = SoftwareBitmap.Copy(bitmap);
-        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        if (!_streamPreview.DispatcherQueue.TryEnqueue(async () =>
-            {
-                try
-                {
-                    await _streamPreviewSource.SetBitmapAsync(previewBitmap);
-                    completion.TrySetResult();
-                }
-                catch (Exception exception)
-                {
-                    completion.TrySetException(exception);
-                }
-            }))
-        {
-            return;
-        }
-        await completion.Task.ConfigureAwait(false);
     }
 
     private void ReleaseCapture()
@@ -423,11 +416,30 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable
             return;
         }
 
-        _player.MediaOpened -= StreamOpened;
-        _player.MediaFailed -= StreamFailed;
-        _player.VideoFrameAvailable -= StreamFrameAvailable;
         _player.Dispose();
         _player = null;
+    }
+
+    private async Task UpdateStreamPreviewAsync(SoftwareBitmap bitmap)
+    {
+        using var previewBitmap = SoftwareBitmap.Convert(bitmap, BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!_streamPreview.DispatcherQueue.TryEnqueue(async () =>
+            {
+                try
+                {
+                    await _streamPreviewSource.SetBitmapAsync(previewBitmap);
+                    completion.TrySetResult();
+                }
+                catch (Exception exception)
+                {
+                    completion.TrySetException(exception);
+                }
+            }))
+        {
+            return;
+        }
+        await completion.Task.ConfigureAwait(false);
     }
 
     public async ValueTask DisposeAsync()
