@@ -27,6 +27,15 @@
           "Xamarin.Google.Crypto.Tink.Android": "1.18.0.1"
         }
       },
+      "Microsoft.ML.OnnxRuntime": {
+        "type": "Direct",
+        "requested": "[1.24.4, )",
+        "resolved": "1.24.4",
+        "contentHash": "895huFBVrZkZEGjlsxBSZD3p6D32Cdz6q8DM9UcUps2YKFYdFR8TefaTggFBUTYlvcSyfNTpmOOU/ZkeL69izw==",
+        "dependencies": {
+          "Microsoft.ML.OnnxRuntime.Managed": "1.24.4"
+        }
+      },
       "Microsoft.NET.ILLink.Tasks": {
         "type": "Direct",
         "requested": "[10.0.10, )",
@@ -383,14 +392,6 @@
         "type": "Transitive",
         "resolved": "10.0.90",
         "contentHash": "Wjq5i4zvumm7YbfWsMpjTj3/Pr2aaDyL5dLyIOOpSNjBKvQ//G7iG7PZwC+fJ3isWQRhO0CqFVsC4Kx0Gdri6g=="
-      },
-      "Microsoft.ML.OnnxRuntime.Managed": {
-        "type": "Transitive",
-        "resolved": "1.28.0",
-        "contentHash": "4ecKjwASHhAZXczK/xm5KU6MdvoIGfMd23UAwDbM9vfcfgqZgNqvFWPZPT0Elc1wu5vXWs2Kij1ZBmHCcv1UlA==",
-        "dependencies": {
-          "System.Numerics.Tensors": "9.0.0"
-        }
       },
       "SourceGear.sqlite3": {
         "type": "Transitive",
@@ -1597,7 +1598,7 @@
         "type": "Project",
         "dependencies": {
           "DeveMobileLPR.Core": "[1.0.0, )",
-          "Microsoft.ML.OnnxRuntime": "[1.28.0, )"
+          "Microsoft.ML.OnnxRuntime.Managed": "[1.24.4, )"
         }
       },
       "devemobilelpr.storage": {
@@ -1619,13 +1620,13 @@
           "SQLitePCLRaw.core": "2.1.11"
         }
       },
-      "Microsoft.ML.OnnxRuntime": {
+      "Microsoft.ML.OnnxRuntime.Managed": {
         "type": "CentralTransitive",
-        "requested": "[1.28.0, )",
-        "resolved": "1.28.0",
-        "contentHash": "xpguSCrXBe5E1l1088S7UqnI36EHaTL6CJMHEhwfGBoSwyPH5Q/IkbkBBk/GwXWzsVyEXpQm42ZimSAQs0/zKA==",
+        "requested": "[1.24.4, )",
+        "resolved": "1.24.4",
+        "contentHash": "e5jsEo0HcCKDMkuRsMSievKoMv10Odv4MGmxbCin8SEm4Pto1qTpwti47xRwMtk9I/zVvfAiFIWquOq/0+22DA==",
         "dependencies": {
-          "Microsoft.ML.OnnxRuntime.Managed": "1.28.0"
+          "System.Numerics.Tensors": "9.0.0"
         }
       },
       "SQLitePCLRaw.bundle_e_sqlite3": {
@@ -1665,51 +1666,51 @@
       }
     },
     "net10.0-android36.0/android-arm64": {
+      "Microsoft.ML.OnnxRuntime": {
+        "type": "Direct",
+        "requested": "[1.24.4, )",
+        "resolved": "1.24.4",
+        "contentHash": "895huFBVrZkZEGjlsxBSZD3p6D32Cdz6q8DM9UcUps2YKFYdFR8TefaTggFBUTYlvcSyfNTpmOOU/ZkeL69izw==",
+        "dependencies": {
+          "Microsoft.ML.OnnxRuntime.Managed": "1.24.4"
+        }
+      },
       "SourceGear.sqlite3": {
         "type": "Transitive",
         "resolved": "3.53.3",
         "contentHash": "PaDT7JwQ00HmXZT1xSGSC0c24A5lVpJYHMrXBuJATdpB2t0nf4Kq9HyPaZhxVW0elPq4XI1s5BLh7qLuObmzFA=="
-      },
-      "Microsoft.ML.OnnxRuntime": {
-        "type": "CentralTransitive",
-        "requested": "[1.28.0, )",
-        "resolved": "1.28.0",
-        "contentHash": "xpguSCrXBe5E1l1088S7UqnI36EHaTL6CJMHEhwfGBoSwyPH5Q/IkbkBBk/GwXWzsVyEXpQm42ZimSAQs0/zKA==",
-        "dependencies": {
-          "Microsoft.ML.OnnxRuntime.Managed": "1.28.0"
-        }
       }
     },
     "net10.0-android36.0/android-x64": {
+      "Microsoft.ML.OnnxRuntime": {
+        "type": "Direct",
+        "requested": "[1.24.4, )",
+        "resolved": "1.24.4",
+        "contentHash": "895huFBVrZkZEGjlsxBSZD3p6D32Cdz6q8DM9UcUps2YKFYdFR8TefaTggFBUTYlvcSyfNTpmOOU/ZkeL69izw==",
+        "dependencies": {
+          "Microsoft.ML.OnnxRuntime.Managed": "1.24.4"
+        }
+      },
       "SourceGear.sqlite3": {
         "type": "Transitive",
         "resolved": "3.53.3",
         "contentHash": "PaDT7JwQ00HmXZT1xSGSC0c24A5lVpJYHMrXBuJATdpB2t0nf4Kq9HyPaZhxVW0elPq4XI1s5BLh7qLuObmzFA=="
-      },
-      "Microsoft.ML.OnnxRuntime": {
-        "type": "CentralTransitive",
-        "requested": "[1.28.0, )",
-        "resolved": "1.28.0",
-        "contentHash": "xpguSCrXBe5E1l1088S7UqnI36EHaTL6CJMHEhwfGBoSwyPH5Q/IkbkBBk/GwXWzsVyEXpQm42ZimSAQs0/zKA==",
-        "dependencies": {
-          "Microsoft.ML.OnnxRuntime.Managed": "1.28.0"
-        }
       }
     },
     "net10.0-android36.0/win-x64": {
+      "Microsoft.ML.OnnxRuntime": {
+        "type": "Direct",
+        "requested": "[1.24.4, )",
+        "resolved": "1.24.4",
+        "contentHash": "895huFBVrZkZEGjlsxBSZD3p6D32Cdz6q8DM9UcUps2YKFYdFR8TefaTggFBUTYlvcSyfNTpmOOU/ZkeL69izw==",
+        "dependencies": {
+          "Microsoft.ML.OnnxRuntime.Managed": "1.24.4"
+        }
+      },
       "SourceGear.sqlite3": {
         "type": "Transitive",
         "resolved": "3.53.3",
         "contentHash": "PaDT7JwQ00HmXZT1xSGSC0c24A5lVpJYHMrXBuJATdpB2t0nf4Kq9HyPaZhxVW0elPq4XI1s5BLh7qLuObmzFA=="
-      },
-      "Microsoft.ML.OnnxRuntime": {
-        "type": "CentralTransitive",
-        "requested": "[1.28.0, )",
-        "resolved": "1.28.0",
-        "contentHash": "xpguSCrXBe5E1l1088S7UqnI36EHaTL6CJMHEhwfGBoSwyPH5Q/IkbkBBk/GwXWzsVyEXpQm42ZimSAQs0/zKA==",
-        "dependencies": {
-          "Microsoft.ML.OnnxRuntime.Managed": "1.28.0"
-        }
       }
     },
     "net10.0-windows10.0.19041": {
@@ -1736,11 +1737,36 @@
           "Microsoft.WindowsAppSDK": "1.8.260508005"
         }
       },
+      "Microsoft.ML.OnnxRuntime.DirectML": {
+        "type": "Direct",
+        "requested": "[1.24.4, )",
+        "resolved": "1.24.4",
+        "contentHash": "rXEy9biJdgr55TdDaHrhl35K0FRXRCbvyRUv4S4C3jTxyxrqSh8YcEp5bzw4S9UlcqQKNfpb3sE+VWvO2DZY6A==",
+        "dependencies": {
+          "Microsoft.AI.DirectML": "1.15.4",
+          "Microsoft.ML.OnnxRuntime.Managed": "1.24.4"
+        }
+      },
       "Microsoft.NET.ILLink.Tasks": {
         "type": "Direct",
         "requested": "[10.0.10, )",
         "resolved": "10.0.10",
         "contentHash": "f5VCIE7AJpd5YvzNTeMGVzQIgyE9tX+AreTYwQF+REbu+DZo/2Ae+jNSwhPEYrVz6RRkd7y8ubXjk6Nn6Ka+Cg=="
+      },
+      "Vortice.MediaFoundation": {
+        "type": "Direct",
+        "requested": "[3.8.3, )",
+        "resolved": "3.8.3",
+        "contentHash": "TeAN7tKrf1XfUxXe1+fukRvPCTW53DQUxuPR0pZLivuhmLlFCgpvb+EQWfCKENnEwbJnL+OdrHxWn2qUZiYMuA==",
+        "dependencies": {
+          "SharpGen.Runtime": "2.4.2-beta",
+          "Vortice.DirectX": "3.8.3"
+        }
+      },
+      "Microsoft.AI.DirectML": {
+        "type": "Transitive",
+        "resolved": "1.15.4",
+        "contentHash": "UblWBtQxcXcxwcn+jh0pfbq4zv2b6w7ThJ35qUV9gd8niGofrFWzVqZ6yqYDMiE+IJf8LRpG+H1cZpswceOeiA=="
       },
       "Microsoft.Data.Sqlite.Core": {
         "type": "Transitive",
@@ -1929,14 +1955,6 @@
         "resolved": "10.0.90",
         "contentHash": "Wjq5i4zvumm7YbfWsMpjTj3/Pr2aaDyL5dLyIOOpSNjBKvQ//G7iG7PZwC+fJ3isWQRhO0CqFVsC4Kx0Gdri6g=="
       },
-      "Microsoft.ML.OnnxRuntime.Managed": {
-        "type": "Transitive",
-        "resolved": "1.28.0",
-        "contentHash": "4ecKjwASHhAZXczK/xm5KU6MdvoIGfMd23UAwDbM9vfcfgqZgNqvFWPZPT0Elc1wu5vXWs2Kij1ZBmHCcv1UlA==",
-        "dependencies": {
-          "System.Numerics.Tensors": "9.0.0"
-        }
-      },
       "Microsoft.Web.WebView2": {
         "type": "Transitive",
         "resolved": "1.0.3179.45",
@@ -2048,6 +2066,19 @@
           "Microsoft.WindowsAppSDK.InteractiveExperiences": "1.8.260430001"
         }
       },
+      "SharpGen.Runtime": {
+        "type": "Transitive",
+        "resolved": "2.4.2-beta",
+        "contentHash": "niTtWAUov1F7wZGAlVeEvW+Tnqvg5yTmhI7rxmYu2Utoyu2TbC9tWWpUpMs0PQg5lu5svoYpCAztNjxCqMFP/w=="
+      },
+      "SharpGen.Runtime.COM": {
+        "type": "Transitive",
+        "resolved": "2.4.2-beta",
+        "contentHash": "9lxDFMiepqo3lJQzMSjECCIONeCc2f3Drokgj6HtrTLZcJSftNgcLbD6/iXYj2iphkwgrZb1oLsDOZxoFZkawQ==",
+        "dependencies": {
+          "SharpGen.Runtime": "2.4.2-beta"
+        }
+      },
       "SourceGear.sqlite3": {
         "type": "Transitive",
         "resolved": "3.53.3",
@@ -2079,6 +2110,21 @@
         "resolved": "9.0.0",
         "contentHash": "hyJB4UlpAi19Xr9AXzu2NuagKC4lPfHObNMEAA0HmqFz2rX7wKgzeYzO/jM/eBHDhnUGFFEjk5cOoJaxqg5J4A=="
       },
+      "Vortice.DirectX": {
+        "type": "Transitive",
+        "resolved": "3.8.3",
+        "contentHash": "nKwSavv0w5rDF7prSefqAVPDcTyqrfZxKFMVfttiXPfm62VdA/1d+b3PhCZpW4xO7jXczXDwjQdWgD1zGsvM8w==",
+        "dependencies": {
+          "SharpGen.Runtime": "2.4.2-beta",
+          "SharpGen.Runtime.COM": "2.4.2-beta",
+          "Vortice.Mathematics": "2.1.0"
+        }
+      },
+      "Vortice.Mathematics": {
+        "type": "Transitive",
+        "resolved": "2.1.0",
+        "contentHash": "KK+SjNSuKdP+zbavekubi+vaeb1Jo4k87ZF6CMkVWjr6RjJwc8peVtmgzXXDIMy4ZC3ZISyk3llY3q65ISOkBQ=="
+      },
       "devemobilelpr.core": {
         "type": "Project"
       },
@@ -2086,7 +2132,7 @@
         "type": "Project",
         "dependencies": {
           "DeveMobileLPR.Core": "[1.0.0, )",
-          "Microsoft.ML.OnnxRuntime": "[1.28.0, )"
+          "Microsoft.ML.OnnxRuntime.Managed": "[1.24.4, )"
         }
       },
       "devemobilelpr.storage": {
@@ -2108,13 +2154,13 @@
           "SQLitePCLRaw.core": "2.1.11"
         }
       },
-      "Microsoft.ML.OnnxRuntime": {
+      "Microsoft.ML.OnnxRuntime.Managed": {
         "type": "CentralTransitive",
-        "requested": "[1.28.0, )",
-        "resolved": "1.28.0",
-        "contentHash": "xpguSCrXBe5E1l1088S7UqnI36EHaTL6CJMHEhwfGBoSwyPH5Q/IkbkBBk/GwXWzsVyEXpQm42ZimSAQs0/zKA==",
+        "requested": "[1.24.4, )",
+        "resolved": "1.24.4",
+        "contentHash": "e5jsEo0HcCKDMkuRsMSievKoMv10Odv4MGmxbCin8SEm4Pto1qTpwti47xRwMtk9I/zVvfAiFIWquOq/0+22DA==",
         "dependencies": {
-          "Microsoft.ML.OnnxRuntime.Managed": "1.28.0"
+          "System.Numerics.Tensors": "9.0.0"
         }
       },
       "SQLitePCLRaw.bundle_e_sqlite3": {
@@ -2129,6 +2175,16 @@
       }
     },
     "net10.0-windows10.0.19041/android-arm64": {
+      "Microsoft.ML.OnnxRuntime.DirectML": {
+        "type": "Direct",
+        "requested": "[1.24.4, )",
+        "resolved": "1.24.4",
+        "contentHash": "rXEy9biJdgr55TdDaHrhl35K0FRXRCbvyRUv4S4C3jTxyxrqSh8YcEp5bzw4S9UlcqQKNfpb3sE+VWvO2DZY6A==",
+        "dependencies": {
+          "Microsoft.AI.DirectML": "1.15.4",
+          "Microsoft.ML.OnnxRuntime.Managed": "1.24.4"
+        }
+      },
       "Microsoft.Graphics.Win2D": {
         "type": "Transitive",
         "resolved": "1.3.2",
@@ -2155,18 +2211,19 @@
         "type": "Transitive",
         "resolved": "3.53.3",
         "contentHash": "PaDT7JwQ00HmXZT1xSGSC0c24A5lVpJYHMrXBuJATdpB2t0nf4Kq9HyPaZhxVW0elPq4XI1s5BLh7qLuObmzFA=="
-      },
-      "Microsoft.ML.OnnxRuntime": {
-        "type": "CentralTransitive",
-        "requested": "[1.28.0, )",
-        "resolved": "1.28.0",
-        "contentHash": "xpguSCrXBe5E1l1088S7UqnI36EHaTL6CJMHEhwfGBoSwyPH5Q/IkbkBBk/GwXWzsVyEXpQm42ZimSAQs0/zKA==",
-        "dependencies": {
-          "Microsoft.ML.OnnxRuntime.Managed": "1.28.0"
-        }
       }
     },
     "net10.0-windows10.0.19041/android-x64": {
+      "Microsoft.ML.OnnxRuntime.DirectML": {
+        "type": "Direct",
+        "requested": "[1.24.4, )",
+        "resolved": "1.24.4",
+        "contentHash": "rXEy9biJdgr55TdDaHrhl35K0FRXRCbvyRUv4S4C3jTxyxrqSh8YcEp5bzw4S9UlcqQKNfpb3sE+VWvO2DZY6A==",
+        "dependencies": {
+          "Microsoft.AI.DirectML": "1.15.4",
+          "Microsoft.ML.OnnxRuntime.Managed": "1.24.4"
+        }
+      },
       "Microsoft.Graphics.Win2D": {
         "type": "Transitive",
         "resolved": "1.3.2",
@@ -2193,18 +2250,19 @@
         "type": "Transitive",
         "resolved": "3.53.3",
         "contentHash": "PaDT7JwQ00HmXZT1xSGSC0c24A5lVpJYHMrXBuJATdpB2t0nf4Kq9HyPaZhxVW0elPq4XI1s5BLh7qLuObmzFA=="
-      },
-      "Microsoft.ML.OnnxRuntime": {
-        "type": "CentralTransitive",
-        "requested": "[1.28.0, )",
-        "resolved": "1.28.0",
-        "contentHash": "xpguSCrXBe5E1l1088S7UqnI36EHaTL6CJMHEhwfGBoSwyPH5Q/IkbkBBk/GwXWzsVyEXpQm42ZimSAQs0/zKA==",
-        "dependencies": {
-          "Microsoft.ML.OnnxRuntime.Managed": "1.28.0"
-        }
       }
     },
     "net10.0-windows10.0.19041/win-x64": {
+      "Microsoft.ML.OnnxRuntime.DirectML": {
+        "type": "Direct",
+        "requested": "[1.24.4, )",
+        "resolved": "1.24.4",
+        "contentHash": "rXEy9biJdgr55TdDaHrhl35K0FRXRCbvyRUv4S4C3jTxyxrqSh8YcEp5bzw4S9UlcqQKNfpb3sE+VWvO2DZY6A==",
+        "dependencies": {
+          "Microsoft.AI.DirectML": "1.15.4",
+          "Microsoft.ML.OnnxRuntime.Managed": "1.24.4"
+        }
+      },
       "Microsoft.Graphics.Win2D": {
         "type": "Transitive",
         "resolved": "1.3.2",
@@ -2231,15 +2289,6 @@
         "type": "Transitive",
         "resolved": "3.53.3",
         "contentHash": "PaDT7JwQ00HmXZT1xSGSC0c24A5lVpJYHMrXBuJATdpB2t0nf4Kq9HyPaZhxVW0elPq4XI1s5BLh7qLuObmzFA=="
-      },
-      "Microsoft.ML.OnnxRuntime": {
-        "type": "CentralTransitive",
-        "requested": "[1.28.0, )",
-        "resolved": "1.28.0",
-        "contentHash": "xpguSCrXBe5E1l1088S7UqnI36EHaTL6CJMHEhwfGBoSwyPH5Q/IkbkBBk/GwXWzsVyEXpQm42ZimSAQs0/zKA==",
-        "dependencies": {
-          "Microsoft.ML.OnnxRuntime.Managed": "1.28.0"
-        }
       }
     }
   }

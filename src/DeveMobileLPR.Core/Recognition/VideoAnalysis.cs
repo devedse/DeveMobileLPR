@@ -17,10 +17,14 @@ public sealed record VideoAnalysisProgress(
     int ProcessedFrames,
     int TotalFrames,
     TimeSpan Position,
-    TimeSpan Elapsed)
+    TimeSpan Elapsed,
+    TimeSpan DecodeElapsed = default,
+    TimeSpan RecognitionElapsed = default)
 {
     public double Fraction => TotalFrames == 0 ? 0 : (double)ProcessedFrames / TotalFrames;
     public double FramesPerSecond => Elapsed.TotalSeconds <= 0 ? 0 : ProcessedFrames / Elapsed.TotalSeconds;
+    public double AverageDecodeMilliseconds => ProcessedFrames == 0 ? 0 : DecodeElapsed.TotalMilliseconds / ProcessedFrames;
+    public double AverageRecognitionMilliseconds => ProcessedFrames == 0 ? 0 : RecognitionElapsed.TotalMilliseconds / ProcessedFrames;
 }
 
 public sealed record AnalyzedVideoFrame(
