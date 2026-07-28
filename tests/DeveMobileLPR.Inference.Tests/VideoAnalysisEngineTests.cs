@@ -25,6 +25,8 @@ public sealed class VideoAnalysisEngineTests
         Assert.Equal([0L, 2L, 4L], source.RequestedFrameIndices);
         Assert.Equal(3, progress.Count);
         Assert.Equal(1, progress[^1].Fraction);
+        Assert.True(progress[^1].Elapsed > TimeSpan.Zero);
+        Assert.True(progress[^1].FramesPerSecond > 0);
         Assert.Equal([0L, 2L], result.Frames.Select(static frame => frame.SourceFrameIndex));
         Assert.Equal(source.Timeline, new VideoFrameTimeline(result.Duration, result.SourceFrameRate, result.SourceFrameCount));
         Assert.Equal(new VideoFrameSampling(2), result.Sampling);

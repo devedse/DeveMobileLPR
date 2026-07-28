@@ -20,7 +20,7 @@ The detector input is `[1,3,608,608]` RGB `float32`, normalized to 0–1 and let
 
 The OCR input is `[1,64,128,3]` RGB `uint8`. The model performs its own normalization. It emits ten character slots over `0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_` plus a 66-class region output. The decoder retains the best three alternatives per slot for temporal fusion.
 
-Inference sessions and input `OrtValue` objects are long-lived. XNNPACK is attempted on Android with bounded threads; a failure is reported and falls back to the CPU provider. Runs are serialized per model because their input buffers are reused.
+Inference sessions and input `OrtValue` objects are long-lived. XNNPACK is attempted on Android with bounded threads; a failure is reported and falls back to the CPU provider. Windows uses the CPU provider with ONNX Runtime's default multi-core intra-op pool. Runs are serialized per model because their input buffers are reused.
 
 ## Confirmation policy
 

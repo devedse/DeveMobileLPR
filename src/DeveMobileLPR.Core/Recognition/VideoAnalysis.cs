@@ -16,9 +16,11 @@ public interface IVideoFrameSource : IDisposable
 public sealed record VideoAnalysisProgress(
     int ProcessedFrames,
     int TotalFrames,
-    TimeSpan Position)
+    TimeSpan Position,
+    TimeSpan Elapsed)
 {
     public double Fraction => TotalFrames == 0 ? 0 : (double)ProcessedFrames / TotalFrames;
+    public double FramesPerSecond => Elapsed.TotalSeconds <= 0 ? 0 : ProcessedFrames / Elapsed.TotalSeconds;
 }
 
 public sealed record AnalyzedVideoFrame(

@@ -211,7 +211,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         var progress = new Progress<VideoAnalysisProgress>(update =>
         {
             Progress = update.Fraction;
-            ProgressText = $"{update.Fraction:P0} · {update.ProcessedFrames:N0} of {update.TotalFrames:N0} frames · {FormatPosition(update.Position)}";
+            ProgressText = $"{update.Fraction:P0} · {update.ProcessedFrames:N0} of {update.TotalFrames:N0} frames · {update.FramesPerSecond:F1} fps · {FormatPosition(update.Position)}";
             processingItem.Progress = update.Fraction;
             processingItem.Detail = ProgressText;
         });

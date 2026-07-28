@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using DeveMobileLPR.Recognition;
 
 namespace DeveMobileLPR.Inference;
@@ -27,6 +28,7 @@ public sealed class VideoAnalysisEngine(IFrameRecognitionPipeline pipeline) : ID
             var frames = new List<AnalyzedVideoFrame>(sampledFrameCount);
             var tracks = new PlateTrackManager();
             var processedFrames = 0;
+            var stopwatch = Stopwatch.StartNew();
 
             for (var sourceFrameIndex = 0; sourceFrameIndex < timeline.FrameCount; sourceFrameIndex++)
             {
@@ -45,7 +47,7 @@ public sealed class VideoAnalysisEngine(IFrameRecognitionPipeline pipeline) : ID
                 }
 
                 processedFrames++;
-                progress?.Report(new VideoAnalysisProgress(processedFrames, sampledFrameCount, position));
+                progress?.Report(new VideoAnalysisProgress(processedFrames, sampledFrameCount, position, stopwatch.Elapsed));
             }
 
             return new VideoAnalysisResult(

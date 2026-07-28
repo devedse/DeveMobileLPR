@@ -41,7 +41,7 @@ internal static class OnnxSessionFactory
         GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
         ExecutionMode = ExecutionMode.ORT_SEQUENTIAL,
         InterOpNumThreads = 1,
-        IntraOpNumThreads = 1,
+        IntraOpNumThreads = 0,
         LogSeverityLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_WARNING
     };
 }
