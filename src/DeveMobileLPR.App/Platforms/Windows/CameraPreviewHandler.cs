@@ -4,6 +4,7 @@ using DeveMobileLPR.App.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.Handlers;
 using WinUIGrid = Microsoft.UI.Xaml.Controls.Grid;
+using WinUIImage = Microsoft.UI.Xaml.Controls.Image;
 using MediaPlayerElement = Microsoft.UI.Xaml.Controls.MediaPlayerElement;
 
 namespace DeveMobileLPR.App;
@@ -35,9 +36,19 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, WinUIGri
             Stretch = Microsoft.UI.Xaml.Media.Stretch.UniformToFill
         };
         root.Children.Add(preview);
+        var streamPreview = new WinUIImage
+        {
+            Stretch = Microsoft.UI.Xaml.Media.Stretch.UniformToFill,
+            Visibility = Microsoft.UI.Xaml.Visibility.Collapsed
+        };
+        root.Children.Add(streamPreview);
         _overlay = new WindowsDetectionOverlay();
         root.Children.Add(_overlay);
-        _source = new WindowsWebcamFrameSource(preview, frame => _coordinator.SubmitFrame(frame));
+        _source = new WindowsWebcamFrameSource(
+            preview,
+            streamPreview,
+            settings.NetworkStreamUrl,
+            frame => _coordinator.SubmitFrame(frame));
         _coordinator.AttachCamera(_source);
         _coordinator.SnapshotChanged += SnapshotChanged;
         _overlay.Update(_coordinator.Snapshot);

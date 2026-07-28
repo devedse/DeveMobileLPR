@@ -313,6 +313,8 @@ internal sealed class DriveCoordinator : IAsyncDisposable
         _camera?.SetZoom(_settings.Zoom);
     }
 
+    public void SetNetworkStreamUrl(string value) => _settings.NetworkStreamUrl = value;
+
     public void SelectCamera(string cameraId)
     {
         _settings.CameraId = cameraId;
@@ -461,6 +463,8 @@ internal sealed class DriveCoordinator : IAsyncDisposable
         _mostExpensive,
         _overlays.ToArray(),
         _location?.Latest is not null,
+        _camera is not null,
+        false,
         _cameraChoices.ToArray(),
         _camera?.SelectedCameraId ?? _settings.CameraId);
 

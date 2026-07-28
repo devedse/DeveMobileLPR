@@ -146,7 +146,9 @@ internal sealed class DriveCoordinator : IAsyncDisposable
             if (!_ready) return;
             if (_camera?.IsReady != true)
             {
-                SetStatus("No webcam is ready. Check Windows camera privacy settings and reconnect the camera.", true);
+                SetStatus(_settings.CameraId == DriveInputIds.NetworkLlHls
+                    ? "Enter a valid OME LL-HLS playlist URL before starting the drive."
+                    : "No webcam is ready. Check Windows camera privacy settings and reconnect the camera.", true);
                 return;
             }
 
@@ -165,7 +167,9 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                 _overlays = [];
                 _confirmedOverlay = null;
                 _hasError = false;
-                _status = "Scanning webcam · video stays on this device";
+                _status = _settings.CameraId == DriveInputIds.NetworkLlHls
+                    ? "Scanning OME LL-HLS stream · video is not saved"
+                    : "Scanning webcam · video stays on this device";
             }
             try
             {
@@ -235,6 +239,13 @@ internal sealed class DriveCoordinator : IAsyncDisposable
 
     public void SetZoom(float zoom) => _settings.Zoom = zoom;
 
+    public void SetNetworkStreamUrl(string value)
+    {
+        _settings.NetworkStreamUrl = value;
+        _camera?.SetNetworkStreamUrl(_settings.NetworkStreamUrl);
+        Publish();
+    }
+
     public void SelectCamera(string cameraId)
     {
         _settings.CameraId = cameraId;
@@ -245,7 +256,7 @@ internal sealed class DriveCoordinator : IAsyncDisposable
     private async Task SelectCameraAsync(WindowsWebcamFrameSource camera, string cameraId)
     {
         try { await camera.SelectCameraAsync(cameraId); }
-        catch (Exception exception) { SetStatus($"Could not switch webcams: {exception.Message}", true); }
+        catch (Exception exception) { SetStatus($"Could not switch video input: {exception.Message}", true); }
     }
 
     public void RefreshSettings() => Publish();
@@ -359,6 +370,8 @@ internal sealed class DriveCoordinator : IAsyncDisposable
         _mostExpensive,
         _overlays.ToArray(),
         false,
+        _camera?.IsReady == true,
+        true,
         _cameraChoices.ToArray(),
         _camera?.SelectedCameraId ?? _settings.CameraId);
     private static string FormatPlate(string value)

@@ -7,6 +7,7 @@ internal sealed class AppSettings
     private const string HapticKey = "confirmation_haptic";
     private const string ZoomKey = "camera_zoom";
     private const string CameraKey = "camera_id";
+    private string _networkStreamUrl = string.Empty;
 
     public bool TrackLocation
     {
@@ -35,6 +36,12 @@ internal sealed class AppSettings
     public string CameraId
     {
         get => Preferences.Default.Get(CameraKey, "rear");
-        set => Preferences.Default.Set(CameraKey, value is "front" ? "front" : "rear");
+        set => Preferences.Default.Set(CameraKey, string.IsNullOrWhiteSpace(value) ? "rear" : value);
+    }
+
+    public string NetworkStreamUrl
+    {
+        get => _networkStreamUrl;
+        set => _networkStreamUrl = value?.Trim() ?? string.Empty;
     }
 }

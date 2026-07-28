@@ -25,5 +25,7 @@ internal sealed record DriveSnapshot(
     Sighting? MostExpensive,
     IReadOnlyList<DriveOverlay> Overlays,
     bool HasLocation,
+    bool IsInputReady,
+    bool SupportsNetworkStreams,
     IReadOnlyList<CameraChoice> CameraChoices,
     string SelectedCameraId);

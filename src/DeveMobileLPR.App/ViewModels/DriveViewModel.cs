@@ -12,6 +12,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     private readonly Timer _durationTimer;
     private DriveSnapshot _snapshot;
     private string? _selectedCamera;
+    private string _networkStreamUrl;
     private double _zoom;
 
     public DriveViewModel(DriveCoordinator coordinator, AppSettings settings)
@@ -19,6 +20,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         _coordinator = coordinator;
         _settings = settings;
         _snapshot = coordinator.Snapshot;
+        _networkStreamUrl = settings.NetworkStreamUrl;
         _zoom = settings.Zoom;
         ToggleDriveCommand = new AsyncCommand(ToggleDriveAsync);
         _coordinator.SnapshotChanged += SnapshotChanged;
@@ -35,7 +37,9 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     public bool IsStopping => _snapshot.IsStopping;
     public bool ShowStartPanel => !IsDriving && !IsStopping;
     public bool ShowDriveControls => IsDriving || IsStopping;
-    public bool CanStart => IsReady && !IsInitializing;
+    public bool CanStart => IsReady && !IsInitializing && _snapshot.IsInputReady;
+    public bool ShowNetworkStreamUrl => _snapshot.SupportsNetworkStreams
+        && _snapshot.SelectedCameraId == DriveInputIds.NetworkLlHls;
     public string Status => _snapshot.Status;
     public Color StatusColor => _snapshot.HasError ? Color.FromArgb("#FF8D8D") : Color.FromArgb("#E8EDF5");
     public string StatusLabel => _snapshot.HasError ? "Attention" : IsDriving ? "Live" : IsReady ? "Ready" : "Loading";
@@ -66,6 +70,18 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     }
 
     public string ZoomLabel => $"{Zoom:0.0}×";
+
+    public string NetworkStreamUrl
+    {
+        get => _networkStreamUrl;
+        set
+        {
+            if (SetProperty(ref _networkStreamUrl, value))
+            {
+                _coordinator.SetNetworkStreamUrl(value);
+            }
+        }
+    }
 
     public string? SelectedCamera
     {
@@ -99,7 +115,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         foreach (var property in new[]
         {
             nameof(IsInitializing), nameof(IsReady), nameof(IsDriving), nameof(IsStopping), nameof(ShowStartPanel), nameof(ShowDriveControls),
-            nameof(CanStart), nameof(Status), nameof(StatusColor), nameof(StatusLabel), nameof(StatusAccent), nameof(StartButtonText), nameof(Duration),
+            nameof(CanStart), nameof(ShowNetworkStreamUrl), nameof(Status), nameof(StatusColor), nameof(StatusLabel), nameof(StatusAccent), nameof(StartButtonText), nameof(Duration),
             nameof(UniqueVehicles), nameof(LocationState), nameof(HasLatest), nameof(LatestPlate),
             nameof(LatestVehicle), nameof(LatestPrice), nameof(TopValue)
         }) OnPropertyChanged(property);
