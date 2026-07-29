@@ -1,0 +1,110 @@
+using DeveMobileLPR.Imaging;
+using DeveMobileLPR.Recognition;
+
+namespace DeveMobileLPR.App.Recognition;
+
+internal sealed record RecognitionProgress(FrameRecognition Recognition);
+
+internal sealed record RecognitionConfirmation(
+    Sighting Sighting,
+    ConfirmedPlate Confirmation);
+
+internal sealed class RecognitionSession : IAsyncDisposable
+{
+    private readonly IFrameRecognitionPipeline _pipeline;
+    private readonly ISightingRepository _repository;
+    private readonly IVehicleLookup _vehicleLookup;
+    private readonly Func<GeoPoint?> _location;
+    private readonly Func<long?> _tripId;
+    private readonly LatestFrameSlot _frames = new();
+    private readonly PlateTrackManager _tracks = new();
+    private readonly CancellationTokenSource _cancellation = new();
+    private readonly Task _worker;
+    private int _resetRequested;
+    private int _sourceWidth;
+    private int _sourceHeight;
+    private int _rotationDegrees = -1;
+
+    public RecognitionSession(
+        IFrameRecognitionPipeline pipeline,
+        ISightingRepository repository,
+        IVehicleLookup vehicleLookup,
+        Func<GeoPoint?> location,
+        Func<long?> tripId)
+    {
+        _pipeline = pipeline;
+        _repository = repository;
+        _vehicleLookup = vehicleLookup;
+        _location = location;
+        _tripId = tripId;
+        _worker = Task.Run(ProcessLoopAsync);
+    }
+
+    public event EventHandler<RecognitionProgress>? Progress;
+    public event EventHandler<RecognitionConfirmation>? PlateConfirmed;
+    public event EventHandler<Exception>? Failed;
+
+    public bool Submit(Yuv420Frame frame) => _frames.TryWrite(frame);
+    public void ResetTracking() => Interlocked.Exchange(ref _resetRequested, 1);
+
+    private async Task ProcessLoopAsync()
+    {
+        try
+        {
+            while (!_cancellation.IsCancellationRequested)
+            {
+                using var frame = await _frames.ReadAsync(_cancellation.Token).ConfigureAwait(false);
+                if (frame is null)
+                {
+                    break;
+                }
+
+                var recognition = await _pipeline.ProcessAsync(frame, _cancellation.Token).ConfigureAwait(false);
+                var geometryChanged = recognition.SourceWidth != _sourceWidth
+                    || recognition.SourceHeight != _sourceHeight
+                    || recognition.RotationDegrees != _rotationDegrees;
+                if (geometryChanged)
+                {
+                    _sourceWidth = recognition.SourceWidth;
+                    _sourceHeight = recognition.SourceHeight;
+                    _rotationDegrees = recognition.RotationDegrees;
+                }
+                var resetRequested = Interlocked.Exchange(ref _resetRequested, 0) != 0;
+                if (geometryChanged || resetRequested)
+                {
+                    _tracks.Reset();
+                }
+                Progress?.Invoke(this, new RecognitionProgress(recognition));
+                foreach (var confirmation in _tracks.Update(recognition))
+                {
+                    var vehicle = await _vehicleLookup.FindAsync(confirmation.Consensus.NormalizedPlate, _cancellation.Token).ConfigureAwait(false);
+                    var sighting = await _repository.AddOrMergeAsync(confirmation, _location(), vehicle, _tripId(), _cancellation.Token).ConfigureAwait(false);
+                    PlateConfirmed?.Invoke(this, new RecognitionConfirmation(sighting, confirmation));
+                }
+            }
+        }
+        catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            Failed?.Invoke(this, exception);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _cancellation.Cancel();
+        try
+        {
+            await _worker.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        await _frames.DisposeAsync().ConfigureAwait(false);
+        _cancellation.Dispose();
+        (_pipeline as IDisposable)?.Dispose();
+    }
+}

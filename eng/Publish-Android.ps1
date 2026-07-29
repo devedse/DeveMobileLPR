@@ -17,8 +17,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 $root = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$project = Join-Path $root 'src\DeveMobileLPR.Android\DeveMobileLPR.Android.csproj'
-$projectOutput = Join-Path $root "src\DeveMobileLPR.Android\bin\$Configuration"
+$project = Join-Path $root 'src\DeveMobileLPR.App\DeveMobileLPR.App.csproj'
+$projectOutput = Join-Path $root "src\DeveMobileLPR.App\bin\$Configuration"
 $output = Join-Path $root 'artifacts\android'
 [System.IO.Directory]::CreateDirectory($output) | Out-Null
 Get-ChildItem -LiteralPath $output -Filter '*.apk' -File -ErrorAction SilentlyContinue | Remove-Item -Force
@@ -29,7 +29,7 @@ Get-ChildItem -LiteralPath $output -Filter '*.apk' -File -ErrorAction SilentlyCo
 Get-ChildItem -LiteralPath $projectOutput -Filter '*-Signed.apk' -File -Recurse -ErrorAction SilentlyContinue |
     Remove-Item -Force
 
-$arguments = @('publish', $project, '--configuration', $Configuration, '--no-restore', '-p:AndroidPackageFormats=apk', "-p:PublishDir=$output\")
+$arguments = @('publish', $project, '--framework', 'net10.0-android36.0', '--configuration', $Configuration, '--no-restore', '-p:AndroidPackageFormats=apk', "-p:PublishDir=$output\")
 if ($PSBoundParameters.ContainsKey('Version')) {
     $arguments += "-p:Version=$Version"
 }

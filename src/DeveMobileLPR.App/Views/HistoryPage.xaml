@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage
+    x:Class="DeveMobileLPR.App.Views.HistoryPage"
+    x:DataType="vm:HistoryViewModel"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:controls="clr-namespace:DeveMobileLPR.App.Controls"
+    xmlns:vm="clr-namespace:DeveMobileLPR.App.ViewModels">
+    <ContentPage.Resources>
+        <ControlTemplate x:Key="HistoryHeaderTemplate">
+            <VerticalStackLayout Padding="0,0,0,12" Spacing="12">
+            <controls:PageHeader Eyebrow="Your road journal" IsBusy="{Binding IsBusy}" Title="History" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="12" RowDefinitions="Auto,Auto" RowSpacing="12">
+                    <Border Style="{StaticResource CompactCard}">
+                        <VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding TodayTrips}" /><Label Style="{StaticResource MetricLabel}" Text="Drives today" /></VerticalStackLayout>
+                    </Border>
+                    <Border Grid.Column="1" Style="{StaticResource CompactCard}">
+                        <VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding TodayUnique}" /><Label Style="{StaticResource MetricLabel}" Text="Unique cars" /></VerticalStackLayout>
+                    </Border>
+                    <Border Grid.Row="1" Style="{StaticResource CompactCard}">
+                        <VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding TodayDistance}" /><Label Style="{StaticResource MetricLabel}" Text="Route distance" /></VerticalStackLayout>
+                    </Border>
+                    <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource CompactHighlightCard}">
+                        <VerticalStackLayout Spacing="3">
+                            <Label FontAttributes="Bold" FontSize="25" Text="{Binding TodayTopValue}" TextColor="{DynamicResource ValueAccent}" />
+                            <Label FontSize="12" Text="Most expensive today" TextColor="{DynamicResource HighlightText}" />
+                            <Border HorizontalOptions="Start" Style="{StaticResource SmallPlateBadge}">
+                                <Label Style="{StaticResource SmallPlateBadgeText}" Text="{Binding TodayTopPlate}" />
+                            </Border>
+                        </VerticalStackLayout>
+                    </Border>
+                </Grid>
+            </VerticalStackLayout>
+        </ControlTemplate>
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto,*" RowSpacing="12" Style="{StaticResource PageGrid}">
+        <VerticalStackLayout Spacing="10">
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                    <Button
+                        BackgroundColor="{DynamicResource SurfaceRaised}"
+                        Command="{Binding ShowTripsCommand}"
+                        Style="{StaticResource CompactSecondaryButton}"
+                        Text="Trips"
+                        TextColor="{DynamicResource TextPrimary}">
+                        <Button.Triggers>
+                            <DataTrigger Binding="{Binding ShowTrips}" TargetType="Button" Value="True">
+                                <Setter Property="BackgroundColor" Value="{DynamicResource Primary}" />
+                                <Setter Property="TextColor" Value="{DynamicResource OnPrimary}" />
+                            </DataTrigger>
+                        </Button.Triggers>
+                    </Button>
+                    <Button
+                        Grid.Column="1"
+                        BackgroundColor="{DynamicResource SurfaceRaised}"
+                        Command="{Binding ShowVehiclesCommand}"
+                        Style="{StaticResource CompactSecondaryButton}"
+                        Text="Vehicles"
+                        TextColor="{DynamicResource TextPrimary}">
+                        <Button.Triggers>
+                            <DataTrigger Binding="{Binding ShowVehicles}" TargetType="Button" Value="True">
+                                <Setter Property="BackgroundColor" Value="{DynamicResource Primary}" />
+                                <Setter Property="TextColor" Value="{DynamicResource OnPrimary}" />
+                            </DataTrigger>
+                        </Button.Triggers>
+                    </Button>
+                </Grid>
+            <VerticalStackLayout IsVisible="{Binding ShowVehicles}" Spacing="10">
+                <SearchBar Placeholder="Search plate, make, or model" Text="{Binding SearchText}" />
+                <controls:ResponsiveGrid ColumnSpacing="10" MaximumColumns="3" MinimumItemWidth="145" RowSpacing="8">
+                    <VerticalStackLayout Spacing="3">
+                        <Label Style="{StaticResource MutedText}" Text="SEEN WITHIN" />
+                        <Picker ItemsSource="{Binding PeriodOptions}" SelectedItem="{Binding SelectedPeriod}" />
+                    </VerticalStackLayout>
+                    <VerticalStackLayout Spacing="3">
+                        <Label Style="{StaticResource MutedText}" Text="VALUE" />
+                        <Picker ItemsSource="{Binding MinimumValueOptions}" SelectedItem="{Binding SelectedMinimumValue}" />
+                    </VerticalStackLayout>
+                    <VerticalStackLayout Spacing="3">
+                        <Label Style="{StaticResource MutedText}" Text="SORT BY" />
+                        <Picker ItemsSource="{Binding VehicleSortOptions}" SelectedItem="{Binding SelectedVehicleSort}" />
+                    </VerticalStackLayout>
+                </controls:ResponsiveGrid>
+            </VerticalStackLayout>
+            <ContentView ControlTemplate="{StaticResource HistoryHeaderTemplate}" />
+        </VerticalStackLayout>
+
+                <RefreshView Grid.Row="1" Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsBusy}" IsVisible="{Binding ShowTrips}">
+                    <CollectionView
+                        x:Name="TripsList"
+                        ItemsSource="{Binding Trips}"
+                        RemainingItemsThreshold="5"
+                        RemainingItemsThresholdReachedCommand="{Binding LoadMoreTripsCommand}"
+                        SelectionChanged="TripSelected"
+                        SelectionMode="Single">
+                        <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Vertical" ItemSpacing="10" /></CollectionView.ItemsLayout>
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="vm:TripCardViewModel">
+                                <Border Style="{StaticResource CompactCard}">
+                                    <Grid RowDefinitions="Auto,Auto" RowSpacing="10">
+                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="20">
+                                            <VerticalStackLayout Spacing="2" WidthRequest="105">
+                                                <Label FontAttributes="Bold" FontSize="18" Text="{Binding Day}" />
+                                                <Label Style="{StaticResource SecondaryText}" Text="{Binding Time}" />
+                                            </VerticalStackLayout>
+                                            <Grid Grid.Column="1" ColumnDefinitions="*,*,*" ColumnSpacing="14" VerticalOptions="Center">
+                                                <VerticalStackLayout Spacing="1"><Label FontAttributes="Bold" Text="{Binding Duration}" /><Label Style="{StaticResource MutedText}" Text="DURATION" /></VerticalStackLayout>
+                                                <VerticalStackLayout Grid.Column="1" Spacing="1"><Label FontAttributes="Bold" Text="{Binding Distance}" /><Label Style="{StaticResource MutedText}" Text="DISTANCE" /></VerticalStackLayout>
+                                                <VerticalStackLayout Grid.Column="2" Spacing="1"><Label FontAttributes="Bold" Text="{Binding VehicleCount}" /><Label Style="{StaticResource MutedText}" Text="VEHICLES" /></VerticalStackLayout>
+                                            </Grid>
+                                        </Grid>
+                                        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalOptions="Center">
+                                            <VerticalStackLayout Spacing="2">
+                                                <Label FontAttributes="Bold" Text="{Binding Highlight}" TextColor="{DynamicResource ValueAccent}" />
+                                                <Label Style="{StaticResource MutedText}" Text="{Binding HighlightPlate}" />
+                                            </VerticalStackLayout>
+                                            <Label Grid.Column="1" FontSize="24" Text="›" TextColor="{DynamicResource TextMuted}" VerticalOptions="Center" />
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </RefreshView>
+
+                <RefreshView Grid.Row="1" Command="{Binding RefreshCommand}" IsRefreshing="{Binding IsBusy}" IsVisible="{Binding ShowVehicles}">
+                    <CollectionView
+                        x:Name="VehiclesList"
+                        ItemsSource="{Binding Vehicles}"
+                        RemainingItemsThreshold="5"
+                        RemainingItemsThresholdReachedCommand="{Binding LoadMoreVehiclesCommand}"
+                        SelectionChanged="VehicleSelected"
+                        SelectionMode="Single">
+                        <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Vertical" ItemSpacing="10" /></CollectionView.ItemsLayout>
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="vm:VehicleCardViewModel">
+                                <Border Style="{StaticResource CompactCard}">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
+                                        <Border MinimumWidthRequest="112" Style="{StaticResource PlateBadge}" VerticalOptions="Center">
+                                            <Label Style="{StaticResource PlateBadgeText}" Text="{Binding DisplayPlate}" />
+                                        </Border>
+                                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                            <Label FontAttributes="Bold" FontSize="17" LineBreakMode="TailTruncation" Text="{Binding VehicleName}" />
+                                            <Label LineBreakMode="TailTruncation" Style="{StaticResource SecondaryText}" Text="{Binding Metadata}" />
+                                            <Label Style="{StaticResource MutedText}" Text="{Binding Seen}" />
+                                            <Label Style="{StaticResource MutedText}" Text="{Binding History}" />
+                                        </VerticalStackLayout>
+                                        <VerticalStackLayout Grid.Column="2" HorizontalOptions="End" Spacing="4" VerticalOptions="Center">
+                                            <Label FontAttributes="Bold" HorizontalTextAlignment="End" Text="{Binding Price}" TextColor="{DynamicResource ValueAccent}" />
+                                            <Label FontSize="24" HorizontalTextAlignment="End" Text="›" TextColor="{DynamicResource TextMuted}" />
+                                        </VerticalStackLayout>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </RefreshView>
+
+                <Border Grid.Row="1" IsVisible="{Binding ShowTripsEmpty}" Margin="0,4,0,0" Style="{StaticResource CompactCard}" VerticalOptions="Start">
+                    <VerticalStackLayout Spacing="3">
+                        <Label Style="{StaticResource SettingTitle}" Text="No drives yet" />
+                        <Label Style="{StaticResource SecondaryText}" Text="Your completed drives will appear here." />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Grid.Row="1" IsVisible="{Binding ShowVehiclesEmpty}" Margin="0,4,0,0" Style="{StaticResource CompactCard}" VerticalOptions="Start">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <VerticalStackLayout Spacing="3">
+                            <Label Style="{StaticResource SettingTitle}" Text="No vehicles found" />
+                            <Label Style="{StaticResource SecondaryText}" Text="No confirmed vehicles match the current search and filters." />
+                        </VerticalStackLayout>
+                        <Button Command="{Binding ResetVehicleFiltersCommand}" Grid.Column="1" Style="{StaticResource CompactSecondaryButton}" Text="Reset filters" VerticalOptions="Center" />
+                    </Grid>
+                </Border>
+
+    </Grid>
+</ContentPage>

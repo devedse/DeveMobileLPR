@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage
+    x:Class="DeveMobileLPR.App.Views.SettingsPage"
+    x:DataType="vm:SettingsViewModel"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:controls="clr-namespace:DeveMobileLPR.App.Controls"
+    xmlns:vm="clr-namespace:DeveMobileLPR.App.ViewModels">
+    <ScrollView>
+        <VerticalStackLayout Style="{StaticResource PageScrollContent}">
+            <controls:PageHeader Eyebrow="Make it yours" IsBusy="{Binding IsBusy}" Title="Settings" />
+
+            <Border Style="{StaticResource HighlightCard}">
+                <controls:ResponsiveGrid ColumnSpacing="16" MaximumColumns="2" MinimumItemWidth="280" RowSpacing="12">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14" VerticalOptions="Center">
+                        <Ellipse Fill="{Binding RdwColor}" HeightRequest="12" VerticalOptions="Center" WidthRequest="12" />
+                        <VerticalStackLayout Grid.Column="1" Spacing="3">
+                            <Label FontAttributes="Bold" FontSize="18" Text="{Binding RdwTitle}" />
+                            <Label FontSize="13" Text="{Binding RdwDetail}" TextColor="{DynamicResource HighlightText}" />
+                        </VerticalStackLayout>
+                    </Grid>
+                    <Button
+                        AutomationId="import_rdw_button"
+                        Clicked="ImportRdwClicked"
+                        HorizontalOptions="End"
+                        MinimumWidthRequest="170"
+                        Style="{StaticResource CompactButton}"
+                        Text="Import / replace"
+                        VerticalOptions="Center" />
+                </controls:ResponsiveGrid>
+            </Border>
+
+            <controls:ResponsiveGrid ColumnSpacing="16" MaximumColumns="2" MinimumItemWidth="320" RowSpacing="16">
+                <Border Style="{StaticResource Card}">
+                    <VerticalStackLayout Style="{StaticResource CardContent}">
+                        <Label Style="{StaticResource SectionTitle}" Text="Drive experience" />
+                        <controls:SettingsToggleRow
+                            Description="Stores filtered GPS points and the location of each confirmation."
+                            IsToggled="{Binding TrackLocation}"
+                            Title="Save location trail" />
+                        <BoxView Style="{StaticResource DividerLine}" />
+                        <controls:SettingsToggleRow
+                            Description="Displays corner markers for the area the detector processes."
+                            IsToggled="{Binding ShowRoadGuide}"
+                            Title="Show road guide" />
+                        <BoxView Style="{StaticResource DividerLine}" />
+                        <controls:SettingsToggleRow
+                            Description="A light tap when a plate reaches temporal consensus."
+                            IsToggled="{Binding ConfirmationHaptic}"
+                            Title="Confirmation haptic" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Style="{StaticResource Card}">
+                    <VerticalStackLayout Style="{StaticResource CardContent}">
+                        <Label Style="{StaticResource SectionTitle}" Text="Privacy &amp; permissions" />
+                        <Label Style="{StaticResource SecondaryText}" Text="Plate recognition, RDW lookups, trips, and route points are processed locally. Raw camera frames are discarded immediately and never saved." />
+                        <Border Style="{StaticResource InsetCard}">
+                            <Label FontSize="13" Text="{Binding PermissionsDetail}" />
+                        </Border>
+                        <Button Clicked="OpenPermissionsClicked" Style="{StaticResource CompactSecondaryButton}" Text="Open Android app settings" />
+                    </VerticalStackLayout>
+                </Border>
+            </controls:ResponsiveGrid>
+
+            <Border Style="{StaticResource Card}">
+                <VerticalStackLayout Style="{StaticResource CardContent}">
+                    <VerticalStackLayout Spacing="3">
+                        <Label Style="{StaticResource SectionTitle}" Text="Your data" />
+                        <Label Style="{StaticResource SecondaryText}" Text="{Binding HistoryDetail}" />
+                        <Label Style="{StaticResource MutedText}" Text="CSV export includes timestamps, RDW fields, trip IDs, and saved coordinates." />
+                    </VerticalStackLayout>
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                        <Button Clicked="ExportClicked" Style="{StaticResource CompactSecondaryButton}" Text="Export CSV" />
+                        <Button Grid.Column="1" Clicked="DeleteClicked" Style="{StaticResource CompactDangerButton}" Text="Delete history" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+
+            <controls:ResponsiveGrid ColumnSpacing="16" MaximumColumns="2" MinimumItemWidth="320" RowSpacing="16">
+                <Border Style="{StaticResource Card}">
+                    <VerticalStackLayout Style="{StaticResource CardContent}">
+                        <Label Style="{StaticResource SectionTitle}" Text="Recognition engine" />
+                        <Label Style="{StaticResource SecondaryText}" Text="YOLOv9 plate detector · CCT-S V2 OCR · CameraX high-resolution analysis · ONNX Runtime · temporal consensus" />
+                        <BoxView Style="{StaticResource DividerLine}" />
+                        <Label Style="{StaticResource SettingTitle}" Text="Maximum recognition rate" />
+                        <Picker
+                            ItemsSource="{Binding RecognitionFrameRateOptions}"
+                            SelectedItem="{Binding SelectedRecognitionFrameRate}"
+                            Title="Recognition frames per second" />
+                        <Label Style="{StaticResource SettingDescription}" Text="{Binding RecognitionFrameRateDetail}" />
+                    </VerticalStackLayout>
+                </Border>
+                <Border Style="{StaticResource Card}">
+                    <VerticalStackLayout Style="{StaticResource CardContent}">
+                        <Label Style="{StaticResource SectionTitle}" Text="About" />
+                        <Label Style="{StaticResource SecondaryText}" Text="{Binding Version}" />
+                        <Label Style="{StaticResource MutedText}" Text="Package nl.deve.mobilelpr · Android 8.0+" />
+                    </VerticalStackLayout>
+                </Border>
+            </controls:ResponsiveGrid>
+
+            <Border IsVisible="{Binding HasStatus}" Style="{StaticResource StatusCard}">
+                <Label Text="{Binding StatusMessage}" />
+            </Border>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

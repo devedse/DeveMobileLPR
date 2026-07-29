@@ -1,12 +1,13 @@
 # DeveMobileLPR
 
-DeveMobileLPR is an offline-first .NET MAUI Android license-plate recognition app written in C#. It is designed for a securely mounted phone looking through a car windscreen. Camera frames stay on the phone: the app stores confirmed plate text, trips, optional route points, and matched RDW vehicle facts, but does not store raw video or plate crops.
+DeveMobileLPR is an offline-first .NET MAUI license-plate recognition app for Android and Windows, written in C#. Drive mode accepts CameraX capture from a securely mounted Android phone or live webcam capture on Windows, and both platforms support recorded-video analysis. Media stays on the device: the app stores confirmed plate text, trips, optional route points, matched RDW vehicle facts, and compact video-analysis metadata, but does not store raw frames or plate crops.
 
 The first implementation targets Android because direct CameraX access gives the required control over analysis resolution, YUV frames, zoom, and backpressure. The reusable recognition, inference, tracking, and SQLite layers target plain .NET.
 
 ## What is implemented
 
 - Direct CameraX preview and YUV analysis, requesting a practical 3840×2160 stream with device-specific fallback.
+- Live Windows webcam preview and frame analysis with camera selection and latest-frame backpressure.
 - A full-screen, low-distraction Drive mode with live plate boxes, OCR text, RDW vehicle labels, camera selection, 1×–4× zoom, and a visible road-region guide.
 - Latest-frame-only ingestion at up to four high-resolution samples per second. Slow inference drops stale frames instead of consuming more memory.
 - MIT-licensed YOLOv9-S 608 plate detection and CCT-S V2 global OCR through ONNX Runtime.
@@ -14,13 +15,14 @@ The first implementation targets Android because direct CameraX access gives the
 - IoU tracking and confidence/quality-weighted multi-frame consensus. A plate needs at least three supporting frames and character-level majority support.
 - Dutch sidecode validation and official three-group formatting for sidecodes 1–14.
 - Local SQLite trips, filtered route traces, duplicate merging within a drive, a searchable vehicle library, daily/drive statistics, CSV export, optional GPS, and “most expensive car” highlights.
+- Recorded-video analysis on Android and Windows with scaled decoding, temporal consensus, a unified processing/history list, lazy previews, frame-snapped timelines, and plate-based seeking.
 - .NET MAUI Shell navigation with Drive, History, and Settings surfaces plus trip and vehicle detail views.
 - A resumable C# console downloader that builds the app's indexed SQLite database directly from official RDW Open Data.
 - Import of the generated RDW SQLite database through Android's document picker. Imports are validated and replaced atomically.
-- Model integrity verification at download time and again when Android installs bundled assets.
+- Model integrity verification at download time and before bundled assets are used on Android or Windows.
 - Unit tests, SQLite integration tests, and an inference smoke test that loads and executes both real ONNX files.
 - Reproducible NuGet lock files and warnings-as-errors.
-- A GitHub Actions pipeline on every push and manual run. Every successful build uploads a versioned APK and RDW-downloader ZIP; signed pushes to `master` also create a GitHub release.
+- A GitHub Actions pipeline on every push and manual run. Every successful build uploads a versioned APK, self-contained Windows executable, and RDW-downloader ZIP; signed pushes to `master` also create a GitHub release.
 
 ## Architecture
 
@@ -45,18 +47,18 @@ local SQLite sighting + optional GPS → history/statistics UI
 
 The important boundaries are deliberate:
 
-- `DeveMobileLPR.Core` owns geometry, YUV representation, tracking, plate rules, and contracts.
+- `DeveMobileLPR.Core` owns geometry, YUV representation, tracking, plate rules, and video-analysis contracts.
 - `DeveMobileLPR.Inference` owns exact ONNX tensor contracts, preprocessing, execution providers, and decoding.
-- `DeveMobileLPR.Storage` owns sightings and the stable RDW view contract.
+- `DeveMobileLPR.Storage` owns sightings, compact video-analysis persistence, and the stable RDW view contract.
 - `DeveMobileLPR.RdwDownloader` owns official dataset paging, resumable imports, joining, and final database validation.
-- `DeveMobileLPR.Android` owns CameraX, permissions, location, model installation, lifecycle, and UI.
+- The MAUI app project owns the shared UI and platform hosts. Android owns CameraX, permissions, location, and model installation; Windows owns MediaCapture webcam and MediaComposition video adapters. Both feed shared recognition and persistence layers.
 
 See [docs/architecture.md](docs/architecture.md) for the implementation rationale and tuning points.
 
 ## Prerequisites
 
 - Windows, macOS, or Linux with the SDK selected by `global.json`.
-- The .NET MAUI Android workload: `dotnet workload install maui-android`.
+- The .NET MAUI Android and Windows workloads: `dotnet workload install maui-android maui-windows`.
 - PowerShell 7 (`pwsh`) for the repository scripts.
 - Android API 26 or newer on the target phone. A 64-bit phone with at least 4 GB RAM is recommended.
 
@@ -73,11 +75,11 @@ From the repository root:
 That command:
 
 1. downloads and SHA-256-verifies both models;
-2. ensures the Android workload is installed;
+2. checks that the Android and Windows workloads are already installed without requesting elevation;
 3. restores the locked dependency graph;
 4. builds with warnings as errors;
 5. runs unit/integration tests and the real-model contract test;
-6. publishes the portable RDW-downloader ZIP to `artifacts/rdw-downloader` and an APK to `artifacts/android`.
+6. publishes the portable RDW-downloader ZIP to `artifacts/rdw-downloader`, an APK to `artifacts/android`, and the self-contained `DeveMobileLPR.exe` to `artifacts/windows/win-x64`.
 
 For portable development without Android packaging:
 
@@ -137,9 +139,9 @@ The RDW database may be several gigabytes. Ensure the phone has enough free stor
 `.github/workflows/githubactionsbuilds.yml` runs for every push and manual dispatch. It uses the same versioning convention as DevePXEBoot: `onyxmueller/build-tag-number@v1` generates the build number and all outputs use `1.0.<build number>`.
 
 - The .NET assemblies, Android display version, artifact name, Git tag, and release name all use `1.0.<build number>`. Android's numeric version code uses the generated build number.
-- Every successful run uploads the installable APK and portable RDW-downloader ZIP as workflow artifacts for 14 days; test results are retained for 7 days.
+- Every successful run uploads the installable APK, self-contained Windows executable, and portable RDW-downloader ZIP as workflow artifacts for 14 days; test results are retained for 7 days.
 - Without signing secrets, Android applies its development signature. That artifact is suitable for testing, not store distribution.
-- A push to `master` with all four signing secrets creates the latest GitHub release tagged `1.0.<build number>`, containing both the signed APK and downloader ZIP.
+- A push to `master` with all four signing secrets creates the latest GitHub release tagged `1.0.<build number>`, containing the signed APK, Windows executable, and downloader ZIP.
 
 Configure these GitHub Actions secrets for release signing:
 

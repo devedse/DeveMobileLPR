@@ -12,6 +12,23 @@ internal static class OnnxSessionFactory
             throw new FileNotFoundException("ONNX model was not found.", modelPath);
         }
 
+        if (OperatingSystem.IsWindows()
+            && OrtEnv.Instance().GetAvailableProviders().Contains("DmlExecutionProvider", StringComparer.Ordinal))
+        {
+            try
+            {
+                using var options = CreateBaseOptions();
+                options.EnableMemoryPattern = false;
+                options.AppendExecutionProvider_DML(0);
+                diagnostic?.Invoke("ONNX Runtime provider: DirectML");
+                return new InferenceSession(modelPath, options);
+            }
+            catch (OnnxRuntimeException exception)
+            {
+                diagnostic?.Invoke($"DirectML unavailable; using CPU: {exception.Message}");
+            }
+        }
+
         if (OperatingSystem.IsAndroid())
         {
             try
@@ -41,7 +58,7 @@ internal static class OnnxSessionFactory
         GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
         ExecutionMode = ExecutionMode.ORT_SEQUENTIAL,
         InterOpNumThreads = 1,
-        IntraOpNumThreads = 1,
+        IntraOpNumThreads = 0,
         LogSeverityLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_WARNING
     };
 }

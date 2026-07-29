@@ -1,61 +1,84 @@
+using System.Threading.Channels;
+
 namespace DeveMobileLPR.Imaging;
 
 public sealed class LatestFrameSlot : IAsyncDisposable
 {
-    private readonly SemaphoreSlim _available = new(0, 1);
+    private readonly object _gate = new();
+    private readonly Channel<byte> _available = Channel.CreateBounded<byte>(new BoundedChannelOptions(1)
+    {
+        SingleReader = true,
+        SingleWriter = false,
+        FullMode = BoundedChannelFullMode.DropWrite,
+        AllowSynchronousContinuations = false
+    });
     private Yuv420Frame? _latest;
-    private int _completed;
+    private bool _completed;
 
     public bool TryWrite(Yuv420Frame frame)
     {
         ArgumentNullException.ThrowIfNull(frame);
-        if (Volatile.Read(ref _completed) != 0)
+        Yuv420Frame? replaced;
+        lock (_gate)
         {
-            frame.Dispose();
-            return false;
+            if (_completed)
+            {
+                frame.Dispose();
+                return false;
+            }
+
+            replaced = _latest;
+            _latest = frame;
         }
 
-        Interlocked.Exchange(ref _latest, frame)?.Dispose();
-        try
-        {
-            _available.Release();
-        }
-        catch (SemaphoreFullException)
-        {
-            // A reader is already scheduled; it will take the newest frame.
-        }
-
+        replaced?.Dispose();
+        _available.Writer.TryWrite(0);
         return true;
     }
 
     public async ValueTask<Yuv420Frame?> ReadAsync(CancellationToken cancellationToken)
     {
-        while (Volatile.Read(ref _completed) == 0)
+        while (await _available.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            await _available.WaitAsync(cancellationToken).ConfigureAwait(false);
-            var frame = Interlocked.Exchange(ref _latest, null);
+            _available.Reader.TryRead(out _);
+            Yuv420Frame? frame;
+            lock (_gate)
+            {
+                frame = _latest;
+                _latest = null;
+            }
+
             if (frame is not null)
             {
                 return frame;
             }
         }
 
-        return Interlocked.Exchange(ref _latest, null);
+        lock (_gate)
+        {
+            var frame = _latest;
+            _latest = null;
+            return frame;
+        }
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        Interlocked.Exchange(ref _completed, 1);
-        Interlocked.Exchange(ref _latest, null)?.Dispose();
-        try
+        Yuv420Frame? pending;
+        lock (_gate)
         {
-            _available.Release();
-        }
-        catch (SemaphoreFullException)
-        {
+            if (_completed)
+            {
+                return ValueTask.CompletedTask;
+            }
+
+            _completed = true;
+            pending = _latest;
+            _latest = null;
         }
 
-        await Task.CompletedTask;
-        _available.Dispose();
+        pending?.Dispose();
+        _available.Writer.TryComplete();
+        return ValueTask.CompletedTask;
     }
 }
