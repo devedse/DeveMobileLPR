@@ -19,7 +19,7 @@ public sealed class TemporalConsensus(ConsensusOptions? options = null)
         }
 
         var candidates = observations
-            .Select(observation => new WeightedRead(observation, PlateText.Normalize(observation.Read.Text), Weight(observation)))
+            .Select(observation => new WeightedRead(observation, PlateText.Normalize(observation.Read.Text), PlateEvidence.Weight(observation)))
             .Where(static candidate => candidate.Text.Length is >= 4 and <= 10)
             .ToArray();
 
@@ -97,7 +97,7 @@ public sealed class TemporalConsensus(ConsensusOptions? options = null)
 
         var text = PlateText.Normalize(new string(result));
         var confidence = positionConfidence.Length == 0 ? 0 : positionConfidence.Average();
-        var supportingFrames = compatible.Count(read => EditDistanceAtMostOne(read.Text, text));
+        var supportingFrames = compatible.Count(read => PlateText.EditDistance(read.Text, text) <= 1);
         if (supportingFrames < _options.MinimumObservations ||
             confidence < _options.MinimumConfidence ||
             positionConfidence.Any(value => value < _options.MinimumCharacterConfidence))
@@ -129,51 +129,6 @@ public sealed class TemporalConsensus(ConsensusOptions? options = null)
             ? PlateText.FormatDutchPlate(text)
             : text;
         return new ConsensusResult(text, display, region, confidence, count);
-    }
-
-    private static float Weight(PlateObservation observation) =>
-        Math.Clamp(observation.Detection.Confidence, 0, 1) *
-        Math.Clamp(observation.Read.Confidence, 0, 1) *
-        Math.Clamp(observation.Quality, 0.1f, 1);
-
-    private static bool EditDistanceAtMostOne(string left, string right)
-    {
-        if (Math.Abs(left.Length - right.Length) > 1)
-        {
-            return false;
-        }
-
-        if (left.Length == right.Length)
-        {
-            var differences = 0;
-            for (var index = 0; index < left.Length; index++)
-            {
-                differences += left[index] == right[index] ? 0 : 1;
-            }
-
-            return differences <= 1;
-        }
-
-        var shorter = left.Length < right.Length ? left : right;
-        var longer = left.Length < right.Length ? right : left;
-        var shortIndex = 0;
-        var longIndex = 0;
-        var edits = 0;
-        while (shortIndex < shorter.Length && longIndex < longer.Length)
-        {
-            if (shorter[shortIndex] == longer[longIndex])
-            {
-                shortIndex++;
-            }
-            else if (++edits > 1)
-            {
-                return false;
-            }
-
-            longIndex++;
-        }
-
-        return true;
     }
 
     private sealed record WeightedRead(PlateObservation Observation, string Text, float Weight);

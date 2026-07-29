@@ -363,7 +363,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
             }
             foreach (var association in diagnostics.Associations)
             {
-                CurrentReads.Add($"Track {ShortTrackId(association.TrackId)} · {(association.Created ? "created" : $"matched IoU {association.IntersectionOverUnion:F2}")}");
+                CurrentReads.Add($"Track {ShortTrackId(association.TrackId)} · {AssociationDiagnosticsFormatter.Format(association)}");
             }
         }
         if (CurrentReads.Count == 0)

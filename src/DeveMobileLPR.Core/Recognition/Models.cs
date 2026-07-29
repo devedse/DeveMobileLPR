@@ -100,11 +100,29 @@ public sealed record PlateTrackSnapshot(
     float OcrConfidence,
     float Quality);
 
+public enum PlateAssociationKind
+{
+    Unspecified,
+    NewTrack,
+    ExactText,
+    SimilarText,
+    PredictedMotion
+}
+
 public sealed record PlateTrackAssociation(
     Guid TrackId,
     long FrameSequence,
     bool Created,
-    float? IntersectionOverUnion);
+    float? IntersectionOverUnion)
+{
+    public PlateAssociationKind Kind { get; init; }
+    public BoundingBox? PredictedBounds { get; init; }
+    public float? PredictedIntersectionOverUnion { get; init; }
+    public float? FrameCenterDistance { get; init; }
+    public float? ScaleRatio { get; init; }
+    public int? TextEditDistance { get; init; }
+    public float? Score { get; init; }
+}
 
 public sealed record PlateTrackingUpdate(
     IReadOnlyList<ConfirmedPlate> Confirmations,

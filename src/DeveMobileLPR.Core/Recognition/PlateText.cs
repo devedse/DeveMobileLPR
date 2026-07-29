@@ -72,4 +72,43 @@ public static class PlateText
         var second = split.First + split.Second;
         return $"{normalized[..split.First]}-{normalized[split.First..second]}-{normalized[second..]}";
     }
+
+    public static int EditDistance(string? left, string? right)
+    {
+        var normalizedLeft = Normalize(left);
+        var normalizedRight = Normalize(right);
+        if (normalizedLeft.Length == 0)
+        {
+            return normalizedRight.Length;
+        }
+
+        if (normalizedRight.Length == 0)
+        {
+            return normalizedLeft.Length;
+        }
+
+        var previous = new int[normalizedRight.Length + 1];
+        var current = new int[normalizedRight.Length + 1];
+        for (var column = 0; column < previous.Length; column++)
+        {
+            previous[column] = column;
+        }
+
+        for (var row = 1; row <= normalizedLeft.Length; row++)
+        {
+            current[0] = row;
+            for (var column = 1; column <= normalizedRight.Length; column++)
+            {
+                var substitution = previous[column - 1]
+                    + (normalizedLeft[row - 1] == normalizedRight[column - 1] ? 0 : 1);
+                current[column] = Math.Min(
+                    Math.Min(previous[column] + 1, current[column - 1] + 1),
+                    substitution);
+            }
+
+            (previous, current) = (current, previous);
+        }
+
+        return previous[normalizedRight.Length];
+    }
 }

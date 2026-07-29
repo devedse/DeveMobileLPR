@@ -383,14 +383,22 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                     : $"det {candidate.Detection.Confidence:P0} · OCR not attempted",
                 candidate.Detection.Confidence,
                 DriveOverlayKind.Candidate)).ToList();
+            candidates.AddRange(progress.Diagnostics.Associations
+                .Where(static association => association.PredictedBounds is not null)
+                .Select(association => new DriveOverlay(
+                    association.PredictedBounds!.Value,
+                    recognition.SourceWidth,
+                    recognition.SourceHeight,
+                    $"T{association.TrackId.ToString("N")[..6]} · prediction",
+                    AssociationDiagnosticsFormatter.Format(association),
+                    association.Score ?? 0,
+                    DriveOverlayKind.Candidate)));
             candidates.AddRange(progress.Diagnostics.Tracks.Select(track =>
             {
                 var association = progress.Diagnostics.Associations.FirstOrDefault(item => item.TrackId == track.TrackId);
                 var associationText = association is null
                     ? "not observed this frame"
-                    : association.Created
-                        ? "new track"
-                        : $"IoU {association.IntersectionOverUnion:F2}";
+                    : AssociationDiagnosticsFormatter.Format(association);
                 return new DriveOverlay(
                     track.Bounds,
                     recognition.SourceWidth,

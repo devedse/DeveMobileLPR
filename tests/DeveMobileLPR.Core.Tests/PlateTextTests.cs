@@ -32,4 +32,15 @@ public sealed class PlateTextTests
     [InlineData("12A34B")]
     public void IsPlausibleDutchPlate_RejectsInvalidShapes(string value) =>
         Assert.False(PlateText.IsPlausibleDutchPlate(value));
+
+    [Theory]
+    [InlineData("AB-12-34", "AB1234", 0)]
+    [InlineData("AB1234", "AB1235", 1)]
+    [InlineData("AB1234", "A1234", 1)]
+    [InlineData("AB1234", "AB1299", 2)]
+    public void EditDistance_UsesNormalizedLevenshteinDistance(
+        string left,
+        string right,
+        int expected) =>
+        Assert.Equal(expected, PlateText.EditDistance(left, right));
 }

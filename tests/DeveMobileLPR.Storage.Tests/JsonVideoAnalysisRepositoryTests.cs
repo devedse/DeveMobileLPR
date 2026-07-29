@@ -30,6 +30,10 @@ public sealed class JsonVideoAnalysisRepositoryTests : IDisposable
         Assert.Equal(42, frame.Diagnostics?.Frame.TotalMilliseconds);
         Assert.Equal(3, Assert.Single(frame.Diagnostics!.Tracks).ObservationCount);
         Assert.Equal("AB1234", Assert.Single(frame.Diagnostics.Frame.Candidates).ReadText);
+        var association = Assert.Single(frame.Diagnostics.Associations);
+        Assert.Equal(PlateAssociationKind.PredictedMotion, association.Kind);
+        Assert.Equal(new BoundingBox(110, 205, 303, 261), association.PredictedBounds);
+        Assert.Equal(0.83f, association.Score);
         var json = await File.ReadAllTextAsync(Assert.Single(Directory.GetFiles(_directory, $"{newer.Id:N}.json")));
         Assert.DoesNotContain("preview", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("image", json, StringComparison.OrdinalIgnoreCase);
@@ -120,7 +124,20 @@ public sealed class JsonVideoAnalysisRepositoryTests : IDisposable
                         0.9f,
                         0.95f,
                         0.9f)],
-                    [])
+                    [new PlateTrackAssociation(
+                        Guid.NewGuid(),
+                        40,
+                        false,
+                        0.2f)
+                    {
+                        Kind = PlateAssociationKind.PredictedMotion,
+                        PredictedBounds = new BoundingBox(110, 205, 303, 261),
+                        PredictedIntersectionOverUnion = 0.65f,
+                        FrameCenterDistance = 0.01f,
+                        ScaleRatio = 1.05f,
+                        TextEditDistance = 1,
+                        Score = 0.83f
+                    }])
             }
         ]);
 }

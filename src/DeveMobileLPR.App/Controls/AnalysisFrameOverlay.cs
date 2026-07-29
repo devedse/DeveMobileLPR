@@ -73,6 +73,13 @@ internal sealed class AnalysisFrameOverlay : GraphicsView, IDrawable
         }
         if (ShowDiagnostics && frame.Diagnostics is { } diagnostics)
         {
+            foreach (var association in diagnostics.Associations)
+            {
+                if (association.PredictedBounds is { } predicted)
+                {
+                    DrawPrediction(canvas, predicted, association, transform);
+                }
+            }
             foreach (var track in diagnostics.Tracks)
             {
                 DrawTrack(canvas, track, transform);
@@ -137,6 +144,35 @@ internal sealed class AnalysisFrameOverlay : GraphicsView, IDrawable
         canvas.FillColor = Color.FromArgb("#E834163D");
         canvas.FillRoundedRectangle(rectangle.Left, labelTop, labelWidth, 22, 5);
         canvas.DrawString(label, rectangle.Left + 6, labelTop, labelWidth - 12, 22, HorizontalAlignment.Left, VerticalAlignment.Center);
+    }
+
+    private static void DrawPrediction(
+        ICanvas canvas,
+        BoundingBox bounds,
+        PlateTrackAssociation association,
+        AspectRatioTransform transform)
+    {
+        if (bounds.IsEmpty)
+        {
+            return;
+        }
+
+        var projected = transform.Project(bounds);
+        var rectangle = new RectF(projected.Left, projected.Top, projected.Width, projected.Height);
+        canvas.StrokeColor = Color.FromArgb("#FF9F43");
+        canvas.StrokeSize = 2;
+        canvas.StrokeDashPattern = [3, 3];
+        canvas.DrawRoundedRectangle(rectangle, 6);
+        canvas.StrokeDashPattern = null;
+
+        var label = $"prediction · {association.Kind} · {association.Score:F2}";
+        var labelWidth = Math.Max(170, rectangle.Width);
+        var labelTop = rectangle.Top >= 26 ? rectangle.Top - 24 : rectangle.Bottom + 4;
+        canvas.FontColor = Colors.White;
+        canvas.FontSize = 10;
+        canvas.FillColor = Color.FromArgb("#DD4A2A0B");
+        canvas.FillRoundedRectangle(rectangle.Left, labelTop, labelWidth, 20, 5);
+        canvas.DrawString(label, rectangle.Left + 6, labelTop, labelWidth - 12, 20, HorizontalAlignment.Left, VerticalAlignment.Center);
     }
 
     private static void DrawBox(

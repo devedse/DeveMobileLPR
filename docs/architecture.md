@@ -24,7 +24,9 @@ Inference sessions and input `OrtValue` objects are long-lived. XNNPACK is attem
 
 ## Confirmation policy
 
-Detections are associated with active tracks by intersection-over-union. Each track retains at most twelve observations and expires after 1.5 seconds without a match.
+Each track retains at most twelve observations and expires after 1.5 seconds without a match. Association runs in three ordered tiers: exact weighted OCR identity, one-character OCR variation with a tighter geometry gate, and timestamp-aware constant-velocity prediction for compatible partial or near-identical reads. Center movement, scale change, previous/predicted overlap, and elapsed time constrain every candidate. Conflicting full plate strings are never joined solely because their boxes overlap.
+
+Within each tier a maximum-weight bipartite assignment selects one global one-to-one mapping between observations and tracks. This avoids the order-dependent identity swaps of greedy nearest-box matching when several vehicles are visible. The tier, predicted box, movement, scale, overlap, edit distance, and score are retained in optional diagnostics so thresholds can be tuned from replay evidence rather than guesses.
 
 An exact plate can be confirmed when at least three distinct frames agree and its weighted share and winner margin pass the configured thresholds. Weight combines detection confidence, OCR confidence, and a crop-quality estimate. If exact strings differ, character alternatives are fused position by position. Every selected character must have at least 60% support; this prevents three mutually different final characters from being accepted merely because the other five agree.
 

@@ -165,6 +165,7 @@ public sealed class RealVideoRecognitionReplayTests(ITestOutputHelper output)
         int Observations,
         int TrackCreations,
         int TrackAssociations,
+        AssociationBreakdown AssociationsByKind,
         int MaximumConcurrentTracks,
         int Confirmations,
         IReadOnlyList<string> ConfirmedPlates,
@@ -224,6 +225,7 @@ public sealed class RealVideoRecognitionReplayTests(ITestOutputHelper output)
                 diagnostics.Sum(static item => item.Frame.ObservationCount),
                 diagnostics.Sum(static item => item.Associations.Count(static association => association.Created)),
                 diagnostics.Sum(static item => item.Associations.Count(static association => !association.Created)),
+                AssociationBreakdown.Create(diagnostics.SelectMany(static item => item.Associations)),
                 diagnostics.Length == 0 ? 0 : diagnostics.Max(static item => item.Tracks.Count),
                 result.Frames.Sum(static frame => frame.Confirmations.Count),
                 confirmations,
@@ -237,6 +239,27 @@ public sealed class RealVideoRecognitionReplayTests(ITestOutputHelper output)
         int Count,
         double AverageOcrConfidence,
         double AverageDetectorConfidence);
+
+    private sealed record AssociationBreakdown(
+        int NewTrack,
+        int ExactText,
+        int SimilarText,
+        int PredictedMotion,
+        int Unspecified)
+    {
+        public static AssociationBreakdown Create(IEnumerable<PlateTrackAssociation> associations)
+        {
+            var counts = associations
+                .GroupBy(static association => association.Kind)
+                .ToDictionary(static group => group.Key, static group => group.Count());
+            return new AssociationBreakdown(
+                counts.GetValueOrDefault(PlateAssociationKind.NewTrack),
+                counts.GetValueOrDefault(PlateAssociationKind.ExactText),
+                counts.GetValueOrDefault(PlateAssociationKind.SimilarText),
+                counts.GetValueOrDefault(PlateAssociationKind.PredictedMotion),
+                counts.GetValueOrDefault(PlateAssociationKind.Unspecified));
+        }
+    }
 
     private sealed record TimingDistribution(double Mean, double Median, double P95)
     {
