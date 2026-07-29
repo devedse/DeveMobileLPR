@@ -27,6 +27,13 @@ internal sealed record VehicleCardViewModel(
     string History,
     bool HasLocation);
 
+internal enum HistorySection
+{
+    Dashboard,
+    Trips,
+    Vehicles
+}
+
 internal sealed class HistoryViewModel : ViewModelBase
 {
     private const int PageSize = 50;
@@ -36,7 +43,7 @@ internal sealed class HistoryViewModel : ViewModelBase
     private readonly DriveCoordinator _coordinator;
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private bool _isBusy;
-    private bool _showTrips = true;
+    private HistorySection _selectedSection = HistorySection.Dashboard;
     private string _searchText = string.Empty;
     private string _todayTrips = "0";
     private string _todayUnique = "0";
@@ -54,8 +61,9 @@ internal sealed class HistoryViewModel : ViewModelBase
     public HistoryViewModel(DriveCoordinator coordinator)
     {
         _coordinator = coordinator;
-        ShowTripsCommand = new Command(() => ShowTrips = true);
-        ShowVehiclesCommand = new Command(() => ShowTrips = false);
+        ShowDashboardCommand = new Command(() => SelectSection(HistorySection.Dashboard));
+        ShowTripsCommand = new Command(() => SelectSection(HistorySection.Trips));
+        ShowVehiclesCommand = new Command(() => SelectSection(HistorySection.Vehicles));
         ResetVehicleFiltersCommand = new Command(ResetVehicleFilters);
         RefreshCommand = new AsyncCommand(LoadAsync);
         LoadMoreTripsCommand = new AsyncCommand(LoadMoreTripsAsync, () => _hasMoreTrips);
@@ -65,6 +73,7 @@ internal sealed class HistoryViewModel : ViewModelBase
     public ObservableCollection<TripCardViewModel> Trips { get; } = [];
     internal DriveCoordinator Coordinator => _coordinator;
     public ObservableCollection<VehicleCardViewModel> Vehicles { get; } = [];
+    public ICommand ShowDashboardCommand { get; }
     public ICommand ShowTripsCommand { get; }
     public ICommand ShowVehiclesCommand { get; }
     public ICommand ResetVehicleFiltersCommand { get; }
@@ -82,19 +91,9 @@ internal sealed class HistoryViewModel : ViewModelBase
             if (SetProperty(ref _isBusy, value)) NotifyEmptyStates();
         }
     }
-    public bool ShowTrips
-    {
-        get => _showTrips;
-        private set
-        {
-            if (SetProperty(ref _showTrips, value))
-            {
-                OnPropertyChanged(nameof(ShowVehicles));
-                NotifyEmptyStates();
-            }
-        }
-    }
-    public bool ShowVehicles => !ShowTrips;
+    public bool ShowDashboard => _selectedSection == HistorySection.Dashboard;
+    public bool ShowTrips => _selectedSection == HistorySection.Trips;
+    public bool ShowVehicles => _selectedSection == HistorySection.Vehicles;
     public bool ShowTripsEmpty => ShowTrips && !IsBusy && Trips.Count == 0;
     public bool ShowVehiclesEmpty => ShowVehicles && !IsBusy && Vehicles.Count == 0;
     public string TodayTrips { get => _todayTrips; private set => SetProperty(ref _todayTrips, value); }
@@ -276,6 +275,20 @@ internal sealed class HistoryViewModel : ViewModelBase
         SelectedPeriod = AllTime;
         SelectedMinimumValue = AnyValue;
         SelectedVehicleSort = MostRecent;
+    }
+
+    private void SelectSection(HistorySection section)
+    {
+        if (_selectedSection == section)
+        {
+            return;
+        }
+
+        _selectedSection = section;
+        OnPropertyChanged(nameof(ShowDashboard));
+        OnPropertyChanged(nameof(ShowTrips));
+        OnPropertyChanged(nameof(ShowVehicles));
+        NotifyEmptyStates();
     }
 
     private void ReplaceVehicles(IReadOnlyList<VehicleHistorySummary> results)
