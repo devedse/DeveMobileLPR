@@ -42,6 +42,7 @@
     <PackageReference Include="Microsoft.Maui.Essentials" />
   </ItemGroup>
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" />
     <!-- CameraX 1.6.1 uses the current AndroidX generation. Pin its KTX companions so
          MAUI's older transitive minimums cannot produce mixed, incompatible pairs. -->
     <PackageReference Include="Xamarin.AndroidX.Activity.Ktx" />
@@ -55,6 +56,10 @@
     <PackageReference Include="Xamarin.AndroidX.Camera.Core" />
     <PackageReference Include="Xamarin.AndroidX.Camera.Lifecycle" />
     <PackageReference Include="Xamarin.AndroidX.Camera.View" />
+  </ItemGroup>
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" />
+    <PackageReference Include="Vortice.MediaFoundation" />
   </ItemGroup>
   <ItemGroup>
     <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#0B0D10" />
@@ -75,4 +80,14 @@
     <Compile Remove="Services\DriveCoordinator.cs" />
     <Compile Remove="Services\VideoAnalysisService.cs" />
   </ItemGroup>
+  <Target Name="RemoveDuplicateDirectMLPublishAsset"
+          BeforeTargets="_HandleFileConflictsForPublish"
+          Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+                             Condition="'%(ResolvedFileToPublish.Filename)%(ResolvedFileToPublish.Extension)' == 'DirectML.dll' and $([System.String]::Copy('%(ResolvedFileToPublish.Identity)').Contains('microsoft.ai.directml'))" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+                 Condition="'%(ResolvedFileToPublish.Filename)%(ResolvedFileToPublish.Extension)' == 'DirectML.pdb' or '%(ResolvedFileToPublish.Filename)%(ResolvedFileToPublish.Extension)' == 'DirectML.Debug.pdb'" />
+    </ItemGroup>
+  </Target>
 </Project>

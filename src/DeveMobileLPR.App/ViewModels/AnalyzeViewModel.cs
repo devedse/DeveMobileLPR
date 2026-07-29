@@ -211,7 +211,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         var progress = new Progress<VideoAnalysisProgress>(update =>
         {
             Progress = update.Fraction;
-            ProgressText = $"{update.Fraction:P0} · {update.ProcessedFrames:N0} of {update.TotalFrames:N0} frames · {update.FramesPerSecond:F1} fps · {FormatPosition(update.Position)}";
+            ProgressText = $"{update.Fraction:P0} · {update.ProcessedFrames:N0} of {update.TotalFrames:N0} frames · {update.FramesPerSecond:F1} fps · decode {update.AverageDecodeMilliseconds:F0} ms · recognition {update.AverageRecognitionMilliseconds:F0} ms · {FormatPosition(update.Position)}";
             processingItem.Progress = update.Fraction;
             processingItem.Detail = ProgressText;
         });
@@ -222,6 +222,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
                 displayName,
                 new VideoFrameSampling(sampling.Interval),
                 progress,
+                message => MainThread.BeginInvokeOnMainThread(() => StatusMessage = message),
                 _runCancellation.Token);
             await _repository.SaveAsync(_result, _runCancellation.Token);
             _savedResults = [_result, .. _savedResults.Where(result => result.Id != _result.Id)];
@@ -458,6 +459,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
                 legacyResult.DisplayName,
                 legacyResult.Sampling,
                 progress,
+                message => MainThread.BeginInvokeOnMainThread(() => StatusMessage = message),
                 _runCancellation.Token);
             enriched = enriched with
             {

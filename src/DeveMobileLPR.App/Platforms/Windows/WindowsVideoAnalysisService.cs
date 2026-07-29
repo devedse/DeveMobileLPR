@@ -44,11 +44,13 @@ internal sealed class VideoAnalysisService : IDisposable
         string displayName,
         VideoFrameSampling sampling,
         IProgress<VideoAnalysisProgress>? progress,
+        Action<string>? diagnostic,
         CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        var engine = await EnsureEngineAsync(cancellationToken).ConfigureAwait(false);
-        using var source = await WindowsVideoFrameSource.CreateAsync(sourcePath, cancellationToken).ConfigureAwait(false);
+        var engine = await EnsureEngineAsync(diagnostic, cancellationToken).ConfigureAwait(false);
+        var (_, timeline) = await OpenCompositionAsync(sourcePath, cancellationToken).ConfigureAwait(false);
+        using var source = WindowsMediaFoundationVideoFrameSource.Create(sourcePath, timeline);
         return await engine.AnalyzeAsync(source, sourcePath, displayName, sampling, progress, cancellationToken).ConfigureAwait(false);
     }
 
@@ -64,7 +66,9 @@ internal sealed class VideoAnalysisService : IDisposable
         return bytes;
     }
 
-    private async Task<VideoAnalysisEngine> EnsureEngineAsync(CancellationToken cancellationToken)
+    private async Task<VideoAnalysisEngine> EnsureEngineAsync(
+        Action<string>? diagnostic,
+        CancellationToken cancellationToken)
     {
         if (_engine is not null)
         {
@@ -84,7 +88,7 @@ internal sealed class VideoAnalysisService : IDisposable
             var recognizerPath = Path.Combine(modelDirectory, ModelCatalog.Recognizer.FileName);
             await ModelArtifactVerifier.VerifyAsync(detectorPath, ModelCatalog.Detector, cancellationToken).ConfigureAwait(false);
             await ModelArtifactVerifier.VerifyAsync(recognizerPath, ModelCatalog.Recognizer, cancellationToken).ConfigureAwait(false);
-            _engine = new VideoAnalysisEngine(OnnxPlateRecognitionPipelineFactory.Create(detectorPath, recognizerPath));
+            _engine = new VideoAnalysisEngine(OnnxPlateRecognitionPipelineFactory.Create(detectorPath, recognizerPath, diagnostic));
             return _engine;
         }
         finally
@@ -107,44 +111,6 @@ internal sealed class VideoAnalysisService : IDisposable
         var composition = new MediaComposition();
         composition.Clips.Add(clip);
         return (composition, timeline);
-    }
-
-    private static async Task<Yuv420Frame> DecodeFrameAsync(
-        MediaComposition composition,
-        TimeSpan position,
-        long sequence,
-        CancellationToken cancellationToken)
-    {
-        using var thumbnail = await composition.GetThumbnailAsync(position, DecodeWidth, 0, VideoFramePrecision.NearestFrame);
-        cancellationToken.ThrowIfCancellationRequested();
-        var decoder = await BitmapDecoder.CreateAsync(thumbnail);
-        using var bitmap = await decoder.GetSoftwareBitmapAsync(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Ignore);
-        return WindowsSoftwareBitmapConverter.ToYuv420Frame(bitmap, sequence, DateTimeOffset.UnixEpoch + position);
-    }
-
-    private sealed class WindowsVideoFrameSource(
-        MediaComposition composition,
-        VideoFrameTimeline timeline) : IVideoFrameSource
-    {
-        public VideoFrameTimeline Timeline { get; } = timeline;
-
-        public static async Task<WindowsVideoFrameSource> CreateAsync(
-            string sourcePath,
-            CancellationToken cancellationToken)
-        {
-            var (composition, timeline) = await OpenCompositionAsync(sourcePath, cancellationToken).ConfigureAwait(false);
-            return new WindowsVideoFrameSource(composition, timeline);
-        }
-
-        public async ValueTask<Yuv420Frame?> DecodeAsync(
-            long sourceFrameIndex,
-            TimeSpan position,
-            CancellationToken cancellationToken) =>
-            await DecodeFrameAsync(composition, position, sourceFrameIndex + 1, cancellationToken).ConfigureAwait(false);
-
-        public void Dispose()
-        {
-        }
     }
 
     public void Dispose()

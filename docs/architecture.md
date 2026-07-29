@@ -20,7 +20,7 @@ The detector input is `[1,3,608,608]` RGB `float32`, normalized to 0–1 and let
 
 The OCR input is `[1,64,128,3]` RGB `uint8`. The model performs its own normalization. It emits ten character slots over `0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_` plus a 66-class region output. The decoder retains the best three alternatives per slot for temporal fusion.
 
-Inference sessions and input `OrtValue` objects are long-lived. XNNPACK is attempted on Android with bounded threads; a failure is reported and falls back to the CPU provider. Windows uses the CPU provider with ONNX Runtime's default multi-core intra-op pool. Runs are serialized per model because their input buffers are reused.
+Inference sessions and input `OrtValue` objects are long-lived. XNNPACK is attempted on Android with bounded threads. Windows attempts DirectML first, allowing supported graph nodes to run on the GPU. Either platform falls back to the CPU provider with ONNX Runtime's default multi-core intra-op pool. Runs are serialized per model because their input buffers are reused.
 
 ## Confirmation policy
 
@@ -65,7 +65,7 @@ False confirmations are more damaging than missed sightings because they poison 
 
 The Analyze tab is intentionally separate from Drive and History. Android copies a selected document-provider video into durable private app storage because those streams cannot be reopened reliably by the platform media decoder. Windows reuses the selected local path when available and falls back to a private staged copy. A source is removed only when no saved analysis references it. Detections and confirmations are persisted as compact JSON metadata, atomically replaced, and remain separate from sighting history. Raw frames, previews, and plate crops are never persisted.
 
-Android's media retriever and Windows MediaComposition implement the shared `IVideoFrameSource` contract. These adapters own only native media opening, timeline metadata, timestamp-based decoding, and conversion into pooled planar YUV. Decoding is capped at 1280 pixels wide because the detector consumes a 608×608 tensor.
+Android's media retriever and a Windows Media Foundation Source Reader implement the shared `IVideoFrameSource` contract. These adapters own only native media opening, timeline metadata, decoding, and conversion into pooled planar YUV. Android uses timestamp-based retrieval. Windows requests NV12 and reads forward sequentially, discarding unsampled frames without seeking; it permits hardware transforms and DXVA while retaining system-memory output so driver-specific GPU-surface failures cannot abort an analysis. Review previews remain independent, lazy thumbnail requests. Decoding is capped at 1280 pixels wide where the platform decoder supports output resizing because the detector consumes a 608×608 tensor.
 
 The platform-independent `VideoAnalysisEngine` owns sampling, cancellation, progress, serialized runs, inference, tracking, temporal consensus, and compact result projection. Shared analysis records, `VideoFrameSampling`, and `VideoFrameTimeline` keep processing and persistence semantics consistent across Android and Windows. This boundary keeps native media APIs out of the recognition workflow while ensuring both platforms exercise the same behavior.
 
@@ -74,3 +74,5 @@ The Analyze UI has one pending-video section and one analyses stream. Starting a
 Review previews are decoded lazily from the source video and held in a bounded in-memory cache. The timeline stores only normalized detection positions, and plate-index entries seek to the nearest analyzed frame. If a source video is missing, saved detection metadata remains reviewable without a preview.
 
 Offline analysis applies backpressure and processes every requested sample. Unlike the live camera's latest-frame slot, it does not drop selected frames. Sampling can process every frame or every second, fourth, or eighth source frame. When frame-rate metadata is absent, timing is derived from reported frame count and duration before falling back to 30 fps.
+
+Analysis progress reports end-to-end throughput plus cumulative decode and recognition time. These stage timings are diagnostic rather than persisted metadata and make provider or decoder regressions visible without retaining frames. Windows attempts DirectML for detector and OCR sessions, then falls back to the multi-core CPU provider when DirectML is absent or session creation fails.

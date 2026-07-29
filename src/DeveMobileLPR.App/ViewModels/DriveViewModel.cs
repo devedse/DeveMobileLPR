@@ -12,6 +12,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     private readonly Timer _durationTimer;
     private DriveSnapshot _snapshot;
     private string? _selectedCamera;
+    private string _networkStreamUrl;
     private double _zoom;
 
     public DriveViewModel(DriveCoordinator coordinator, AppSettings settings)
@@ -19,6 +20,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         _coordinator = coordinator;
         _settings = settings;
         _snapshot = coordinator.Snapshot;
+        _networkStreamUrl = settings.NetworkStreamUrl;
         _zoom = settings.Zoom;
         ToggleDriveCommand = new AsyncCommand(ToggleDriveAsync);
         _coordinator.SnapshotChanged += SnapshotChanged;
@@ -35,13 +37,17 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     public bool IsStopping => _snapshot.IsStopping;
     public bool ShowStartPanel => !IsDriving && !IsStopping;
     public bool ShowDriveControls => IsDriving || IsStopping;
-    public bool CanStart => IsReady && !IsInitializing;
+    public bool CanStart => IsReady && !IsInitializing && _snapshot.IsInputReady;
+    public bool ShowNetworkStreamUrl => _snapshot.SupportsNetworkStreams
+        && _snapshot.SelectedCameraId == DriveInputIds.NetworkLlHls;
     public string Status => _snapshot.Status;
     public Color StatusColor => _snapshot.HasError ? Color.FromArgb("#FF8D8D") : Color.FromArgb("#E8EDF5");
     public string StatusLabel => _snapshot.HasError ? "Attention" : IsDriving ? "Live" : IsReady ? "Ready" : "Loading";
     public Color StatusAccent => _snapshot.HasError ? Color.FromArgb("#FF6B6B") : IsDriving ? Color.FromArgb("#58E0C2") : Color.FromArgb("#F5C542");
     public string StartButtonText => IsInitializing ? "Preparing…" : "Start drive";
     public string Duration => _snapshot.StartedAt is null ? "0:00" : FormatClock(DateTimeOffset.UtcNow - _snapshot.StartedAt.Value);
+    public string VideoFramesPerSecond => FormatFramesPerSecond(_snapshot.VideoFramesPerSecond);
+    public string AiFramesPerSecond => FormatFramesPerSecond(_snapshot.AiFramesPerSecond);
     public string UniqueVehicles => _snapshot.UniqueVehicles.ToString();
     public string LocationState => _snapshot.HasLocation ? "GPS active" : _settings.TrackLocation ? "Finding GPS" : "Location off";
     public bool HasLatest => _snapshot.RecentSightings.Count > 0;
@@ -66,6 +72,18 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     }
 
     public string ZoomLabel => $"{Zoom:0.0}×";
+
+    public string NetworkStreamUrl
+    {
+        get => _networkStreamUrl;
+        set
+        {
+            if (SetProperty(ref _networkStreamUrl, value))
+            {
+                _coordinator.SetNetworkStreamUrl(value);
+            }
+        }
+    }
 
     public string? SelectedCamera
     {
@@ -99,8 +117,8 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         foreach (var property in new[]
         {
             nameof(IsInitializing), nameof(IsReady), nameof(IsDriving), nameof(IsStopping), nameof(ShowStartPanel), nameof(ShowDriveControls),
-            nameof(CanStart), nameof(Status), nameof(StatusColor), nameof(StatusLabel), nameof(StatusAccent), nameof(StartButtonText), nameof(Duration),
-            nameof(UniqueVehicles), nameof(LocationState), nameof(HasLatest), nameof(LatestPlate),
+            nameof(CanStart), nameof(ShowNetworkStreamUrl), nameof(Status), nameof(StatusColor), nameof(StatusLabel), nameof(StatusAccent), nameof(StartButtonText), nameof(Duration),
+            nameof(VideoFramesPerSecond), nameof(AiFramesPerSecond), nameof(UniqueVehicles), nameof(LocationState), nameof(HasLatest), nameof(LatestPlate),
             nameof(LatestVehicle), nameof(LatestPrice), nameof(TopValue)
         }) OnPropertyChanged(property);
         ToggleDriveCommand.RaiseCanExecuteChanged();
@@ -126,6 +144,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     }
 
     private static string FormatClock(TimeSpan value) => value.TotalHours >= 1 ? $"{(int)value.TotalHours}:{value.Minutes:00}:{value.Seconds:00}" : $"{(int)value.TotalMinutes}:{value.Seconds:00}";
+    private static string FormatFramesPerSecond(double value) => value.ToString("0.0");
 
     public void Dispose()
     {

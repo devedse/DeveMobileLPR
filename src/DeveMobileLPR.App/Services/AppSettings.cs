@@ -7,6 +7,9 @@ internal sealed class AppSettings
     private const string HapticKey = "confirmation_haptic";
     private const string ZoomKey = "camera_zoom";
     private const string CameraKey = "camera_id";
+    private const string RecognitionFramesPerSecondKey = "recognition_frames_per_second";
+    private const int DefaultRecognitionFramesPerSecond = 4;
+    private string _networkStreamUrl = string.Empty;
 
     public bool TrackLocation
     {
@@ -35,6 +38,27 @@ internal sealed class AppSettings
     public string CameraId
     {
         get => Preferences.Default.Get(CameraKey, "rear");
-        set => Preferences.Default.Set(CameraKey, value is "front" ? "front" : "rear");
+        set => Preferences.Default.Set(CameraKey, string.IsNullOrWhiteSpace(value) ? "rear" : value);
     }
+
+    public int RecognitionFramesPerSecond
+    {
+        get => NormalizeRecognitionFramesPerSecond(
+            Preferences.Default.Get(RecognitionFramesPerSecondKey, DefaultRecognitionFramesPerSecond));
+        set => Preferences.Default.Set(
+            RecognitionFramesPerSecondKey,
+            NormalizeRecognitionFramesPerSecond(value));
+    }
+
+    public string NetworkStreamUrl
+    {
+        get => _networkStreamUrl;
+        set => _networkStreamUrl = value?.Trim() ?? string.Empty;
+    }
+
+    private static int NormalizeRecognitionFramesPerSecond(int value) => value switch
+    {
+        0 or 2 or 4 or 8 or 12 => value,
+        _ => DefaultRecognitionFramesPerSecond
+    };
 }

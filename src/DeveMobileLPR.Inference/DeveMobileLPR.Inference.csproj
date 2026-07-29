@@ -6,6 +6,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../DeveMobileLPR.Core/DeveMobileLPR.Core.csproj" />
-    <PackageReference Include="Microsoft.ML.OnnxRuntime" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.Managed" />
   </ItemGroup>
 </Project>

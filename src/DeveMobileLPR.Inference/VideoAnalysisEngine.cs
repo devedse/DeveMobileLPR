@@ -29,6 +29,8 @@ public sealed class VideoAnalysisEngine(IFrameRecognitionPipeline pipeline) : ID
             var tracks = new PlateTrackManager();
             var processedFrames = 0;
             var stopwatch = Stopwatch.StartNew();
+            var decodeElapsed = TimeSpan.Zero;
+            var recognitionElapsed = TimeSpan.Zero;
 
             for (var sourceFrameIndex = 0; sourceFrameIndex < timeline.FrameCount; sourceFrameIndex++)
             {
@@ -39,15 +41,25 @@ public sealed class VideoAnalysisEngine(IFrameRecognitionPipeline pipeline) : ID
                 }
 
                 var position = timeline.PositionOf(sourceFrameIndex);
+                var stageStartedAt = stopwatch.Elapsed;
                 using var frame = await source.DecodeAsync(sourceFrameIndex, position, cancellationToken).ConfigureAwait(false);
+                decodeElapsed += stopwatch.Elapsed - stageStartedAt;
                 if (frame is not null)
                 {
+                    stageStartedAt = stopwatch.Elapsed;
                     var recognition = await pipeline.ProcessAsync(frame, cancellationToken).ConfigureAwait(false);
                     frames.Add(CreateAnalyzedFrame(sourceFrameIndex, position, recognition, tracks.Update(recognition)));
+                    recognitionElapsed += stopwatch.Elapsed - stageStartedAt;
                 }
 
                 processedFrames++;
-                progress?.Report(new VideoAnalysisProgress(processedFrames, sampledFrameCount, position, stopwatch.Elapsed));
+                progress?.Report(new VideoAnalysisProgress(
+                    processedFrames,
+                    sampledFrameCount,
+                    position,
+                    stopwatch.Elapsed,
+                    decodeElapsed,
+                    recognitionElapsed));
             }
 
             return new VideoAnalysisResult(

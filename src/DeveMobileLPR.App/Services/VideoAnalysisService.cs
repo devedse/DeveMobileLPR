@@ -39,10 +39,11 @@ internal sealed class VideoAnalysisService : IDisposable
         string displayName,
         VideoFrameSampling sampling,
         IProgress<VideoAnalysisProgress>? progress,
+        Action<string>? diagnostic,
         CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        var engine = await EnsureEngineAsync(cancellationToken).ConfigureAwait(false);
+        var engine = await EnsureEngineAsync(diagnostic, cancellationToken).ConfigureAwait(false);
         using var source = new AndroidVideoFrameSource(sourcePath);
         return await engine.AnalyzeAsync(source, sourcePath, displayName, sampling, progress, cancellationToken).ConfigureAwait(false);
     }
@@ -67,7 +68,9 @@ internal sealed class VideoAnalysisService : IDisposable
             return stream.ToArray();
         }, cancellationToken);
 
-    private async Task<VideoAnalysisEngine> EnsureEngineAsync(CancellationToken cancellationToken)
+    private async Task<VideoAnalysisEngine> EnsureEngineAsync(
+        Action<string>? diagnostic,
+        CancellationToken cancellationToken)
     {
         if (_engine is not null)
         {
@@ -88,7 +91,7 @@ internal sealed class VideoAnalysisService : IDisposable
                 context.Assets ?? throw new InvalidOperationException("Application assets are unavailable."),
                 files,
                 cancellationToken).ConfigureAwait(false);
-            _engine = new VideoAnalysisEngine(OnnxPlateRecognitionPipelineFactory.Create(models.Detector, models.Ocr));
+            _engine = new VideoAnalysisEngine(OnnxPlateRecognitionPipelineFactory.Create(models.Detector, models.Ocr, diagnostic));
             return _engine;
         }
         finally

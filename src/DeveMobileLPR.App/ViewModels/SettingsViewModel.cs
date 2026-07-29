@@ -3,6 +3,14 @@ using DeveMobileLPR.App.UI;
 
 namespace DeveMobileLPR.App.ViewModels;
 
+internal sealed record RecognitionFrameRateOption(
+    string Name,
+    string Detail,
+    int MaximumFramesPerSecond)
+{
+    public override string ToString() => Name;
+}
+
 internal sealed class SettingsViewModel : ViewModelBase
 {
     private readonly AppSettings _settings;
@@ -15,6 +23,7 @@ internal sealed class SettingsViewModel : ViewModelBase
     private string _rdwDetail = "Import the generated rdw.sqlite file to add make, model, value, fuel, year, and body type.";
     private string _historyDetail = "Loading local history…";
     private string _permissionsDetail = "Checking Android permissions…";
+    private RecognitionFrameRateOption _selectedRecognitionFrameRate;
 
     public SettingsViewModel(AppSettings settings, DriveCoordinator coordinator, RdwDatabaseService rdw, HistoryExportService export)
     {
@@ -22,6 +31,17 @@ internal sealed class SettingsViewModel : ViewModelBase
         _coordinator = coordinator;
         _rdw = rdw;
         _export = export;
+        RecognitionFrameRateOptions =
+        [
+            new("2 FPS", "Battery saver · suitable when heat and power use matter most", 2),
+            new("4 FPS", "Balanced · the previous default recognition cadence", 4),
+            new("8 FPS", "Responsive · checks twice as many frames as the balanced mode", 8),
+            new("12 FPS", "High · more CPU/GPU use for fast-moving traffic", 12),
+            new("Unlimited", "Maximum throughput · submits every available analysis frame and drops stale queued frames", 0)
+        ];
+        _selectedRecognitionFrameRate = RecognitionFrameRateOptions.FirstOrDefault(
+                option => option.MaximumFramesPerSecond == _settings.RecognitionFramesPerSecond)
+            ?? RecognitionFrameRateOptions[1];
     }
 
     public bool IsBusy { get => _isBusy; private set => SetProperty(ref _isBusy, value); }
@@ -33,6 +53,22 @@ internal sealed class SettingsViewModel : ViewModelBase
     public string HistoryDetail { get => _historyDetail; private set => SetProperty(ref _historyDetail, value); }
     public string PermissionsDetail { get => _permissionsDetail; private set => SetProperty(ref _permissionsDetail, value); }
     public string Version => $"DeveMobileLPR {AppInfo.Current.VersionString} ({AppInfo.Current.BuildString})";
+    public IReadOnlyList<RecognitionFrameRateOption> RecognitionFrameRateOptions { get; }
+
+    public RecognitionFrameRateOption SelectedRecognitionFrameRate
+    {
+        get => _selectedRecognitionFrameRate;
+        set
+        {
+            if (SetProperty(ref _selectedRecognitionFrameRate, value))
+            {
+                _settings.RecognitionFramesPerSecond = value.MaximumFramesPerSecond;
+                OnPropertyChanged(nameof(RecognitionFrameRateDetail));
+            }
+        }
+    }
+
+    public string RecognitionFrameRateDetail => SelectedRecognitionFrameRate.Detail;
 
     public bool TrackLocation
     {

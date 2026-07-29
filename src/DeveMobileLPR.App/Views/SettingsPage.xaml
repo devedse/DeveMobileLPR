@@ -82,6 +82,13 @@
                     <VerticalStackLayout Style="{StaticResource CardContent}">
                         <Label Style="{StaticResource SectionTitle}" Text="Recognition engine" />
                         <Label Style="{StaticResource SecondaryText}" Text="YOLOv9 plate detector · CCT-S V2 OCR · CameraX high-resolution analysis · ONNX Runtime · temporal consensus" />
+                        <BoxView Style="{StaticResource DividerLine}" />
+                        <Label Style="{StaticResource SettingTitle}" Text="Maximum recognition rate" />
+                        <Picker
+                            ItemsSource="{Binding RecognitionFrameRateOptions}"
+                            SelectedItem="{Binding SelectedRecognitionFrameRate}"
+                            Title="Recognition frames per second" />
+                        <Label Style="{StaticResource SettingDescription}" Text="{Binding RecognitionFrameRateDetail}" />
                     </VerticalStackLayout>
                 </Border>
                 <Border Style="{StaticResource Card}">
