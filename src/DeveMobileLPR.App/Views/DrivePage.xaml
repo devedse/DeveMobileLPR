@@ -30,7 +30,7 @@
                         <Label FontSize="11" Text="PRIVATE · ON-DEVICE" TextColor="{DynamicResource TextSecondary}" />
                     </VerticalStackLayout>
                     <Border
-                        AutomationId="drive_fps_metrics"
+                        AutomationId="drive_frame_intervals"
                         Grid.Column="1"
                         HorizontalOptions="End"
                         IsVisible="{Binding ShowDriveControls}"
@@ -39,18 +39,18 @@
                         VerticalOptions="Center">
                         <HorizontalStackLayout Spacing="14">
                             <VerticalStackLayout Spacing="0">
-                                <Label FontAttributes="Bold" FontSize="18" Text="{Binding SourceFramesPerSecond}" />
-                                <Label Style="{StaticResource DriveCaption}" Text="{Binding SourceFramesPerSecondLabel}" />
+                                <Label FontAttributes="Bold" FontSize="18" Text="{Binding SourceFrameInterval}" />
+                                <Label Style="{StaticResource DriveCaption}" Text="{Binding SourceFrameIntervalLabel}" />
                             </VerticalStackLayout>
                             <BoxView BackgroundColor="{DynamicResource Divider}" WidthRequest="1" />
                             <VerticalStackLayout Spacing="0">
-                                <Label FontAttributes="Bold" FontSize="18" Text="{Binding PreviewFramesPerSecond}" />
-                                <Label Style="{StaticResource DriveCaption}" Text="Preview FPS" />
+                                <Label FontAttributes="Bold" FontSize="18" Text="{Binding PreviewFrameInterval}" />
+                                <Label Style="{StaticResource DriveCaption}" Text="Preview" />
                             </VerticalStackLayout>
                             <BoxView BackgroundColor="{DynamicResource Divider}" WidthRequest="1" />
                             <VerticalStackLayout Spacing="0">
-                                <Label FontAttributes="Bold" FontSize="18" Text="{Binding AiFramesPerSecond}" TextColor="{DynamicResource Primary}" />
-                                <Label Style="{StaticResource DriveCaption}" Text="AI FPS" />
+                                <Label FontAttributes="Bold" FontSize="18" Text="{Binding RecognitionFrameInterval}" TextColor="{DynamicResource Primary}" />
+                                <Label Style="{StaticResource DriveCaption}" Text="Recognition" />
                             </VerticalStackLayout>
                         </HorizontalStackLayout>
                     </Border>
@@ -147,6 +147,12 @@
             </Border>
 
             <Grid Grid.Row="1" IsVisible="{Binding ShowDriveControls}">
+                <Border HorizontalOptions="Start" IsVisible="{Binding ShowRecognitionDebug}" MaximumWidthRequest="620" Style="{StaticResource DriveControlCard}" VerticalOptions="End">
+                    <VerticalStackLayout Spacing="4">
+                        <Label Style="{StaticResource FieldCaption}" Text="Recognition diagnostics" />
+                        <Label FontFamily="Consolas" FontSize="11" LineBreakMode="WordWrap" Text="{Binding RecognitionDebugText}" />
+                    </VerticalStackLayout>
+                </Border>
                 <Border HorizontalOptions="End" Style="{StaticResource DriveControlCard}" VerticalOptions="Start">
                     <HorizontalStackLayout Spacing="14">
                         <Picker ItemsSource="{Binding CameraChoices}" SelectedItem="{Binding SelectedCamera}" Title="Camera" WidthRequest="205" />

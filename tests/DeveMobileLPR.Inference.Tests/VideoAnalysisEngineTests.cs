@@ -26,7 +26,7 @@ public sealed class VideoAnalysisEngineTests
         Assert.Equal(3, progress.Count);
         Assert.Equal(1, progress[^1].Fraction);
         Assert.True(progress[^1].Elapsed > TimeSpan.Zero);
-        Assert.True(progress[^1].FramesPerSecond > 0);
+        Assert.True(progress[^1].AverageTotalMilliseconds > 0);
         Assert.True(progress[^1].DecodeElapsed > TimeSpan.Zero);
         Assert.True(progress[^1].RecognitionElapsed > TimeSpan.Zero);
         Assert.True(progress[^1].AverageDecodeMilliseconds > 0);

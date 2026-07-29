@@ -18,7 +18,18 @@
                         <Label LineBreakMode="MiddleTruncation" Style="{StaticResource SecondaryText}" Text="{Binding SelectedFileName}" />
                         <Button Clicked="SelectVideoClicked" IsEnabled="{Binding CanSelectVideo}" Style="{StaticResource SecondaryButton}" Text="Select video" />
                         <Picker ItemsSource="{Binding SamplingOptions}" SelectedItem="{Binding SelectedSampling}" />
-                        <Label Style="{StaticResource SecondaryText}" Text="{Binding SelectedSampling.Detail}" />
+                        <Label Style="{StaticResource SecondaryText}" Text="{Binding SelectedSamplingDetail}" />
+                        <VerticalStackLayout IsVisible="{Binding UsesCustomSampling}" Spacing="4">
+                            <Label Style="{StaticResource FieldCaption}" Text="Process every Nth source frame" />
+                            <Entry Keyboard="Numeric" Text="{Binding CustomSamplingInterval}" />
+                        </VerticalStackLayout>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <VerticalStackLayout Spacing="2">
+                                <Label Style="{StaticResource SettingTitle}" Text="Limit test run to 30 seconds" />
+                                <Label Style="{StaticResource SettingDescription}" Text="Keeps local recognition experiments quick and repeatable." />
+                            </VerticalStackLayout>
+                            <Switch Grid.Column="1" IsToggled="{Binding LimitToFirstThirtySeconds}" VerticalOptions="Center" />
+                        </Grid>
                         <Button Command="{Binding ProcessCommand}" Text="Process video" />
                     </VerticalStackLayout>
                 </Border>
@@ -66,7 +77,7 @@
             <Border BackgroundColor="#000000" Grid.Row="1" Padding="0" Stroke="{DynamicResource Divider}" StrokeShape="RoundRectangle 8">
                 <Grid>
                     <Image Aspect="AspectFit" Source="{Binding CurrentPreview}" />
-                    <controls:AnalysisFrameOverlay AnalysisFrame="{Binding CurrentFrame}" />
+                    <controls:AnalysisFrameOverlay AnalysisFrame="{Binding CurrentFrame}" ShowDiagnostics="{Binding RecognitionDebugEnabled}" />
                 </Grid>
             </Border>
 

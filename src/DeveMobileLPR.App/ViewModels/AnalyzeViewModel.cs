@@ -6,7 +6,7 @@ using DeveMobileLPR.Storage;
 
 namespace DeveMobileLPR.App.ViewModels;
 
-internal sealed record FrameSamplingOption(string Name, string Detail, int Interval)
+internal sealed record FrameSamplingOption(string Name, string Detail, int? Interval)
 {
     public override string ToString() => Name;
 }
@@ -48,6 +48,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     private const int MaximumPreviewCacheEntries = 8;
     private readonly VideoAnalysisService _analysis;
     private readonly JsonVideoAnalysisRepository _repository;
+    private readonly AppSettings _settings;
     private readonly AsyncCommand _processCommand;
     private readonly AsyncCommand _previousFrameCommand;
     private readonly AsyncCommand _nextFrameCommand;
@@ -76,17 +77,25 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     private IReadOnlyList<double> _detectionMarkers = [];
     private IReadOnlyList<double> _framePositions = [];
     private bool _initialized;
+    private int _customSamplingInterval = 15;
+    private bool _limitToFirstThirtySeconds;
 
-    public AnalyzeViewModel(VideoAnalysisService analysis, JsonVideoAnalysisRepository repository)
+    public AnalyzeViewModel(
+        VideoAnalysisService analysis,
+        JsonVideoAnalysisRepository repository,
+        AppSettings settings)
     {
         _analysis = analysis;
         _repository = repository;
+        _settings = settings;
         SamplingOptions =
         [
             new("All frames", "Process every reported source frame", 1),
             new("Every 2nd frame", "Process half of the source frames", 2),
             new("Every 4th frame", "Balanced analysis for most recordings", 4),
-            new("Every 8th frame", "Faster exploratory pass", 8)
+            new("Every 8th frame", "Faster exploratory pass", 8),
+            new("Every 15th frame", "Equivalent to about two analyzed frames per second for a 30 FPS source", 15),
+            new("Custom interval", "Choose exactly how many source frames to skip between recognition runs", null)
         ];
         _selectedSampling = SamplingOptions[2];
         _processCommand = new AsyncCommand(ProcessAsync, () => HasSelectedFile && !IsProcessing);
@@ -132,11 +141,44 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     public double CurrentPositionFraction { get => _currentPositionFraction; set => SetProperty(ref _currentPositionFraction, value); }
     public IReadOnlyList<double> DetectionMarkers { get => _detectionMarkers; private set => SetProperty(ref _detectionMarkers, value); }
     public IReadOnlyList<double> FramePositions { get => _framePositions; private set => SetProperty(ref _framePositions, value); }
+    public bool RecognitionDebugEnabled => _settings.RecognitionDebugEnabled;
+    public bool UsesCustomSampling => SelectedSampling.Interval is null;
+    public string SelectedSamplingDetail => SelectedSampling.Detail;
+
+    public int CustomSamplingInterval
+    {
+        get => _customSamplingInterval;
+        set
+        {
+            if (SetProperty(ref _customSamplingInterval, Math.Clamp(value, 1, 10_000)))
+            {
+                _processCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool LimitToFirstThirtySeconds
+    {
+        get => _limitToFirstThirtySeconds;
+        set => SetProperty(ref _limitToFirstThirtySeconds, value);
+    }
 
     public FrameSamplingOption SelectedSampling
     {
         get => _selectedSampling;
-        set => SetProperty(ref _selectedSampling, value);
+        set
+        {
+            if (SetProperty(ref _selectedSampling, value))
+            {
+                OnPropertyChanged(nameof(UsesCustomSampling));
+                OnPropertyChanged(nameof(SelectedSamplingDetail));
+            }
+        }
+    }
+
+    public void RefreshSettings()
+    {
+        OnPropertyChanged(nameof(RecognitionDebugEnabled));
     }
 
     public async Task InitializeAsync()
@@ -197,21 +239,27 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         var sourcePath = _stagedPath;
         var displayName = SelectedFileName;
         var sampling = SelectedSampling;
+        var samplingInterval = sampling.Interval ?? CustomSamplingInterval;
+        var samplingName = sampling.Interval is null ? $"Every {samplingInterval}th frame" : sampling.Name;
+        var options = new VideoAnalysisOptions(
+            new VideoFrameSampling(samplingInterval),
+            LimitToFirstThirtySeconds ? TimeSpan.FromSeconds(30) : null,
+            RecognitionDebugEnabled);
         ClearResult();
         _stagedPath = null;
         SelectedFileName = "No video selected";
         OnPropertyChanged(nameof(HasSelectedFile));
         IsProcessing = true;
         ProgressText = "Preparing models…";
-        StatusMessage = "Processing scaled frames on this device.";
-        var processingItem = new AnalysisListItem(displayName, ProgressText, sampling.Name, true, null);
+        StatusMessage = "Processing full-resolution frames on this device.";
+        var processingItem = new AnalysisListItem(displayName, ProgressText, samplingName, true, null);
         _processingItem = processingItem;
         RebuildAnalyses();
         _runCancellation = new CancellationTokenSource();
         var progress = new Progress<VideoAnalysisProgress>(update =>
         {
             Progress = update.Fraction;
-            ProgressText = $"{update.Fraction:P0} · {update.ProcessedFrames:N0} of {update.TotalFrames:N0} frames · {update.FramesPerSecond:F1} fps · decode {update.AverageDecodeMilliseconds:F0} ms · recognition {update.AverageRecognitionMilliseconds:F0} ms · {FormatPosition(update.Position)}";
+            ProgressText = $"{update.Fraction:P0} · {update.ProcessedFrames:N0} of {update.TotalFrames:N0} frames · total {update.AverageTotalMilliseconds:F0} ms/frame · decode {update.AverageDecodeMilliseconds:F0} ms/frame · recognition {update.AverageRecognitionMilliseconds:F0} ms/frame · {FormatPosition(update.Position)}";
             processingItem.Progress = update.Fraction;
             processingItem.Detail = ProgressText;
         });
@@ -220,7 +268,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
             _result = await _analysis.AnalyzeAsync(
                 sourcePath,
                 displayName,
-                new VideoFrameSampling(sampling.Interval),
+                options,
                 progress,
                 message => MainThread.BeginInvokeOnMainThread(() => StatusMessage = message),
                 _runCancellation.Token);
@@ -298,6 +346,25 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         foreach (var confirmation in frame.Confirmations)
         {
             CurrentReads.Add($"Confirmed {confirmation.DisplayPlate} · {confirmation.Confidence:P0}");
+        }
+        if (RecognitionDebugEnabled && frame.Diagnostics is { } diagnostics)
+        {
+            var timing = diagnostics.Frame;
+            CurrentReads.Add($"Timing · total {diagnostics.TotalMilliseconds:F1} ms · detector {timing.Detector.TotalMilliseconds:F1} ms · OCR {timing.Ocr.TotalMilliseconds:F1} ms · tracking {diagnostics.TrackingMilliseconds:F1} ms");
+            CurrentReads.Add($"Detector · queue {timing.Detector.QueueMilliseconds:F1} ms · prep {timing.Detector.PreprocessingMilliseconds:F1} ms · inference {timing.Detector.InferenceMilliseconds:F1} ms · post {timing.Detector.PostprocessingMilliseconds:F1} ms");
+            CurrentReads.Add($"Frame · {timing.DetectionCount} detections · {timing.OcrAttemptCount} OCR attempts · {timing.ObservationCount} observations · {diagnostics.Tracks.Count} active tracks");
+            foreach (var candidate in timing.Candidates)
+            {
+                var read = string.IsNullOrWhiteSpace(candidate.ReadText) ? "no text" : candidate.ReadText;
+                var ocr = candidate.OcrAttempted
+                    ? $"{read} ({candidate.OcrConfidence:P0}, {candidate.OcrTiming?.TotalMilliseconds:F1} ms)"
+                    : "not attempted";
+                CurrentReads.Add($"Candidate · det {candidate.Detection.Confidence:P0} · OCR {ocr} · quality {candidate.Quality:P0}");
+            }
+            foreach (var association in diagnostics.Associations)
+            {
+                CurrentReads.Add($"Track {ShortTrackId(association.TrackId)} · {(association.Created ? "created" : $"matched IoU {association.IntersectionOverUnion:F2}")}");
+            }
         }
         if (CurrentReads.Count == 0)
         {
@@ -457,7 +524,9 @@ internal sealed class AnalyzeViewModel : ViewModelBase
             var enriched = await _analysis.AnalyzeAsync(
                 legacyResult.SourcePath,
                 legacyResult.DisplayName,
-                legacyResult.Sampling,
+                new VideoAnalysisOptions(
+                    legacyResult.Sampling,
+                    IncludeDiagnostics: RecognitionDebugEnabled),
                 progress,
                 message => MainThread.BeginInvokeOnMainThread(() => StatusMessage = message),
                 _runCancellation.Token);
@@ -519,4 +588,5 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     }
 
     private static string FormatPosition(TimeSpan position) => position.ToString(position.TotalHours >= 1 ? @"h\:mm\:ss\.fff" : @"m\:ss\.fff");
+    private static string ShortTrackId(Guid trackId) => trackId.ToString("N")[..6];
 }

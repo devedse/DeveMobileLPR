@@ -121,6 +121,7 @@ internal sealed class DetectionOverlayView : AView
     private readonly Paint _labelPaint = new(PaintFlags.AntiAlias);
     private readonly Paint _textPaint = new(PaintFlags.AntiAlias);
     private readonly Paint _detailPaint = new(PaintFlags.AntiAlias);
+    private readonly DashPathEffect _trackPathEffect;
     private readonly Func<bool> _showGuide;
     private readonly Func<AspectScaleMode> _scaleMode;
     private DriveSnapshot? _snapshot;
@@ -134,6 +135,7 @@ internal sealed class DetectionOverlayView : AView
         _showGuide = showGuide;
         _scaleMode = scaleMode;
         _density = context.Resources?.DisplayMetrics?.Density ?? 1;
+        _trackPathEffect = new DashPathEffect([6 * _density, 4 * _density], 0);
         _boxPaint.SetStyle(Paint.Style.Stroke);
         _labelPaint.SetStyle(Paint.Style.Fill);
         _textPaint.SetStyle(Paint.Style.Fill);
@@ -164,7 +166,10 @@ internal sealed class DetectionOverlayView : AView
             DrawGuide(canvas);
         }
 
-        foreach (var overlay in snapshot.Overlays.OrderBy(static item => item.Confirmed))
+        foreach (var overlay in snapshot.Overlays
+                     .Where(overlay => snapshot.RecognitionDebugEnabled
+                         || overlay.Kind is not (DriveOverlayKind.Candidate or DriveOverlayKind.Track))
+                     .OrderBy(static item => item.Kind))
         {
             DrawDetection(canvas, overlay);
         }
@@ -210,10 +215,15 @@ internal sealed class DetectionOverlayView : AView
             projected.Top,
             projected.Right,
             projected.Bottom);
-        var accent = overlay.Confirmed ? AColor.Rgb(245, 197, 66) : AColor.Rgb(88, 224, 194);
+        var confirmed = overlay.Kind == DriveOverlayKind.Confirmed;
+        var accent = overlay.Kind == DriveOverlayKind.Track
+            ? AColor.Rgb(215, 123, 255)
+            : confirmed ? AColor.Rgb(245, 197, 66) : AColor.Rgb(88, 224, 194);
         _boxPaint.Color = accent;
-        _boxPaint.StrokeWidth = (overlay.Confirmed ? 3.5f : 2.25f) * _density;
+        _boxPaint.StrokeWidth = (confirmed ? 3.5f : 2.25f) * _density;
+        _boxPaint.SetPathEffect(overlay.Kind == DriveOverlayKind.Track ? _trackPathEffect : null);
         canvas.DrawRoundRect(bounds, 8 * _density, 8 * _density, _boxPaint);
+        _boxPaint.SetPathEffect(null);
 
         _textPaint.TextSize = 14 * _density;
         _detailPaint.TextSize = 11 * _density;
@@ -224,10 +234,10 @@ internal sealed class DetectionOverlayView : AView
         var labelTop = bounds.Top - labelHeight - 5 * _density;
         if (labelTop < 8 * _density) labelTop = bounds.Bottom + 5 * _density;
         var label = new ARectF(labelLeft, labelTop, labelLeft + labelWidth, labelTop + labelHeight);
-        _labelPaint.Color = overlay.Confirmed ? AColor.Argb(242, 245, 197, 66) : AColor.Argb(232, 11, 13, 16);
+        _labelPaint.Color = confirmed ? AColor.Argb(242, 245, 197, 66) : AColor.Argb(232, 11, 13, 16);
         canvas.DrawRoundRect(label, 10 * _density, 10 * _density, _labelPaint);
-        _textPaint.Color = overlay.Confirmed ? AColor.Rgb(20, 17, 5) : AColor.White;
-        _detailPaint.Color = overlay.Confirmed ? AColor.Rgb(45, 38, 10) : AColor.Rgb(190, 205, 214);
+        _textPaint.Color = confirmed ? AColor.Rgb(20, 17, 5) : AColor.White;
+        _detailPaint.Color = confirmed ? AColor.Rgb(45, 38, 10) : AColor.Rgb(190, 205, 214);
         canvas.DrawText(Ellipsize(overlay.Title, _textPaint, labelWidth - horizontalPadding * 2), labelLeft + horizontalPadding, labelTop + 19 * _density, _textPaint);
         canvas.DrawText(Ellipsize(overlay.Detail, _detailPaint, labelWidth - horizontalPadding * 2), labelLeft + horizontalPadding, labelTop + 38 * _density, _detailPaint);
     }

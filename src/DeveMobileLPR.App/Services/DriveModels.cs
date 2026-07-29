@@ -10,7 +10,15 @@ internal sealed record DriveOverlay(
     string Title,
     string Detail,
     float Confidence,
-    bool Confirmed);
+    DriveOverlayKind Kind);
+
+internal enum DriveOverlayKind
+{
+    Candidate,
+    Reading,
+    Track,
+    Confirmed
+}
 
 internal sealed record DriveSnapshot(
     bool IsInitializing,
@@ -20,9 +28,9 @@ internal sealed record DriveSnapshot(
     string Status,
     bool HasError,
     DateTimeOffset? StartedAt,
-    double SourceFramesPerSecond,
-    double? PreviewFramesPerSecond,
-    double AiFramesPerSecond,
+    double? SourceFrameIntervalMilliseconds,
+    double? PreviewFrameIntervalMilliseconds,
+    double? RecognitionFrameIntervalMilliseconds,
     int UniqueVehicles,
     IReadOnlyList<Sighting> RecentSightings,
     Sighting? MostExpensive,
@@ -31,4 +39,6 @@ internal sealed record DriveSnapshot(
     bool IsInputReady,
     bool SupportsNetworkStreams,
     IReadOnlyList<CameraChoice> CameraChoices,
-    string SelectedCameraId);
+    string SelectedCameraId,
+    RecognitionStreamDiagnostics? RecognitionDiagnostics,
+    bool RecognitionDebugEnabled);

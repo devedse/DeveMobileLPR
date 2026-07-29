@@ -89,6 +89,11 @@
                             SelectedItem="{Binding SelectedRecognitionFrameRate}"
                             Title="Recognition frames per second" />
                         <Label Style="{StaticResource SettingDescription}" Text="{Binding RecognitionFrameRateDetail}" />
+                        <BoxView Style="{StaticResource DividerLine}" />
+                        <controls:SettingsToggleRow
+                            Description="Shows track IDs, associations, and per-stage millisecond timings in Drive and Analyze. Saved debug analyses also retain these diagnostics."
+                            IsToggled="{Binding RecognitionDebugEnabled}"
+                            Title="Recognition diagnostics" />
                     </VerticalStackLayout>
                 </Border>
                 <Border Style="{StaticResource Card}">

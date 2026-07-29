@@ -7,7 +7,7 @@ public partial class AnalyzePage : ContentPage
     private static readonly FilePickerFileType VideoFiles = new(new Dictionary<DevicePlatform, IEnumerable<string>>
     {
         [DevicePlatform.Android] = ["video/*"],
-        [DevicePlatform.WinUI] = [".mp4", ".mov", ".m4v", ".avi", ".wmv", ".mkv"]
+        [DevicePlatform.WinUI] = [".mp4", ".mov", ".m4v", ".avi", ".wmv", ".mkv", ".webm"]
     });
     private readonly AnalyzeViewModel _viewModel;
 
@@ -20,6 +20,7 @@ public partial class AnalyzePage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        _viewModel.RefreshSettings();
         await _viewModel.InitializeAsync();
     }
 

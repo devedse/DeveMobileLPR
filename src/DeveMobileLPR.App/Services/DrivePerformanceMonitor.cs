@@ -3,13 +3,13 @@ using System.Diagnostics;
 namespace DeveMobileLPR.App.Services;
 
 internal sealed record DrivePerformanceSample(
-    double SourceFramesPerSecond,
-    double PreviewFramesPerSecond,
-    double AiFramesPerSecond);
+    double? SourceFrameIntervalMilliseconds,
+    double? PreviewFrameIntervalMilliseconds,
+    double? RecognitionFrameIntervalMilliseconds);
 
 /// <summary>
-/// Samples source, presented-preview, and completed-recognition throughput once
-/// per second without publishing UI work for every frame.
+/// Samples source, presented-preview, and completed-recognition cadence once per
+/// second without publishing UI work for every frame.
 /// </summary>
 internal sealed class DrivePerformanceMonitor : IDisposable
 {
@@ -17,7 +17,7 @@ internal sealed class DrivePerformanceMonitor : IDisposable
     private readonly Timer _timer;
     private long _sourceFrames;
     private long _previewFrames;
-    private long _aiFrames;
+    private long _recognitionFrames;
     private long _lastSampleTimestamp;
     private int _running;
     private int _disposed;
@@ -34,7 +34,7 @@ internal sealed class DrivePerformanceMonitor : IDisposable
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         Interlocked.Exchange(ref _sourceFrames, 0);
         Interlocked.Exchange(ref _previewFrames, 0);
-        Interlocked.Exchange(ref _aiFrames, 0);
+        Interlocked.Exchange(ref _recognitionFrames, 0);
         Interlocked.Exchange(ref _lastSampleTimestamp, Stopwatch.GetTimestamp());
         Volatile.Write(ref _running, 1);
         _timer.Change(SampleInterval, SampleInterval);
@@ -46,7 +46,7 @@ internal sealed class DrivePerformanceMonitor : IDisposable
         _timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         Interlocked.Exchange(ref _sourceFrames, 0);
         Interlocked.Exchange(ref _previewFrames, 0);
-        Interlocked.Exchange(ref _aiFrames, 0);
+        Interlocked.Exchange(ref _recognitionFrames, 0);
         Interlocked.Exchange(ref _lastSampleTimestamp, 0);
     }
 
@@ -63,7 +63,7 @@ internal sealed class DrivePerformanceMonitor : IDisposable
 
         Interlocked.Exchange(ref _sourceFrames, 0);
         Interlocked.Exchange(ref _previewFrames, 0);
-        Interlocked.Exchange(ref _aiFrames, 0);
+        Interlocked.Exchange(ref _recognitionFrames, 0);
         Interlocked.Exchange(ref _lastSampleTimestamp, Stopwatch.GetTimestamp());
     }
 
@@ -83,11 +83,11 @@ internal sealed class DrivePerformanceMonitor : IDisposable
         }
     }
 
-    public void RecordAiFrame()
+    public void RecordRecognitionFrame()
     {
         if (Volatile.Read(ref _running) != 0)
         {
-            Interlocked.Increment(ref _aiFrames);
+            Interlocked.Increment(ref _recognitionFrames);
         }
     }
 
@@ -100,22 +100,23 @@ internal sealed class DrivePerformanceMonitor : IDisposable
 
         var now = Stopwatch.GetTimestamp();
         var previous = Interlocked.Exchange(ref _lastSampleTimestamp, now);
-        var elapsedSeconds = previous == 0
-            ? 0
-            : Stopwatch.GetElapsedTime(previous, now).TotalSeconds;
+        var elapsed = previous == 0 ? TimeSpan.Zero : Stopwatch.GetElapsedTime(previous, now);
         var sourceFrames = Interlocked.Exchange(ref _sourceFrames, 0);
         var previewFrames = Interlocked.Exchange(ref _previewFrames, 0);
-        var aiFrames = Interlocked.Exchange(ref _aiFrames, 0);
-        if (elapsedSeconds <= 0 || Volatile.Read(ref _running) == 0)
+        var recognitionFrames = Interlocked.Exchange(ref _recognitionFrames, 0);
+        if (elapsed <= TimeSpan.Zero || Volatile.Read(ref _running) == 0)
         {
             return;
         }
 
         Sampled?.Invoke(this, new DrivePerformanceSample(
-            sourceFrames / elapsedSeconds,
-            previewFrames / elapsedSeconds,
-            aiFrames / elapsedSeconds));
+            MillisecondsPerFrame(elapsed, sourceFrames),
+            MillisecondsPerFrame(elapsed, previewFrames),
+            MillisecondsPerFrame(elapsed, recognitionFrames)));
     }
+
+    private static double? MillisecondsPerFrame(TimeSpan elapsed, long frameCount) =>
+        frameCount > 0 ? elapsed.TotalMilliseconds / frameCount : null;
 
     public void Dispose()
     {

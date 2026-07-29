@@ -40,9 +40,10 @@ internal sealed class DriveCoordinator : IAsyncDisposable
     private string _status = "Preparing the on-device recognition engine…";
     private bool _hasError;
     private DateTimeOffset? _startedAt;
-    private double _sourceFramesPerSecond;
-    private double? _previewFramesPerSecond;
-    private double _aiFramesPerSecond;
+    private double? _sourceFrameIntervalMilliseconds;
+    private double? _previewFrameIntervalMilliseconds;
+    private double? _recognitionFrameIntervalMilliseconds;
+    private RecognitionStreamDiagnostics? _recognitionDiagnostics;
     private Sighting? _mostExpensive;
     private IReadOnlyList<DriveOverlay> _overlays = [];
     private IReadOnlyList<CameraChoice> _cameraChoices = [new("rear", "Rear cameras · automatic lens")];
@@ -214,9 +215,10 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                 _driving = true;
                 _stopping = false;
                 _startedAt = now;
-                _sourceFramesPerSecond = 0;
-                _previewFramesPerSecond = _camera.ReportsPreviewFrames ? 0 : null;
-                _aiFramesPerSecond = 0;
+                _sourceFrameIntervalMilliseconds = null;
+                _previewFrameIntervalMilliseconds = null;
+                _recognitionFrameIntervalMilliseconds = null;
+                _recognitionDiagnostics = null;
                 _uniqueVehicles.Clear();
                 _recentSightings.Clear();
                 _mostExpensive = null;
@@ -248,9 +250,10 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                 lock (_stateGate)
                 {
                     _driving = false;
-                    _sourceFramesPerSecond = 0;
-                    _previewFramesPerSecond = _camera.ReportsPreviewFrames ? 0 : null;
-                    _aiFramesPerSecond = 0;
+                    _sourceFrameIntervalMilliseconds = null;
+                    _previewFrameIntervalMilliseconds = null;
+                    _recognitionFrameIntervalMilliseconds = null;
+                    _recognitionDiagnostics = null;
                 }
                 await _repository.EndTripAsync(trip.Id, DateTimeOffset.UtcNow, _location?.Latest, CancellationToken.None);
                 Interlocked.Exchange(ref _activeTripId, 0);
@@ -283,9 +286,10 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                 _stopping = true;
                 _status = "Finishing your trip…";
                 _overlays = [];
-                _sourceFramesPerSecond = 0;
-                _previewFramesPerSecond = _camera?.ReportsPreviewFrames == true ? 0 : null;
-                _aiFramesPerSecond = 0;
+                _sourceFrameIntervalMilliseconds = null;
+                _previewFrameIntervalMilliseconds = null;
+                _recognitionFrameIntervalMilliseconds = null;
+                _recognitionDiagnostics = null;
             }
             _performance.Stop();
             Publish();
@@ -393,15 +397,23 @@ internal sealed class DriveCoordinator : IAsyncDisposable
         _recognition?.ResetTracking();
         lock (_stateGate)
         {
-            _sourceFramesPerSecond = 0;
-            _previewFramesPerSecond = camera.ReportsPreviewFrames ? 0 : null;
-            _aiFramesPerSecond = 0;
+            _sourceFrameIntervalMilliseconds = null;
+            _previewFrameIntervalMilliseconds = null;
+            _recognitionFrameIntervalMilliseconds = null;
+            _recognitionDiagnostics = null;
             _overlays = [];
             _confirmedOverlay = null;
         }
     }
 
-    public void RefreshSettings() => Publish();
+    public void RefreshSettings()
+    {
+        if (!_settings.RecognitionDebugEnabled)
+        {
+            lock (_stateGate) _recognitionDiagnostics = null;
+        }
+        Publish();
+    }
 
     public async Task DeleteHistoryAsync()
     {
@@ -437,16 +449,50 @@ internal sealed class DriveCoordinator : IAsyncDisposable
 
     private void RecognitionProgressed(object? sender, RecognitionProgress progress)
     {
-        _performance.RecordAiFrame();
+        _performance.RecordRecognitionFrame();
         var recognition = progress.Recognition;
-        var candidates = recognition.Observations.Select(observation => new DriveOverlay(
-            observation.Detection.Bounds,
-            recognition.SourceWidth,
-            recognition.SourceHeight,
-            FormatPlate(observation.Read.Text),
-            $"Reading · {observation.Read.Confidence:P0}",
-            observation.Detection.Confidence,
-            false)).ToList();
+        List<DriveOverlay> candidates;
+        if (_settings.RecognitionDebugEnabled)
+        {
+            candidates = progress.Diagnostics.Frame.Candidates.Select(candidate => new DriveOverlay(
+                candidate.Detection.Bounds,
+                recognition.SourceWidth,
+                recognition.SourceHeight,
+                string.IsNullOrWhiteSpace(candidate.ReadText) ? "Detector candidate" : FormatPlate(candidate.ReadText),
+                candidate.OcrAttempted
+                    ? $"det {candidate.Detection.Confidence:P0} · OCR {candidate.OcrConfidence:P0} · quality {candidate.Quality:P0}"
+                    : $"det {candidate.Detection.Confidence:P0} · OCR not attempted",
+                candidate.Detection.Confidence,
+                DriveOverlayKind.Candidate)).ToList();
+            candidates.AddRange(progress.Diagnostics.Tracks.Select(track =>
+            {
+                var association = progress.Diagnostics.Associations.FirstOrDefault(item => item.TrackId == track.TrackId);
+                var associationText = association is null
+                    ? "not observed this frame"
+                    : association.Created
+                        ? "new track"
+                        : $"IoU {association.IntersectionOverUnion:F2}";
+                return new DriveOverlay(
+                    track.Bounds,
+                    recognition.SourceWidth,
+                    recognition.SourceHeight,
+                    $"T{track.TrackId.ToString("N")[..6]} · {FormatPlate(track.LastRead)}",
+                    $"{track.ObservationCount} obs · {associationText}",
+                    track.DetectorConfidence,
+                    DriveOverlayKind.Track);
+            }));
+        }
+        else
+        {
+            candidates = recognition.Observations.Select(observation => new DriveOverlay(
+                observation.Detection.Bounds,
+                recognition.SourceWidth,
+                recognition.SourceHeight,
+                FormatPlate(observation.Read.Text),
+                $"Reading · {observation.Read.Confidence:P0}",
+                observation.Detection.Confidence,
+                DriveOverlayKind.Reading)).ToList();
+        }
         lock (_stateGate)
         {
             if (_confirmedOverlay is not null
@@ -459,6 +505,7 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                 candidates.Add(_confirmedOverlay);
             }
             _overlays = candidates;
+            _recognitionDiagnostics = _settings.RecognitionDebugEnabled ? progress.Diagnostics : null;
         }
         Publish();
     }
@@ -494,7 +541,7 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                 sighting.DisplayPlate,
                 detail,
                 sighting.Confidence,
-                true);
+                DriveOverlayKind.Confirmed);
             _confirmedOverlayUntil = DateTimeOffset.UtcNow.AddSeconds(3);
         }
 
@@ -517,11 +564,11 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                 return;
             }
 
-            _sourceFramesPerSecond = sample.SourceFramesPerSecond;
-            _previewFramesPerSecond = _camera?.ReportsPreviewFrames == true
-                ? sample.PreviewFramesPerSecond
+            _sourceFrameIntervalMilliseconds = sample.SourceFrameIntervalMilliseconds;
+            _previewFrameIntervalMilliseconds = _camera?.ReportsPreviewFrames == true
+                ? sample.PreviewFrameIntervalMilliseconds
                 : null;
-            _aiFramesPerSecond = sample.AiFramesPerSecond;
+            _recognitionFrameIntervalMilliseconds = sample.RecognitionFrameIntervalMilliseconds;
         }
         Publish();
     }
@@ -565,9 +612,9 @@ internal sealed class DriveCoordinator : IAsyncDisposable
         _status,
         _hasError,
         _startedAt,
-        _sourceFramesPerSecond,
-        _previewFramesPerSecond,
-        _aiFramesPerSecond,
+        _sourceFrameIntervalMilliseconds,
+        _previewFrameIntervalMilliseconds,
+        _recognitionFrameIntervalMilliseconds,
         _uniqueVehicles.Count,
         _recentSightings.ToArray(),
         _mostExpensive,
@@ -576,7 +623,9 @@ internal sealed class DriveCoordinator : IAsyncDisposable
         _camera?.IsReady == true,
         true,
         _cameraChoices.ToArray(),
-        _camera?.SelectedCameraId ?? _settings.CameraId);
+        _camera?.SelectedCameraId ?? _settings.CameraId,
+        _recognitionDiagnostics,
+        _settings.RecognitionDebugEnabled);
 
     private static void PerformConfirmationHaptic()
     {

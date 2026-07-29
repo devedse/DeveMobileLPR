@@ -23,14 +23,18 @@ public sealed class PlateTrackManager
     }
 
     public IReadOnlyList<ConfirmedPlate> Update(FrameRecognition recognition)
+        => UpdateDetailed(recognition).Confirmations;
+
+    public PlateTrackingUpdate UpdateDetailed(FrameRecognition recognition)
     {
         Expire(recognition.CapturedAt);
         var confirmations = new List<ConfirmedPlate>();
+        var associations = new List<PlateTrackAssociation>(recognition.Observations.Count);
         var assignedTracks = new HashSet<Guid>();
 
         foreach (var observation in recognition.Observations.OrderByDescending(static item => item.Detection.Confidence))
         {
-            var track = _tracks
+            var match = _tracks
                 .Where(candidate => !assignedTracks.Contains(candidate.Id))
                 .Select(candidate => new
                 {
@@ -39,8 +43,9 @@ public sealed class PlateTrackManager
                 })
                 .Where(candidate => candidate.Score >= _options.MinimumIntersectionOverUnion)
                 .OrderByDescending(static candidate => candidate.Score)
-                .Select(static candidate => candidate.Track)
                 .FirstOrDefault();
+            var track = match?.Track;
+            var created = track is null;
 
             if (track is null)
             {
@@ -50,6 +55,11 @@ public sealed class PlateTrackManager
 
             assignedTracks.Add(track.Id);
             track.Add(observation, _options.MaximumObservationsPerTrack);
+            associations.Add(new PlateTrackAssociation(
+                track.Id,
+                recognition.FrameSequence,
+                created,
+                created ? null : match!.Score));
             if (!track.Confirmed)
             {
                 var result = _consensus.Resolve(track.Observations);
@@ -66,7 +76,10 @@ public sealed class PlateTrackManager
             }
         }
 
-        return confirmations;
+        return new PlateTrackingUpdate(
+            confirmations,
+            _tracks.Select(static track => track.ToSnapshot()).ToArray(),
+            associations);
     }
 
     public void Reset() => _tracks.Clear();
@@ -92,6 +105,23 @@ public sealed class PlateTrackManager
             {
                 Observations.RemoveRange(0, Observations.Count - maximumObservations);
             }
+        }
+
+        public PlateTrackSnapshot ToSnapshot()
+        {
+            var latest = Observations[^1];
+            return new PlateTrackSnapshot(
+                Id,
+                FirstSeenAt,
+                LastSeenAt,
+                LastBounds,
+                Observations.Count,
+                Confirmed,
+                latest.FrameSequence,
+                latest.Read.Text,
+                latest.Detection.Confidence,
+                latest.Read.Confidence,
+                latest.Quality);
         }
     }
 }

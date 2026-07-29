@@ -23,6 +23,59 @@ public sealed record PlateObservation(
     PlateRead Read,
     float Quality);
 
+public sealed record ModelExecutionTiming(
+    double QueueMilliseconds,
+    double PreprocessingMilliseconds,
+    double InferenceMilliseconds,
+    double PostprocessingMilliseconds)
+{
+    public static ModelExecutionTiming Empty { get; } = new(0, 0, 0, 0);
+
+    public double TotalMilliseconds =>
+        QueueMilliseconds + PreprocessingMilliseconds + InferenceMilliseconds + PostprocessingMilliseconds;
+
+    public static ModelExecutionTiming operator +(ModelExecutionTiming left, ModelExecutionTiming right) => new(
+        left.QueueMilliseconds + right.QueueMilliseconds,
+        left.PreprocessingMilliseconds + right.PreprocessingMilliseconds,
+        left.InferenceMilliseconds + right.InferenceMilliseconds,
+        left.PostprocessingMilliseconds + right.PostprocessingMilliseconds);
+}
+
+public sealed record PlateDetectionResult(
+    IReadOnlyList<PlateDetection> Detections,
+    ModelExecutionTiming Timing);
+
+public sealed record PlateRecognitionResult(
+    PlateRead Read,
+    ModelExecutionTiming Timing);
+
+public sealed record PlateCandidateDiagnostics(
+    PlateDetection Detection,
+    float? Quality,
+    bool OcrAttempted,
+    string? ReadText,
+    float? OcrConfidence,
+    ModelExecutionTiming? OcrTiming);
+
+public sealed record RecognitionFrameDiagnostics(
+    double TotalMilliseconds,
+    ModelExecutionTiming Detector,
+    ModelExecutionTiming Ocr,
+    int DetectionCount,
+    int OcrAttemptCount,
+    int ObservationCount)
+{
+    public static RecognitionFrameDiagnostics Empty { get; } = new(
+        0,
+        ModelExecutionTiming.Empty,
+        ModelExecutionTiming.Empty,
+        0,
+        0,
+        0);
+
+    public IReadOnlyList<PlateCandidateDiagnostics> Candidates { get; init; } = [];
+}
+
 public sealed record FrameRecognition(
     long FrameSequence,
     DateTimeOffset CapturedAt,
@@ -31,7 +84,47 @@ public sealed record FrameRecognition(
     public int SourceWidth { get; init; }
     public int SourceHeight { get; init; }
     public int RotationDegrees { get; init; }
+    public RecognitionFrameDiagnostics Diagnostics { get; init; } = RecognitionFrameDiagnostics.Empty;
 }
+
+public sealed record PlateTrackSnapshot(
+    Guid TrackId,
+    DateTimeOffset FirstSeenAt,
+    DateTimeOffset LastSeenAt,
+    BoundingBox Bounds,
+    int ObservationCount,
+    bool Confirmed,
+    long LastFrameSequence,
+    string LastRead,
+    float DetectorConfidence,
+    float OcrConfidence,
+    float Quality);
+
+public sealed record PlateTrackAssociation(
+    Guid TrackId,
+    long FrameSequence,
+    bool Created,
+    float? IntersectionOverUnion);
+
+public sealed record PlateTrackingUpdate(
+    IReadOnlyList<ConfirmedPlate> Confirmations,
+    IReadOnlyList<PlateTrackSnapshot> Tracks,
+    IReadOnlyList<PlateTrackAssociation> Associations);
+
+public sealed record RecognitionStreamDiagnostics(
+    RecognitionFrameDiagnostics Frame,
+    double TrackingMilliseconds,
+    IReadOnlyList<PlateTrackSnapshot> Tracks,
+    IReadOnlyList<PlateTrackAssociation> Associations)
+{
+    public double TotalMilliseconds => Frame.TotalMilliseconds + TrackingMilliseconds;
+    public long ReplacedInputFrames { get; init; }
+}
+
+public sealed record RecognitionStreamResult(
+    FrameRecognition Recognition,
+    IReadOnlyList<ConfirmedPlate> Confirmations,
+    RecognitionStreamDiagnostics Diagnostics);
 
 public sealed record ConsensusResult(
     string NormalizedPlate,
@@ -139,14 +232,14 @@ public sealed record HistoryStatistics(
 
 public interface IPlateDetector
 {
-    ValueTask<IReadOnlyList<PlateDetection>> DetectAsync(
+    ValueTask<PlateDetectionResult> DetectAsync(
         Yuv420Frame frame,
         CancellationToken cancellationToken);
 }
 
 public interface IPlateRecognizer
 {
-    ValueTask<PlateRead> RecognizeAsync(
+    ValueTask<PlateRecognitionResult> RecognizeAsync(
         Yuv420Frame frame,
         BoundingBox plateBounds,
         CancellationToken cancellationToken);

@@ -3,7 +3,7 @@ using DeveMobileLPR.Inference;
 using DeveMobileLPR.Inference.Models;
 using DeveMobileLPR.Inference.Onnx;
 using DeveMobileLPR.Recognition;
-using DeveMobileLPR.App.Platforms.Windows;
+using DeveMobileLPR.Video.Windows;
 using Windows.Graphics.Imaging;
 using Windows.Media.Editing;
 using Windows.Storage;
@@ -42,7 +42,7 @@ internal sealed class VideoAnalysisService : IDisposable
     public async Task<VideoAnalysisResult> AnalyzeAsync(
         string sourcePath,
         string displayName,
-        VideoFrameSampling sampling,
+        VideoAnalysisOptions options,
         IProgress<VideoAnalysisProgress>? progress,
         Action<string>? diagnostic,
         CancellationToken cancellationToken)
@@ -51,7 +51,7 @@ internal sealed class VideoAnalysisService : IDisposable
         var engine = await EnsureEngineAsync(diagnostic, cancellationToken).ConfigureAwait(false);
         var (_, timeline) = await OpenCompositionAsync(sourcePath, cancellationToken).ConfigureAwait(false);
         using var source = WindowsMediaFoundationVideoFrameSource.Create(sourcePath, timeline);
-        return await engine.AnalyzeAsync(source, sourcePath, displayName, sampling, progress, cancellationToken).ConfigureAwait(false);
+        return await engine.AnalyzeAsync(source, sourcePath, displayName, options, progress, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<byte[]> GetPreviewAsync(string sourcePath, TimeSpan position, CancellationToken cancellationToken)
@@ -105,9 +105,10 @@ internal sealed class VideoAnalysisService : IDisposable
         var file = await StorageFile.GetFileFromPathAsync(sourcePath);
         var clip = await MediaClip.CreateFromFileAsync(file);
         var properties = clip.GetVideoEncodingProperties();
-        var denominator = properties.FrameRate.Denominator;
-        var frameRate = denominator == 0 ? null : (double?)properties.FrameRate.Numerator / denominator;
-        var timeline = VideoFrameTimeline.Create(clip.OriginalDuration, frameRate, null);
+        var timeline = WindowsVideoMetadataReader.CreateTimeline(
+            clip.OriginalDuration,
+            properties.FrameRate.Numerator,
+            properties.FrameRate.Denominator);
         var composition = new MediaComposition();
         composition.Clips.Add(clip);
         return (composition, timeline);

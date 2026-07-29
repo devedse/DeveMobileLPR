@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <RootNamespace>DeveMobileLPR.Video.Windows</RootNamespace>
+    <AssemblyName>DeveMobileLPR.Video.Windows</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../DeveMobileLPR.Core/DeveMobileLPR.Core.csproj" />
+    <PackageReference Include="Vortice.MediaFoundation" />
+  </ItemGroup>
+</Project>

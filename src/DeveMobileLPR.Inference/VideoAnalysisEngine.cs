@@ -3,16 +3,41 @@ using DeveMobileLPR.Recognition;
 
 namespace DeveMobileLPR.Inference;
 
-public sealed class VideoAnalysisEngine(IFrameRecognitionPipeline pipeline) : IDisposable
+public sealed class VideoAnalysisEngine : IDisposable
 {
+    private readonly RecognitionStreamProcessor _processor;
     private readonly SemaphoreSlim _runGate = new(1, 1);
     private bool _disposed;
+
+    public VideoAnalysisEngine(IFrameRecognitionPipeline pipeline)
+        : this(new RecognitionStreamProcessor(pipeline))
+    {
+    }
+
+    public VideoAnalysisEngine(RecognitionStreamProcessor processor)
+    {
+        _processor = processor ?? throw new ArgumentNullException(nameof(processor));
+    }
+
+    public Task<VideoAnalysisResult> AnalyzeAsync(
+        IVideoFrameSource source,
+        string sourcePath,
+        string displayName,
+        VideoFrameSampling sampling,
+        IProgress<VideoAnalysisProgress>? progress,
+        CancellationToken cancellationToken) => AnalyzeAsync(
+            source,
+            sourcePath,
+            displayName,
+            new VideoAnalysisOptions(sampling),
+            progress,
+            cancellationToken);
 
     public async Task<VideoAnalysisResult> AnalyzeAsync(
         IVideoFrameSource source,
         string sourcePath,
         string displayName,
-        VideoFrameSampling sampling,
+        VideoAnalysisOptions options,
         IProgress<VideoAnalysisProgress>? progress,
         CancellationToken cancellationToken)
     {
@@ -20,19 +45,33 @@ public sealed class VideoAnalysisEngine(IFrameRecognitionPipeline pipeline) : ID
         ArgumentNullException.ThrowIfNull(source);
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
+        ArgumentNullException.ThrowIfNull(options);
+        if (options.Sampling.Interval < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "The video frame interval must be at least one.");
+        }
+        if (options.MaximumDuration is { } maximumDuration && maximumDuration <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "The maximum analysis duration must be positive.");
+        }
         await _runGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             var timeline = source.Timeline;
-            var sampledFrameCount = (timeline.FrameCount + sampling.Interval - 1) / sampling.Interval;
+            var duration = options.EffectiveDuration(timeline);
+            var sourceFrameCount = Math.Min(
+                timeline.FrameCount,
+                Math.Max(1, checked((int)Math.Ceiling(duration.TotalSeconds * timeline.FrameRate))));
+            var sampling = options.Sampling;
+            var sampledFrameCount = (sourceFrameCount + sampling.Interval - 1) / sampling.Interval;
             var frames = new List<AnalyzedVideoFrame>(sampledFrameCount);
-            var tracks = new PlateTrackManager();
+            _processor.Reset();
             var processedFrames = 0;
             var stopwatch = Stopwatch.StartNew();
             var decodeElapsed = TimeSpan.Zero;
             var recognitionElapsed = TimeSpan.Zero;
 
-            for (var sourceFrameIndex = 0; sourceFrameIndex < timeline.FrameCount; sourceFrameIndex++)
+            for (var sourceFrameIndex = 0; sourceFrameIndex < sourceFrameCount; sourceFrameIndex++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (!sampling.Includes(sourceFrameIndex))
@@ -47,8 +86,8 @@ public sealed class VideoAnalysisEngine(IFrameRecognitionPipeline pipeline) : ID
                 if (frame is not null)
                 {
                     stageStartedAt = stopwatch.Elapsed;
-                    var recognition = await pipeline.ProcessAsync(frame, cancellationToken).ConfigureAwait(false);
-                    frames.Add(CreateAnalyzedFrame(sourceFrameIndex, position, recognition, tracks.Update(recognition)));
+                    var result = await _processor.ProcessAsync(frame, cancellationToken).ConfigureAwait(false);
+                    frames.Add(CreateAnalyzedFrame(sourceFrameIndex, position, result, options.IncludeDiagnostics));
                     recognitionElapsed += stopwatch.Elapsed - stageStartedAt;
                 }
 
@@ -67,9 +106,9 @@ public sealed class VideoAnalysisEngine(IFrameRecognitionPipeline pipeline) : ID
                 sourcePath,
                 displayName,
                 DateTimeOffset.UtcNow,
-                timeline.Duration,
+                duration,
                 timeline.FrameRate,
-                timeline.FrameCount,
+                sourceFrameCount,
                 sampling,
                 frames);
         }
@@ -82,8 +121,11 @@ public sealed class VideoAnalysisEngine(IFrameRecognitionPipeline pipeline) : ID
     private static AnalyzedVideoFrame CreateAnalyzedFrame(
         long sourceFrameIndex,
         TimeSpan position,
-        FrameRecognition recognition,
-        IReadOnlyList<ConfirmedPlate> confirmations) => new(
+        RecognitionStreamResult result,
+        bool includeDiagnostics)
+    {
+        var recognition = result.Recognition;
+        return new AnalyzedVideoFrame(
             sourceFrameIndex,
             position,
             recognition.Observations.Select(static observation => new AnalyzedPlateRead(
@@ -91,14 +133,18 @@ public sealed class VideoAnalysisEngine(IFrameRecognitionPipeline pipeline) : ID
                 observation.Read.Confidence,
                 observation.Detection.Confidence,
                 observation.Detection.Bounds)).ToArray(),
-            confirmations.Select(static confirmation => new AnalyzedPlateConfirmation(
+            result.Confirmations.Select(static confirmation => new AnalyzedPlateConfirmation(
                 confirmation.Consensus.NormalizedPlate,
                 confirmation.Consensus.DisplayPlate,
                 confirmation.Consensus.Confidence,
                 confirmation.Consensus.ObservationCount,
                 confirmation.LastBounds)).ToArray(),
             recognition.SourceWidth,
-            recognition.SourceHeight);
+            recognition.SourceHeight)
+        {
+            Diagnostics = includeDiagnostics ? result.Diagnostics : null
+        };
+    }
 
     public void Dispose()
     {
@@ -108,7 +154,7 @@ public sealed class VideoAnalysisEngine(IFrameRecognitionPipeline pipeline) : ID
         }
 
         _disposed = true;
-        (pipeline as IDisposable)?.Dispose();
+        _processor.Dispose();
         _runGate.Dispose();
     }
 }

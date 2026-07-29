@@ -1,9 +1,14 @@
 using DeveMobileLPR.Imaging;
+using DeveMobileLPR.Inference;
 using DeveMobileLPR.Recognition;
 
 namespace DeveMobileLPR.App.Recognition;
 
-internal sealed record RecognitionProgress(FrameRecognition Recognition);
+internal sealed record RecognitionProgress(RecognitionStreamResult Result)
+{
+    public FrameRecognition Recognition => Result.Recognition;
+    public RecognitionStreamDiagnostics Diagnostics => Result.Diagnostics;
+}
 
 internal sealed record RecognitionConfirmation(
     Sighting Sighting,
@@ -11,19 +16,15 @@ internal sealed record RecognitionConfirmation(
 
 internal sealed class RecognitionSession : IAsyncDisposable
 {
-    private readonly IFrameRecognitionPipeline _pipeline;
+    private readonly RecognitionStreamProcessor _processor;
     private readonly ISightingRepository _repository;
     private readonly IVehicleLookup _vehicleLookup;
     private readonly Func<GeoPoint?> _location;
     private readonly Func<long?> _tripId;
     private readonly LatestFrameSlot _frames = new();
-    private readonly PlateTrackManager _tracks = new();
     private readonly CancellationTokenSource _cancellation = new();
     private readonly Task _worker;
     private int _resetRequested;
-    private int _sourceWidth;
-    private int _sourceHeight;
-    private int _rotationDegrees = -1;
 
     public RecognitionSession(
         IFrameRecognitionPipeline pipeline,
@@ -32,7 +33,7 @@ internal sealed class RecognitionSession : IAsyncDisposable
         Func<GeoPoint?> location,
         Func<long?> tripId)
     {
-        _pipeline = pipeline;
+        _processor = new RecognitionStreamProcessor(pipeline);
         _repository = repository;
         _vehicleLookup = vehicleLookup;
         _location = location;
@@ -45,7 +46,11 @@ internal sealed class RecognitionSession : IAsyncDisposable
     public event EventHandler<Exception>? Failed;
 
     public bool Submit(Yuv420Frame frame) => _frames.TryWrite(frame);
-    public void ResetTracking() => Interlocked.Exchange(ref _resetRequested, 1);
+    public void ResetTracking()
+    {
+        _frames.ResetStatistics();
+        Interlocked.Exchange(ref _resetRequested, 1);
+    }
 
     private async Task ProcessLoopAsync()
     {
@@ -59,23 +64,20 @@ internal sealed class RecognitionSession : IAsyncDisposable
                     break;
                 }
 
-                var recognition = await _pipeline.ProcessAsync(frame, _cancellation.Token).ConfigureAwait(false);
-                var geometryChanged = recognition.SourceWidth != _sourceWidth
-                    || recognition.SourceHeight != _sourceHeight
-                    || recognition.RotationDegrees != _rotationDegrees;
-                if (geometryChanged)
+                if (Interlocked.Exchange(ref _resetRequested, 0) != 0)
                 {
-                    _sourceWidth = recognition.SourceWidth;
-                    _sourceHeight = recognition.SourceHeight;
-                    _rotationDegrees = recognition.RotationDegrees;
+                    _processor.Reset();
                 }
-                var resetRequested = Interlocked.Exchange(ref _resetRequested, 0) != 0;
-                if (geometryChanged || resetRequested)
+                var result = await _processor.ProcessAsync(frame, _cancellation.Token).ConfigureAwait(false);
+                result = result with
                 {
-                    _tracks.Reset();
-                }
-                Progress?.Invoke(this, new RecognitionProgress(recognition));
-                foreach (var confirmation in _tracks.Update(recognition))
+                    Diagnostics = result.Diagnostics with
+                    {
+                        ReplacedInputFrames = _frames.ReplacedFrameCount
+                    }
+                };
+                Progress?.Invoke(this, new RecognitionProgress(result));
+                foreach (var confirmation in result.Confirmations)
                 {
                     var vehicle = await _vehicleLookup.FindAsync(confirmation.Consensus.NormalizedPlate, _cancellation.Token).ConfigureAwait(false);
                     var sighting = await _repository.AddOrMergeAsync(confirmation, _location(), vehicle, _tripId(), _cancellation.Token).ConfigureAwait(false);
@@ -105,6 +107,6 @@ internal sealed class RecognitionSession : IAsyncDisposable
 
         await _frames.DisposeAsync().ConfigureAwait(false);
         _cancellation.Dispose();
-        (_pipeline as IDisposable)?.Dispose();
+        _processor.Dispose();
     }
 }

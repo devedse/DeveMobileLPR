@@ -12,7 +12,7 @@ namespace DeveMobileLPR.App.Services;
 
 internal sealed class VideoAnalysisService : IDisposable
 {
-    private const int DecodeWidth = 1280;
+    private const int PreviewWidth = 1280;
     private static readonly string StagingDirectory = IOPath.Combine(FileSystem.AppDataDirectory, "video-sources");
     private readonly SemaphoreSlim _initializationGate = new(1, 1);
     private VideoAnalysisEngine? _engine;
@@ -37,7 +37,7 @@ internal sealed class VideoAnalysisService : IDisposable
     public async Task<VideoAnalysisResult> AnalyzeAsync(
         string sourcePath,
         string displayName,
-        VideoFrameSampling sampling,
+        VideoAnalysisOptions options,
         IProgress<VideoAnalysisProgress>? progress,
         Action<string>? diagnostic,
         CancellationToken cancellationToken)
@@ -45,7 +45,7 @@ internal sealed class VideoAnalysisService : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         var engine = await EnsureEngineAsync(diagnostic, cancellationToken).ConfigureAwait(false);
         using var source = new AndroidVideoFrameSource(sourcePath);
-        return await engine.AnalyzeAsync(source, sourcePath, displayName, sampling, progress, cancellationToken).ConfigureAwait(false);
+        return await engine.AnalyzeAsync(source, sourcePath, displayName, options, progress, cancellationToken).ConfigureAwait(false);
     }
 
     public Task<byte[]> GetPreviewAsync(string sourcePath, TimeSpan position, CancellationToken cancellationToken) =>
@@ -54,11 +54,13 @@ internal sealed class VideoAnalysisService : IDisposable
             cancellationToken.ThrowIfCancellationRequested();
             using var retriever = CreateRetriever(sourcePath);
             var metadata = ReadMetadata(retriever);
+            var previewWidth = Math.Min(PreviewWidth, metadata.FrameWidth);
+            var previewHeight = Math.Max(1, checked((int)Math.Round(metadata.FrameHeight * previewWidth / (double)metadata.FrameWidth)));
             using var bitmap = GetAnalysisFrame(
                 retriever,
                 checked((long)(position.TotalMilliseconds * 1000)),
-                metadata.DecodeWidth,
-                metadata.DecodeHeight)
+                previewWidth,
+                previewHeight)
                 ?? throw new InvalidDataException("The selected video frame could not be decoded.");
             using var stream = new MemoryStream();
             if (!bitmap.Compress(Bitmap.CompressFormat.Jpeg!, 88, stream))
@@ -133,9 +135,10 @@ internal sealed class VideoAnalysisService : IDisposable
             reportedFrameCount is null ? null : checked((int)Math.Ceiling(reportedFrameCount.Value)));
         var sourceWidth = ParsePositiveDouble(retriever.ExtractMetadata(MetadataKey.VideoWidth), "video width");
         var sourceHeight = ParsePositiveDouble(retriever.ExtractMetadata(MetadataKey.VideoHeight), "video height");
-        var decodeWidth = checked((int)Math.Min(DecodeWidth, sourceWidth));
-        var decodeHeight = Math.Max(1, checked((int)Math.Round(sourceHeight * decodeWidth / sourceWidth)));
-        return new VideoMetadata(timeline, decodeWidth, decodeHeight);
+        return new VideoMetadata(
+            timeline,
+            checked((int)sourceWidth),
+            checked((int)sourceHeight));
     }
 
     private static double ParsePositiveDouble(string? value, string name) =>
@@ -226,7 +229,7 @@ internal sealed class VideoAnalysisService : IDisposable
 
     private static byte Clamp(int value) => (byte)Math.Clamp(value, 0, 255);
 
-    private sealed record VideoMetadata(VideoFrameTimeline Timeline, int DecodeWidth, int DecodeHeight);
+    private sealed record VideoMetadata(VideoFrameTimeline Timeline, int FrameWidth, int FrameHeight);
 
     private sealed class AndroidVideoFrameSource : IVideoFrameSource
     {
@@ -258,8 +261,8 @@ internal sealed class VideoAnalysisService : IDisposable
             using var bitmap = GetAnalysisFrame(
                 _retriever,
                 checked((long)(position.TotalMilliseconds * 1000)),
-                _metadata.DecodeWidth,
-                _metadata.DecodeHeight);
+                _metadata.FrameWidth,
+                _metadata.FrameHeight);
             return ValueTask.FromResult<Yuv420Frame?>(
                 bitmap is null ? null : BitmapToYuv420Frame(bitmap, sourceFrameIndex + 1, position));
         }

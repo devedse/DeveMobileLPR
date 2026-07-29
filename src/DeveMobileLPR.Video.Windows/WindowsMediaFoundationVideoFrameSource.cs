@@ -3,9 +3,13 @@ using DeveMobileLPR.Recognition;
 using Vortice.MediaFoundation;
 using static Vortice.MediaFoundation.MediaFactory;
 
-namespace DeveMobileLPR.App.Platforms.Windows;
+namespace DeveMobileLPR.Video.Windows;
 
-internal sealed class WindowsMediaFoundationVideoFrameSource : IVideoFrameSource
+/// <summary>
+/// Sequential Windows video decoder shared by the app and real-video replay tests.
+/// Frames are decoded at source resolution so OCR can crop from the original pixels.
+/// </summary>
+public sealed class WindowsMediaFoundationVideoFrameSource : IVideoFrameSource
 {
     private readonly IMFSourceReader _reader;
     private readonly int _width;

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using DeveMobileLPR.Geometry;
 using DeveMobileLPR.Imaging;
 using DeveMobileLPR.Inference.Preprocessing;
@@ -36,18 +37,27 @@ public sealed class OnnxYoloV9PlateDetector : IPlateDetector, IDisposable
         };
     }
 
-    public async ValueTask<IReadOnlyList<PlateDetection>> DetectAsync(
+    public async ValueTask<PlateDetectionResult> DetectAsync(
         Yuv420Frame frame,
         CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        var queuedAt = Stopwatch.GetTimestamp();
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        var queueMilliseconds = Stopwatch.GetElapsedTime(queuedAt).TotalMilliseconds;
         try
         {
+            var stageStartedAt = Stopwatch.GetTimestamp();
             var source = _roadRegion.ToPixels(frame.OrientedWidth, frame.OrientedHeight);
             var transform = DetectorPreprocessor.Fill(frame, source, _input);
+            var preprocessingMilliseconds = Stopwatch.GetElapsedTime(stageStartedAt).TotalMilliseconds;
+
+            stageStartedAt = Stopwatch.GetTimestamp();
             using var runOptions = new RunOptions();
             using var output = _session.Run(runOptions, _inputs, _session.OutputNames);
+            var inferenceMilliseconds = Stopwatch.GetElapsedTime(stageStartedAt).TotalMilliseconds;
+
+            stageStartedAt = Stopwatch.GetTimestamp();
             var tensor = output[0];
             var values = tensor.GetTensorDataAsSpan<float>();
             var dimensions = tensor.GetTensorTypeAndShape().Shape;
@@ -78,7 +88,14 @@ public sealed class OnnxYoloV9PlateDetector : IPlateDetector, IDisposable
                 }
             }
 
-            return detections;
+            var postprocessingMilliseconds = Stopwatch.GetElapsedTime(stageStartedAt).TotalMilliseconds;
+            return new PlateDetectionResult(
+                detections,
+                new ModelExecutionTiming(
+                    queueMilliseconds,
+                    preprocessingMilliseconds,
+                    inferenceMilliseconds,
+                    postprocessingMilliseconds));
         }
         finally
         {

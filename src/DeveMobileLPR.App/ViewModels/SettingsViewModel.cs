@@ -88,6 +88,20 @@ internal sealed class SettingsViewModel : ViewModelBase
         set { if (_settings.ConfirmationHaptic != value) { _settings.ConfirmationHaptic = value; OnPropertyChanged(); } }
     }
 
+    public bool RecognitionDebugEnabled
+    {
+        get => _settings.RecognitionDebugEnabled;
+        set
+        {
+            if (_settings.RecognitionDebugEnabled != value)
+            {
+                _settings.RecognitionDebugEnabled = value;
+                OnPropertyChanged();
+                _coordinator.RefreshSettings();
+            }
+        }
+    }
+
     public async Task RefreshAsync()
     {
         await _coordinator.InitializeAsync();

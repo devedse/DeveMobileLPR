@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using DeveMobileLPR.Imaging;
 using DeveMobileLPR.Inference.Preprocessing;
 using DeveMobileLPR.Recognition;
@@ -11,15 +12,34 @@ public sealed class PlateRecognitionPipeline(
 {
     public async ValueTask<FrameRecognition> ProcessAsync(Yuv420Frame frame, CancellationToken cancellationToken)
     {
-        var detections = await detector.DetectAsync(frame, cancellationToken).ConfigureAwait(false);
+        var startedAt = Stopwatch.GetTimestamp();
+        var detectionResult = await detector.DetectAsync(frame, cancellationToken).ConfigureAwait(false);
+        var detections = detectionResult.Detections;
         var observations = new List<PlateObservation>(Math.Min(detections.Count, maximumPlatesPerFrame));
-        foreach (var detection in detections
-                     .OrderByDescending(static detection => detection.Confidence)
-                     .Take(maximumPlatesPerFrame))
+        var candidates = new List<PlateCandidateDiagnostics>(detections.Count);
+        var ocrTiming = ModelExecutionTiming.Empty;
+        var ocrAttemptCount = 0;
+        foreach (var detection in detections.OrderByDescending(static detection => detection.Confidence))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (ocrAttemptCount >= maximumPlatesPerFrame)
+            {
+                candidates.Add(new PlateCandidateDiagnostics(detection, null, false, null, null, null));
+                continue;
+            }
+
             var quality = CropQualityEstimator.Estimate(frame, detection.Bounds);
-            var read = await recognizer.RecognizeAsync(frame, detection.Bounds, cancellationToken).ConfigureAwait(false);
+            var recognitionResult = await recognizer.RecognizeAsync(frame, detection.Bounds, cancellationToken).ConfigureAwait(false);
+            var read = recognitionResult.Read;
+            ocrTiming += recognitionResult.Timing;
+            ocrAttemptCount++;
+            candidates.Add(new PlateCandidateDiagnostics(
+                detection,
+                quality,
+                true,
+                read.Text,
+                read.Confidence,
+                recognitionResult.Timing));
             if (!string.IsNullOrWhiteSpace(read.Text))
             {
                 observations.Add(new PlateObservation(
@@ -35,7 +55,17 @@ public sealed class PlateRecognitionPipeline(
         {
             SourceWidth = frame.OrientedWidth,
             SourceHeight = frame.OrientedHeight,
-            RotationDegrees = frame.RotationDegrees
+            RotationDegrees = frame.RotationDegrees,
+            Diagnostics = new RecognitionFrameDiagnostics(
+                Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds,
+                detectionResult.Timing,
+                ocrTiming,
+                detections.Count,
+                ocrAttemptCount,
+                observations.Count)
+            {
+                Candidates = candidates
+            }
         };
     }
 
