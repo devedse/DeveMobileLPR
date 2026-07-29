@@ -5,31 +5,45 @@ using DeveMobileLPR.Recognition;
 
 namespace DeveMobileLPR.Inference;
 
-public sealed class PlateRecognitionPipeline(
-    IPlateDetector detector,
-    IPlateRecognizer recognizer,
-    int maximumPlatesPerFrame = 6) : IFrameRecognitionPipeline, IDisposable
+public sealed class PlateRecognitionPipeline : IFrameRecognitionPipeline, IDisposable
 {
+    private readonly IPlateDetector _detector;
+    private readonly IPlateRecognizer _recognizer;
+    private readonly RecognitionTuningConfiguration _configuration;
+
+    public PlateRecognitionPipeline(
+        IPlateDetector detector,
+        IPlateRecognizer recognizer,
+        RecognitionTuningConfiguration? configuration = null)
+    {
+        _detector = detector ?? throw new ArgumentNullException(nameof(detector));
+        _recognizer = recognizer ?? throw new ArgumentNullException(nameof(recognizer));
+        _configuration = configuration ?? new RecognitionTuningConfiguration();
+        _configuration.Validate();
+    }
+
     public async ValueTask<FrameRecognition> ProcessAsync(Yuv420Frame frame, CancellationToken cancellationToken)
     {
         var startedAt = Stopwatch.GetTimestamp();
-        var detectionResult = await detector.DetectAsync(frame, cancellationToken).ConfigureAwait(false);
+        var detectionResult = await _detector.DetectAsync(frame, cancellationToken).ConfigureAwait(false);
         var detections = detectionResult.Detections;
-        var observations = new List<PlateObservation>(Math.Min(detections.Count, maximumPlatesPerFrame));
+        var observations = new List<PlateObservation>(Math.Min(
+            detections.Count,
+            _configuration.Detector_MaximumOcrAttemptsPerFrame));
         var candidates = new List<PlateCandidateDiagnostics>(detections.Count);
         var ocrTiming = ModelExecutionTiming.Empty;
         var ocrAttemptCount = 0;
         foreach (var detection in detections.OrderByDescending(static detection => detection.Confidence))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (ocrAttemptCount >= maximumPlatesPerFrame)
+            if (ocrAttemptCount >= _configuration.Detector_MaximumOcrAttemptsPerFrame)
             {
                 candidates.Add(new PlateCandidateDiagnostics(detection, null, false, null, null, null));
                 continue;
             }
 
-            var quality = CropQualityEstimator.Estimate(frame, detection.Bounds);
-            var recognitionResult = await recognizer.RecognizeAsync(frame, detection.Bounds, cancellationToken).ConfigureAwait(false);
+            var quality = CropQualityEstimator.Estimate(frame, detection.Bounds, _configuration);
+            var recognitionResult = await _recognizer.RecognizeAsync(frame, detection.Bounds, cancellationToken).ConfigureAwait(false);
             var read = recognitionResult.Read;
             ocrTiming += recognitionResult.Timing;
             ocrAttemptCount++;
@@ -71,10 +85,10 @@ public sealed class PlateRecognitionPipeline(
 
     public void Dispose()
     {
-        (detector as IDisposable)?.Dispose();
-        if (!ReferenceEquals(detector, recognizer))
+        (_detector as IDisposable)?.Dispose();
+        if (!ReferenceEquals(_detector, _recognizer))
         {
-            (recognizer as IDisposable)?.Dispose();
+            (_recognizer as IDisposable)?.Dispose();
         }
     }
 }

@@ -15,11 +15,13 @@ internal sealed class VideoAnalysisService : IDisposable
     private const int PreviewWidth = 1280;
     private static readonly string StagingDirectory = IOPath.Combine(FileSystem.AppDataDirectory, "video-sources");
     private readonly SemaphoreSlim _initializationGate = new(1, 1);
+    private readonly RecognitionTuningConfiguration _recognitionTuning;
     private VideoAnalysisEngine? _engine;
     private bool _disposed;
 
-    public VideoAnalysisService()
+    public VideoAnalysisService(RecognitionTuningConfiguration recognitionTuning)
     {
+        _recognitionTuning = recognitionTuning;
     }
 
     public async Task<string> StageAsync(FileResult file, CancellationToken cancellationToken)
@@ -93,7 +95,13 @@ internal sealed class VideoAnalysisService : IDisposable
                 context.Assets ?? throw new InvalidOperationException("Application assets are unavailable."),
                 files,
                 cancellationToken).ConfigureAwait(false);
-            _engine = new VideoAnalysisEngine(OnnxPlateRecognitionPipelineFactory.Create(models.Detector, models.Ocr, diagnostic));
+            _engine = new VideoAnalysisEngine(
+                OnnxPlateRecognitionPipelineFactory.Create(
+                    models.Detector,
+                    models.Ocr,
+                    diagnostic,
+                    _recognitionTuning),
+                _recognitionTuning);
             return _engine;
         }
         finally

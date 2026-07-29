@@ -9,8 +9,10 @@ public sealed class VideoAnalysisEngine : IDisposable
     private readonly SemaphoreSlim _runGate = new(1, 1);
     private bool _disposed;
 
-    public VideoAnalysisEngine(IFrameRecognitionPipeline pipeline)
-        : this(new RecognitionStreamProcessor(pipeline))
+    public VideoAnalysisEngine(
+        IFrameRecognitionPipeline pipeline,
+        RecognitionTuningConfiguration? configuration = null)
+        : this(new RecognitionStreamProcessor(pipeline, configuration))
     {
     }
 

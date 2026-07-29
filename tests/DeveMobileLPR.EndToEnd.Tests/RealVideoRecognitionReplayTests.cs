@@ -16,6 +16,7 @@ public sealed class RealVideoRecognitionReplayTests(ITestOutputHelper output)
     private const string DurationEnvironmentVariable = "DEVEMOBILELPR_E2E_DURATION_SECONDS";
     private const string SamplingEnvironmentVariable = "DEVEMOBILELPR_E2E_SAMPLE_INTERVAL";
     private const string ReportEnvironmentVariable = "DEVEMOBILELPR_E2E_REPORT";
+    private const string StrongExactPairEnvironmentVariable = "DEVEMOBILELPR_E2E_ALLOW_STRONG_EXACT_PAIR";
 
     [LocalVideoFact]
     [Trait("Category", "LocalVideoFixture")]
@@ -32,6 +33,7 @@ public sealed class RealVideoRecognitionReplayTests(ITestOutputHelper output)
             new VideoFrameSampling(samplingInterval),
             duration,
             IncludeDiagnostics: true);
+        var allowStrongExactPair = ReadBoolean(StrongExactPairEnvironmentVariable, true);
 
         var modelDirectory = Path.Combine(AppContext.BaseDirectory, "models");
         var detectorPath = Path.Combine(modelDirectory, ModelCatalog.Detector.FileName);
@@ -41,9 +43,18 @@ public sealed class RealVideoRecognitionReplayTests(ITestOutputHelper output)
 
         var providerDiagnostics = new List<string>();
         var progress = new LatestProgress<VideoAnalysisProgress>();
+        var recognitionTuning = new RecognitionTuningConfiguration
+        {
+            StrongPair_Enabled = allowStrongExactPair
+        };
         using var source = WindowsMediaFoundationVideoFrameSource.Create(sourcePath, timeline);
-        using var engine = new VideoAnalysisEngine(
-            OnnxPlateRecognitionPipelineFactory.Create(detectorPath, recognizerPath, providerDiagnostics.Add));
+        using var engine = new VideoAnalysisEngine(new RecognitionStreamProcessor(
+            OnnxPlateRecognitionPipelineFactory.Create(
+                detectorPath,
+                recognizerPath,
+                providerDiagnostics.Add,
+                recognitionTuning),
+            recognitionTuning));
         using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(20));
         var startedAt = Stopwatch.GetTimestamp();
         var result = await engine.AnalyzeAsync(
@@ -55,7 +66,12 @@ public sealed class RealVideoRecognitionReplayTests(ITestOutputHelper output)
             timeout.Token);
         var wallMilliseconds = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
 
-        var summary = ReplaySummary.Create(result, progress.Value, wallMilliseconds, providerDiagnostics);
+        var summary = ReplaySummary.Create(
+            result,
+            progress.Value,
+            wallMilliseconds,
+            providerDiagnostics,
+            allowStrongExactPair);
         var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
         output.WriteLine(JsonSerializer.Serialize(summary, jsonOptions));
         WriteFrameDetails(result);
@@ -135,6 +151,19 @@ public sealed class RealVideoRecognitionReplayTests(ITestOutputHelper output)
         return parsed;
     }
 
+    private static bool ReadBoolean(string name, bool fallback)
+    {
+        var value = Environment.GetEnvironmentVariable(name);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return fallback;
+        }
+
+        return bool.TryParse(value, out var parsed)
+            ? parsed
+            : throw new InvalidOperationException($"{name} must be true or false.");
+    }
+
     private sealed class LatestProgress<T> : IProgress<T>
     {
         public T? Value { get; private set; }
@@ -148,6 +177,7 @@ public sealed class RealVideoRecognitionReplayTests(ITestOutputHelper output)
         double SourceFramesPerSecond,
         int SourceFrameCount,
         int SamplingInterval,
+        bool AllowStrongExactPair,
         int ProcessedFrames,
         int SourceWidth,
         int SourceHeight,
@@ -176,7 +206,8 @@ public sealed class RealVideoRecognitionReplayTests(ITestOutputHelper output)
             VideoAnalysisResult result,
             VideoAnalysisProgress? progress,
             double wallMilliseconds,
-            IReadOnlyList<string> providers)
+            IReadOnlyList<string> providers,
+            bool allowStrongExactPair)
         {
             var diagnostics = result.Frames
                 .Select(static frame => frame.Diagnostics)
@@ -208,6 +239,7 @@ public sealed class RealVideoRecognitionReplayTests(ITestOutputHelper output)
                 result.SourceFrameRate,
                 result.SourceFrameCount,
                 result.Sampling.Interval,
+                allowStrongExactPair,
                 result.Frames.Count,
                 result.Frames.FirstOrDefault()?.SourceWidth ?? 0,
                 result.Frames.FirstOrDefault()?.SourceHeight ?? 0,

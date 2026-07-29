@@ -28,7 +28,11 @@ Each track retains at most twelve observations and expires after 1.5 seconds wit
 
 Within each tier a maximum-weight bipartite assignment selects one global one-to-one mapping between observations and tracks. This avoids the order-dependent identity swaps of greedy nearest-box matching when several vehicles are visible. The tier, predicted box, movement, scale, overlap, edit distance, and score are retained in optional diagnostics so thresholds can be tuned from replay evidence rather than guesses.
 
-An exact plate can be confirmed when at least three distinct frames agree and its weighted share and winner margin pass the configured thresholds. Weight combines detection confidence, OCR confidence, and a crop-quality estimate. If exact strings differ, character alternatives are fused position by position. Every selected character must have at least 60% support; this prevents three mutually different final characters from being accepted merely because the other five agree.
+A complete Dutch plate can use a narrow expedited path when two distinct frames contain exactly the same text, both observations pass strict OCR, character-margin, crop-quality, and combined-evidence thresholds, and the text matches a valid Dutch sidecode. This recovers short-lived plates on devices that cannot produce a third AI frame. Partial and foreign plates, weaker pairs, and every conflicting sequence continue through normal consensus.
+
+Normal consensus requires at least three distinct frames to agree and its weighted share and winner margin to pass the configured thresholds. Weight combines detection confidence, OCR confidence, and a crop-quality estimate. If exact strings differ, character alternatives are fused position by position. Every selected character must have at least 60% support; this prevents three mutually different final characters from being accepted merely because the other five agree.
+
+All detector, crop-quality, tracking, association-ranking, normal-consensus, and strong-fast-path thresholds live in one `RecognitionTuningConfiguration` object. The MAUI dependency container shares that same instance with Drive and Analyze on both platforms, and Settings formats every property into read-only subsections. This gives replay tests and future editable settings one source of truth instead of separate UI and algorithm defaults.
 
 For OCR results classified as Dutch, a confirmed string must match one of RDW sidecode layouts 1–14. Formatting uses the exact group lengths for that layout rather than guessing where hyphens belong.
 

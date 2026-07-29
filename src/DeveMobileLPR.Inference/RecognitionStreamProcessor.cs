@@ -20,11 +20,10 @@ public sealed class RecognitionStreamProcessor : IDisposable
 
     public RecognitionStreamProcessor(
         IFrameRecognitionPipeline pipeline,
-        TrackingOptions? trackingOptions = null,
-        ConsensusOptions? consensusOptions = null)
+        RecognitionTuningConfiguration? configuration = null)
     {
         _pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
-        _tracks = new PlateTrackManager(trackingOptions, consensusOptions);
+        _tracks = new PlateTrackManager(configuration);
     }
 
     public async ValueTask<RecognitionStreamResult> ProcessAsync(

@@ -16,6 +16,7 @@ internal sealed class DriveCoordinator : IAsyncDisposable
     private readonly SqliteSightingRepository _repository;
     private readonly AppSettings _settings;
     private readonly RdwDatabaseService _rdw;
+    private readonly RecognitionTuningConfiguration _recognitionTuning;
     private readonly SemaphoreSlim _initializeGate = new(1, 1);
     private readonly SemaphoreSlim _driveGate = new(1, 1);
     private readonly object _stateGate = new();
@@ -47,11 +48,16 @@ internal sealed class DriveCoordinator : IAsyncDisposable
     private Sighting? _mostExpensive;
     private IReadOnlyList<DriveOverlay> _overlays = [];
     private IReadOnlyList<CameraChoice> _cameraChoices = [new("rear", "Rear cameras · automatic lens")];
-    public DriveCoordinator(SqliteSightingRepository repository, AppSettings settings, RdwDatabaseService rdw)
+    public DriveCoordinator(
+        SqliteSightingRepository repository,
+        AppSettings settings,
+        RdwDatabaseService rdw,
+        RecognitionTuningConfiguration recognitionTuning)
     {
         _repository = repository;
         _settings = settings;
         _rdw = rdw;
+        _recognitionTuning = recognitionTuning;
         _performance.Sampled += PerformanceSampled;
     }
 
@@ -93,10 +99,15 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                 files,
                 cancellationToken).ConfigureAwait(false);
 
-            var pipeline = OnnxPlateRecognitionPipelineFactory.Create(models.Detector, models.Ocr, SetStatus);
+            var pipeline = OnnxPlateRecognitionPipelineFactory.Create(
+                models.Detector,
+                models.Ocr,
+                SetStatus,
+                _recognitionTuning);
             _location = new AndroidLocationTracker(context);
             _recognition = new RecognitionSession(
                 pipeline,
+                _recognitionTuning,
                 _repository,
                 new AppVehicleLookup(_rdw.DatabasePath),
                 () => _location.Latest,

@@ -15,20 +15,17 @@ public sealed class OnnxYoloV9PlateDetector : IPlateDetector, IDisposable
     private readonly OrtValue _inputValue;
     private readonly Dictionary<string, OrtValue> _inputs;
     private readonly SemaphoreSlim _gate = new(1, 1);
-    private readonly float _confidenceThreshold;
-    private readonly NormalizedRegion _roadRegion;
+    private readonly RecognitionTuningConfiguration _configuration;
     private bool _disposed;
 
     public OnnxYoloV9PlateDetector(
         string modelPath,
-        float confidenceThreshold = 0.32f,
-        NormalizedRegion? roadRegion = null,
-        int xnnpackThreads = 4,
+        RecognitionTuningConfiguration? configuration = null,
         Action<string>? diagnostic = null)
     {
-        _confidenceThreshold = confidenceThreshold;
-        _roadRegion = roadRegion ?? NormalizedRegion.RoadDefault;
-        _session = OnnxSessionFactory.Create(modelPath, xnnpackThreads, diagnostic);
+        _configuration = configuration ?? new RecognitionTuningConfiguration();
+        _configuration.Validate();
+        _session = OnnxSessionFactory.Create(modelPath, _configuration.Detector_XnnpackThreads, diagnostic);
         ValidateInputContract();
         _inputValue = OrtValue.CreateTensorValueFromMemory(_input, InputShape);
         _inputs = new Dictionary<string, OrtValue>(StringComparer.Ordinal)
@@ -48,7 +45,7 @@ public sealed class OnnxYoloV9PlateDetector : IPlateDetector, IDisposable
         try
         {
             var stageStartedAt = Stopwatch.GetTimestamp();
-            var source = _roadRegion.ToPixels(frame.OrientedWidth, frame.OrientedHeight);
+            var source = _configuration.Detector_RoadRegion.ToPixels(frame.OrientedWidth, frame.OrientedHeight);
             var transform = DetectorPreprocessor.Fill(frame, source, _input);
             var preprocessingMilliseconds = Stopwatch.GetElapsedTime(stageStartedAt).TotalMilliseconds;
 
@@ -71,7 +68,7 @@ public sealed class OnnxYoloV9PlateDetector : IPlateDetector, IDisposable
             for (var offset = 0; offset + 6 < values.Length; offset += rowWidth)
             {
                 var score = values[offset + 6];
-                if (score < _confidenceThreshold)
+                if (score < _configuration.Detector_ConfidenceThreshold)
                 {
                     continue;
                 }
@@ -82,7 +79,9 @@ public sealed class OnnxYoloV9PlateDetector : IPlateDetector, IDisposable
                     values[offset + 3],
                     values[offset + 4]);
                 var sourceBounds = transform.ToSource(modelBounds, frame.OrientedWidth, frame.OrientedHeight);
-                if (!sourceBounds.IsEmpty && sourceBounds.Width >= 12 && sourceBounds.Height >= 5)
+                if (!sourceBounds.IsEmpty
+                    && sourceBounds.Width >= _configuration.Detector_MinimumPlateWidthPixels
+                    && sourceBounds.Height >= _configuration.Detector_MinimumPlateHeightPixels)
                 {
                     detections.Add(new PlateDetection(sourceBounds, score));
                 }

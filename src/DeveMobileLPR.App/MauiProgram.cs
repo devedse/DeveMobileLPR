@@ -2,6 +2,7 @@ using DeveMobileLPR.App.Views;
 using DeveMobileLPR.App.Controls;
 using DeveMobileLPR.App.Services;
 using DeveMobileLPR.Storage;
+using DeveMobileLPR.Recognition;
 using DeveMobileLPR.App.ViewModels;
 
 namespace DeveMobileLPR.App;
@@ -18,6 +19,7 @@ public static class MauiProgram
         builder.ConfigureMauiHandlers(handlers => handlers.AddHandler<CameraPreview, CameraPreviewHandler>());
     #endif
         builder.Services.AddSingleton<AppSettings>();
+        builder.Services.AddSingleton<RecognitionTuningConfiguration>();
         builder.Services.AddSingleton<RdwDatabaseService>();
         builder.Services.AddSingleton(_ => new SqliteSightingRepository(Path.Combine(FileSystem.AppDataDirectory, "sightings.sqlite")));
         builder.Services.AddSingleton<DriveCoordinator>();

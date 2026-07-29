@@ -2,32 +2,17 @@ using DeveMobileLPR.Geometry;
 
 namespace DeveMobileLPR.Recognition;
 
-public sealed record TrackingOptions(
-    float MinimumIntersectionOverUnion = 0.18f,
-    TimeSpan? TrackTimeout = null,
-    int MaximumObservationsPerTrack = 12,
-    float MaximumExactTextCenterDistanceFraction = 0.18f,
-    float MaximumSimilarTextCenterDistanceFraction = 0.06f,
-    float MaximumScaleRatio = 2.5f,
-    float MaximumMotionScaleRatio = 2.0f,
-    float MinimumPredictedIntersectionOverUnion = 0.08f,
-    float MaximumPredictedCenterDistanceInPlateWidths = 1.5f,
-    float MaximumPredictionSteps = 3f)
-{
-    public TimeSpan EffectiveTrackTimeout => TrackTimeout ?? TimeSpan.FromSeconds(1.5);
-}
-
 public sealed class PlateTrackManager
 {
-    private readonly TrackingOptions _options;
+    private readonly RecognitionTuningConfiguration _configuration;
     private readonly TemporalConsensus _consensus;
     private readonly List<Track> _tracks = [];
 
-    public PlateTrackManager(TrackingOptions? options = null, ConsensusOptions? consensusOptions = null)
+    public PlateTrackManager(RecognitionTuningConfiguration? configuration = null)
     {
-        _options = options ?? new TrackingOptions();
-        Validate(_options);
-        _consensus = new TemporalConsensus(consensusOptions);
+        _configuration = configuration ?? new RecognitionTuningConfiguration();
+        _configuration.Validate();
+        _consensus = new TemporalConsensus(_configuration);
     }
 
     public IReadOnlyList<ConfirmedPlate> Update(FrameRecognition recognition)
@@ -48,7 +33,7 @@ public sealed class PlateTrackManager
             Track track;
             if (match is null)
             {
-                track = new Track(Guid.NewGuid(), observation.CapturedAt, observation.Detection.Bounds);
+                track = new Track(Guid.NewGuid(), observation.CapturedAt, observation.Detection.Bounds, _configuration);
                 _tracks.Add(track);
                 associations[observationIndex] = new PlateTrackAssociation(
                     track.Id,
@@ -78,7 +63,7 @@ public sealed class PlateTrackManager
                 };
             }
 
-            track.Add(observation, _options.MaximumObservationsPerTrack);
+            track.Add(observation, _configuration.Tracking_MaximumObservationsPerTrack);
             if (!track.Confirmed && _consensus.Resolve(track.Observations) is { } result)
             {
                 track.Confirmed = true;
@@ -162,7 +147,7 @@ public sealed class PlateTrackManager
         PlateObservation observation)
     {
         var elapsed = observation.CapturedAt - track.LastSeenAt;
-        if (elapsed < TimeSpan.Zero || elapsed > _options.EffectiveTrackTimeout)
+        if (elapsed < TimeSpan.Zero || elapsed > _configuration.Tracking_TrackTimeout)
         {
             return null;
         }
@@ -170,8 +155,7 @@ public sealed class PlateTrackManager
         var predicted = track.Predict(
             observation.CapturedAt,
             recognition.SourceWidth,
-            recognition.SourceHeight,
-            _options.MaximumPredictionSteps);
+            recognition.SourceHeight);
         var bounds = observation.Detection.Bounds;
         var lastIntersectionOverUnion = track.LastBounds.IntersectionOverUnion(bounds);
         var predictedIntersectionOverUnion = predicted.IntersectionOverUnion(bounds);
@@ -192,28 +176,28 @@ public sealed class PlateTrackManager
         switch (tier)
         {
             case AssociationTier.ExactText:
-                distanceLimit = _options.MaximumExactTextCenterDistanceFraction;
+                distanceLimit = _configuration.Tracking_MaximumExactTextCenterDistanceFraction;
                 eligible = observationText.Length > 0
                     && string.Equals(stableText, observationText, StringComparison.Ordinal)
                     && frameCenterDistance <= distanceLimit
-                    && scaleRatio <= _options.MaximumScaleRatio;
+                    && scaleRatio <= _configuration.Tracking_MaximumExactOrSimilarScaleRatio;
                 kind = PlateAssociationKind.ExactText;
                 break;
             case AssociationTier.SimilarText:
-                distanceLimit = _options.MaximumSimilarTextCenterDistanceFraction;
+                distanceLimit = _configuration.Tracking_MaximumSimilarTextCenterDistanceFraction;
                 eligible = stableText.Length > 0
                     && observationText.Length > 0
                     && textEditDistance == 1
                     && frameCenterDistance <= distanceLimit
-                    && scaleRatio <= _options.MaximumScaleRatio;
+                    && scaleRatio <= _configuration.Tracking_MaximumExactOrSimilarScaleRatio;
                 kind = PlateAssociationKind.SimilarText;
                 break;
             case AssociationTier.PredictedMotion:
-                distanceLimit = _options.MaximumPredictedCenterDistanceInPlateWidths;
+                distanceLimit = _configuration.Tracking_MaximumPredictedCenterDistanceInPlateWidths;
                 eligible = TextSupportsMotion(stableText, observationText, textEditDistance)
-                    && scaleRatio <= _options.MaximumMotionScaleRatio
-                    && (lastIntersectionOverUnion >= _options.MinimumIntersectionOverUnion
-                        || predictedIntersectionOverUnion >= _options.MinimumPredictedIntersectionOverUnion
+                    && scaleRatio <= _configuration.Tracking_MaximumMotionScaleRatio
+                    && (lastIntersectionOverUnion >= _configuration.Tracking_MinimumPreviousIntersectionOverUnion
+                        || predictedIntersectionOverUnion >= _configuration.Tracking_MinimumPredictedIntersectionOverUnion
                         || predictedCenterDistance <= distanceLimit);
                 kind = PlateAssociationKind.PredictedMotion;
                 break;
@@ -234,8 +218,8 @@ public sealed class PlateTrackManager
             distanceLimit,
             scaleRatio,
             tier == AssociationTier.PredictedMotion
-                ? _options.MaximumMotionScaleRatio
-                : _options.MaximumScaleRatio,
+                ? _configuration.Tracking_MaximumMotionScaleRatio
+                : _configuration.Tracking_MaximumExactOrSimilarScaleRatio,
             Math.Max(lastIntersectionOverUnion, predictedIntersectionOverUnion));
         return new AssociationCandidate(
             track,
@@ -249,7 +233,7 @@ public sealed class PlateTrackManager
             textEditDistance);
     }
 
-    private static bool TextSupportsMotion(string stableText, string observationText, int editDistance)
+    private bool TextSupportsMotion(string stableText, string observationText, int editDistance)
     {
         if (stableText.Length == 0 || observationText.Length == 0)
         {
@@ -261,15 +245,14 @@ public sealed class PlateTrackManager
             return true;
         }
 
-        const int minimumPartialLength = 3;
         var shorter = stableText.Length <= observationText.Length ? stableText : observationText;
         var longer = stableText.Length <= observationText.Length ? observationText : stableText;
-        return shorter.Length >= minimumPartialLength
+        return shorter.Length >= _configuration.Tracking_MinimumPartialTextLength
             && (longer.StartsWith(shorter, StringComparison.Ordinal)
                 || longer.EndsWith(shorter, StringComparison.Ordinal));
     }
 
-    private static float Score(
+    private float Score(
         float distance,
         float distanceLimit,
         float scaleRatio,
@@ -283,9 +266,9 @@ public sealed class PlateTrackManager
                 MathF.Log(Math.Max(1, scaleRatio)) / MathF.Log(maximumScaleRatio),
                 0,
                 1);
-        return 0.55f * distanceScore
-            + 0.25f * scaleScore
-            + 0.20f * Math.Clamp(intersectionOverUnion, 0, 1);
+        return _configuration.AssociationScore_DistanceWeight * distanceScore
+            + _configuration.AssociationScore_ScaleWeight * scaleScore
+            + _configuration.AssociationScore_OverlapWeight * Math.Clamp(intersectionOverUnion, 0, 1);
     }
 
     private static float CenterDistanceFraction(
@@ -332,29 +315,8 @@ public sealed class PlateTrackManager
             MathF.Max(left.Height / right.Height, right.Height / left.Height));
     }
 
-    private static void Validate(TrackingOptions options)
-    {
-        if (options.MinimumIntersectionOverUnion is < 0 or > 1)
-        {
-            throw new ArgumentOutOfRangeException(nameof(options), "Minimum IoU must be between zero and one.");
-        }
-
-        if (options.EffectiveTrackTimeout <= TimeSpan.Zero
-            || options.MaximumObservationsPerTrack < 1
-            || options.MaximumExactTextCenterDistanceFraction <= 0
-            || options.MaximumSimilarTextCenterDistanceFraction <= 0
-            || options.MaximumScaleRatio < 1
-            || options.MaximumMotionScaleRatio < 1
-            || options.MinimumPredictedIntersectionOverUnion is < 0 or > 1
-            || options.MaximumPredictedCenterDistanceInPlateWidths <= 0
-            || options.MaximumPredictionSteps <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(options), "Tracking options must contain positive, valid association limits.");
-        }
-    }
-
     private void Expire(DateTimeOffset now) =>
-        _tracks.RemoveAll(track => now - track.LastSeenAt > _options.EffectiveTrackTimeout);
+        _tracks.RemoveAll(track => now - track.LastSeenAt > _configuration.Tracking_TrackTimeout);
 
     private enum AssociationTier
     {
@@ -374,7 +336,11 @@ public sealed class PlateTrackManager
         float ScaleRatio,
         int TextEditDistance);
 
-    private sealed class Track(Guid id, DateTimeOffset firstSeenAt, BoundingBox initialBounds)
+    private sealed class Track(
+        Guid id,
+        DateTimeOffset firstSeenAt,
+        BoundingBox initialBounds,
+        RecognitionTuningConfiguration configuration)
     {
         public Guid Id { get; } = id;
         public DateTimeOffset FirstSeenAt { get; } = firstSeenAt;
@@ -382,7 +348,7 @@ public sealed class PlateTrackManager
         public BoundingBox LastBounds { get; private set; } = initialBounds;
         public bool Confirmed { get; set; }
         public List<PlateObservation> Observations { get; } = [];
-        public string StableText => PlateEvidence.StableText(Observations);
+        public string StableText => PlateEvidence.StableText(Observations, configuration);
 
         public void Add(PlateObservation observation, int maximumObservations)
         {
@@ -398,8 +364,7 @@ public sealed class PlateTrackManager
         public BoundingBox Predict(
             DateTimeOffset capturedAt,
             int frameWidth,
-            int frameHeight,
-            float maximumPredictionSteps)
+            int frameHeight)
         {
             if (Observations.Count < 2)
             {
@@ -418,7 +383,7 @@ public sealed class PlateTrackManager
             var steps = (float)Math.Clamp(
                 predictionInterval / observationInterval,
                 0,
-                maximumPredictionSteps);
+                configuration.Tracking_MaximumPredictionSteps);
             var previousBounds = previous.Detection.Bounds;
             var latestBounds = latest.Detection.Bounds;
             var previousCenterX = (previousBounds.Left + previousBounds.Right) / 2;
@@ -429,12 +394,12 @@ public sealed class PlateTrackManager
             var centerY = latestCenterY + (latestCenterY - previousCenterY) * steps;
             var width = Math.Clamp(
                 latestBounds.Width + (latestBounds.Width - previousBounds.Width) * steps,
-                latestBounds.Width * 0.5f,
-                latestBounds.Width * 2.5f);
+                latestBounds.Width * configuration.Tracking_PredictionMinimumScale,
+                latestBounds.Width * configuration.Tracking_PredictionMaximumScale);
             var height = Math.Clamp(
                 latestBounds.Height + (latestBounds.Height - previousBounds.Height) * steps,
-                latestBounds.Height * 0.5f,
-                latestBounds.Height * 2.5f);
+                latestBounds.Height * configuration.Tracking_PredictionMinimumScale,
+                latestBounds.Height * configuration.Tracking_PredictionMaximumScale);
             var predicted = new BoundingBox(
                 centerX - width / 2,
                 centerY - height / 2,

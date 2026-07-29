@@ -28,12 +28,13 @@ internal sealed class RecognitionSession : IAsyncDisposable
 
     public RecognitionSession(
         IFrameRecognitionPipeline pipeline,
+        RecognitionTuningConfiguration configuration,
         ISightingRepository repository,
         IVehicleLookup vehicleLookup,
         Func<GeoPoint?> location,
         Func<long?> tripId)
     {
-        _processor = new RecognitionStreamProcessor(pipeline);
+        _processor = new RecognitionStreamProcessor(pipeline, configuration);
         _repository = repository;
         _vehicleLookup = vehicleLookup;
         _location = location;

@@ -1,29 +1,32 @@
 namespace DeveMobileLPR.Recognition;
 
-public sealed record ConsensusOptions(
-    int MinimumObservations = 3,
-    float MinimumConfidence = 0.78f,
-    float MinimumWinnerMargin = 0.12f,
-    float MinimumCharacterConfidence = 0.60f,
-    bool RequirePlausibleDutchFormatForDutchRegion = true);
-
-public sealed class TemporalConsensus(ConsensusOptions? options = null)
+public sealed class TemporalConsensus
 {
-    private readonly ConsensusOptions _options = options ?? new ConsensusOptions();
+    private readonly RecognitionTuningConfiguration _configuration;
+
+    public TemporalConsensus(RecognitionTuningConfiguration? configuration = null)
+    {
+        _configuration = configuration ?? new RecognitionTuningConfiguration();
+        _configuration.Validate();
+    }
 
     public ConsensusResult? Resolve(IReadOnlyCollection<PlateObservation> observations)
     {
-        if (observations.Count < _options.MinimumObservations)
+        if (observations.Count < _configuration.Consensus_MinimumObservations)
         {
-            return null;
+            return ResolveStrongExactPair(observations);
         }
 
         var candidates = observations
-            .Select(observation => new WeightedRead(observation, PlateText.Normalize(observation.Read.Text), PlateEvidence.Weight(observation)))
-            .Where(static candidate => candidate.Text.Length is >= 4 and <= 10)
+            .Select(observation => new WeightedRead(
+                observation,
+                PlateText.Normalize(observation.Read.Text),
+                PlateEvidence.Weight(observation, _configuration)))
+            .Where(candidate => candidate.Text.Length >= _configuration.Consensus_MinimumPlateLength
+                && candidate.Text.Length <= _configuration.Consensus_MaximumPlateLength)
             .ToArray();
 
-        if (candidates.Length < _options.MinimumObservations)
+        if (candidates.Length < _configuration.Consensus_MinimumObservations)
         {
             return null;
         }
@@ -45,15 +48,59 @@ public sealed class TemporalConsensus(ConsensusOptions? options = null)
         var winnerShare = winner.Weight / totalWeight;
         var runnerShare = exactGroups.Length > 1 ? exactGroups[1].Weight / totalWeight : 0;
 
-        if (winner.Count >= _options.MinimumObservations &&
-            winnerShare >= _options.MinimumConfidence &&
-            winnerShare - runnerShare >= _options.MinimumWinnerMargin)
+        if (winner.Count >= _configuration.Consensus_MinimumObservations &&
+            winnerShare >= _configuration.Consensus_MinimumWinnerShare &&
+            winnerShare - runnerShare >= _configuration.Consensus_MinimumWinnerMargin)
         {
             return BuildResult(winner.Text, winnerShare, winner.Count, winner.Reads.Select(static item => item.Observation));
         }
 
         return ResolvePerCharacter(candidates);
     }
+
+    private ConsensusResult? ResolveStrongExactPair(IReadOnlyCollection<PlateObservation> observations)
+    {
+        // This fast path is intentionally narrower than normal consensus. It is
+        // for short-lived Dutch plates that cannot physically produce a third AI
+        // frame on slower phones, not a general reduction of the evidence count.
+        if (!_configuration.StrongPair_Enabled
+            || observations.Count != _configuration.StrongPair_RequiredDistinctFrames)
+        {
+            return null;
+        }
+
+        var pair = observations.ToArray();
+        if (pair.Select(static observation => observation.FrameSequence).Distinct().Count()
+            != _configuration.StrongPair_RequiredDistinctFrames)
+        {
+            return null;
+        }
+
+        var text = PlateText.Normalize(pair[0].Read.Text);
+        if (text.Length < _configuration.Consensus_MinimumPlateLength
+            || text.Length > _configuration.Consensus_MaximumPlateLength
+            || !string.Equals(text, PlateText.Normalize(pair[1].Read.Text), StringComparison.Ordinal)
+            || pair.Skip(1).Any(observation =>
+                !string.Equals(text, PlateText.Normalize(observation.Read.Text), StringComparison.Ordinal))
+            || (_configuration.StrongPair_RequirePlausibleDutchFormat
+                && !PlateText.IsPlausibleDutchPlate(text))
+            || pair.Any(observation => !IsStrongExactPairObservation(observation)))
+        {
+            return null;
+        }
+
+        var confidence = pair.Average(static observation => observation.Read.Confidence);
+        return BuildResult(text, confidence, pair.Length, pair);
+    }
+
+    private bool IsStrongExactPairObservation(PlateObservation observation) =>
+        observation.Read.Confidence >= _configuration.StrongPair_MinimumOcrConfidence
+        && observation.Quality >= _configuration.StrongPair_MinimumQuality
+        && PlateEvidence.Weight(observation, _configuration) >= _configuration.StrongPair_MinimumEvidenceWeight
+        && PlateEvidence.HasStrongCharacterEvidence(
+            observation,
+            _configuration.StrongPair_MinimumCharacterProbability,
+            _configuration.StrongPair_MinimumCharacterMargin);
 
     private ConsensusResult? ResolvePerCharacter(IReadOnlyCollection<WeightedRead> reads)
     {
@@ -63,7 +110,7 @@ public sealed class TemporalConsensus(ConsensusOptions? options = null)
             .OrderByDescending(static group => group.Weight)
             .First().Length;
         var compatible = reads.Where(read => read.Text.Length == winningLength).ToArray();
-        if (compatible.Length < _options.MinimumObservations)
+        if (compatible.Length < _configuration.Consensus_MinimumObservations)
         {
             return null;
         }
@@ -97,10 +144,11 @@ public sealed class TemporalConsensus(ConsensusOptions? options = null)
 
         var text = PlateText.Normalize(new string(result));
         var confidence = positionConfidence.Length == 0 ? 0 : positionConfidence.Average();
-        var supportingFrames = compatible.Count(read => PlateText.EditDistance(read.Text, text) <= 1);
-        if (supportingFrames < _options.MinimumObservations ||
-            confidence < _options.MinimumConfidence ||
-            positionConfidence.Any(value => value < _options.MinimumCharacterConfidence))
+        var supportingFrames = compatible.Count(read =>
+            PlateText.EditDistance(read.Text, text) <= _configuration.Consensus_MaximumSupportingEditDistance);
+        if (supportingFrames < _configuration.Consensus_MinimumObservations ||
+            confidence < _configuration.Consensus_MinimumWinnerShare ||
+            positionConfidence.Any(value => value < _configuration.Consensus_MinimumCharacterConfidence))
         {
             return null;
         }
@@ -118,7 +166,7 @@ public sealed class TemporalConsensus(ConsensusOptions? options = null)
             .Select(static group => group.Key)
             .FirstOrDefault();
 
-        if (_options.RequirePlausibleDutchFormatForDutchRegion &&
+        if (_configuration.Consensus_RequirePlausibleDutchFormatForDutchRegion &&
             string.Equals(region, "Netherlands", StringComparison.Ordinal) &&
             !PlateText.IsPlausibleDutchPlate(text))
         {

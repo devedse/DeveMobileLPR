@@ -15,7 +15,10 @@ public sealed class PlateRecognitionPipelineDiagnosticsTests
         using var pipeline = new PlateRecognitionPipeline(
             new FakeDetector(),
             new EmptyRecognizer(),
-            maximumPlatesPerFrame: 1);
+            new RecognitionTuningConfiguration
+            {
+                Detector_MaximumOcrAttemptsPerFrame = 1
+            });
 
         var result = await pipeline.ProcessAsync(frame, CancellationToken.None);
 

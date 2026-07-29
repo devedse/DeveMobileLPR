@@ -41,10 +41,12 @@ public sealed class ThirtySecondRecognitionReplayTests
         var indices = new long[] { 0, 15, 30 };
         using var directProcessor = new RecognitionStreamProcessor(new DeterministicPipeline());
         RecognitionStreamResult? directResult = null;
+        var directConfirmations = new List<ConfirmedPlate>();
         foreach (var index in indices)
         {
             using var frame = GeneratedVideoFrameSource.CreateFrame(index, TimeSpan.FromSeconds(index / 30d));
             directResult = await directProcessor.ProcessAsync(frame, CancellationToken.None);
+            directConfirmations.AddRange(directResult.Confirmations);
         }
 
         using var source = new GeneratedVideoFrameSource(TimeSpan.FromSeconds(1.5), 30);
@@ -57,13 +59,14 @@ public sealed class ThirtySecondRecognitionReplayTests
             progress: null,
             CancellationToken.None);
 
-        var directConfirmation = Assert.Single(directResult!.Confirmations);
+        var finalDirectResult = Assert.IsType<RecognitionStreamResult>(directResult);
+        var directConfirmation = Assert.Single(directConfirmations);
         var videoConfirmation = Assert.Single(videoResult.Frames.SelectMany(static frame => frame.Confirmations));
         Assert.Equal(directConfirmation.Consensus.NormalizedPlate, videoConfirmation.NormalizedPlate);
         Assert.Equal(directConfirmation.Consensus.DisplayPlate, videoConfirmation.DisplayPlate);
         Assert.Equal(directConfirmation.Consensus.ObservationCount, videoConfirmation.ObservationCount);
         Assert.Equal(
-            directResult.Diagnostics.Tracks.Single().ObservationCount,
+            finalDirectResult.Diagnostics.Tracks.Single().ObservationCount,
             videoResult.Frames[^1].Diagnostics!.Tracks.Single().ObservationCount);
     }
 

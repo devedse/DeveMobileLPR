@@ -8,7 +8,10 @@ public sealed class PlateTrackManagerTests
     [Fact]
     public void Update_ConfirmsOnceAfterThreeAssociatedFrames()
     {
-        var manager = new PlateTrackManager();
+        var manager = new PlateTrackManager(new RecognitionTuningConfiguration
+        {
+            StrongPair_Enabled = false
+        });
 
         Assert.Empty(manager.Update(Frame(1, 10)));
         Assert.Empty(manager.Update(Frame(2, 12)));
@@ -26,14 +29,18 @@ public sealed class PlateTrackManagerTests
     {
         var manager = new PlateTrackManager();
         Assert.Empty(manager.Update(Frame(1, 10)));
-        Assert.Empty(manager.Update(Frame(2, 12)));
+        Assert.Single(manager.Update(Frame(2, 12)));
 
         var muchLater = new FrameRecognition(
             3,
             DateTimeOffset.UnixEpoch.AddSeconds(10),
             [Observation(3, 14, DateTimeOffset.UnixEpoch.AddSeconds(10))]);
 
-        Assert.Empty(manager.Update(muchLater));
+        var later = manager.UpdateDetailed(muchLater);
+
+        Assert.Empty(later.Confirmations);
+        Assert.Equal(PlateAssociationKind.NewTrack, Assert.Single(later.Associations).Kind);
+        Assert.Single(later.Tracks);
     }
 
     [Fact]
@@ -51,9 +58,10 @@ public sealed class PlateTrackManagerTests
         Assert.Equal(trackId, Assert.Single(second.Associations).TrackId);
         Assert.Equal(PlateAssociationKind.ExactText, second.Associations[0].Kind);
         Assert.Equal(0, second.Associations[0].IntersectionOverUnion);
+        Assert.Single(second.Confirmations);
         Assert.Equal(trackId, Assert.Single(third.Associations).TrackId);
         Assert.Equal(PlateAssociationKind.ExactText, third.Associations[0].Kind);
-        Assert.Single(third.Confirmations);
+        Assert.Empty(third.Confirmations);
         Assert.Single(third.Tracks);
     }
 
@@ -119,8 +127,10 @@ public sealed class PlateTrackManagerTests
     [Fact]
     public void Update_ScalesMotionPredictionByElapsedTime()
     {
-        var manager = new PlateTrackManager(new TrackingOptions(
-            MaximumPredictedCenterDistanceInPlateWidths: 0.25f));
+        var manager = new PlateTrackManager(new RecognitionTuningConfiguration
+        {
+            Tracking_MaximumPredictedCenterDistanceInPlateWidths = 0.25f
+        });
         var start = DateTimeOffset.UnixEpoch;
 
         manager.UpdateDetailed(Frame(1, start, Observation(1, "AB1234", 100, start), 1000, 500));

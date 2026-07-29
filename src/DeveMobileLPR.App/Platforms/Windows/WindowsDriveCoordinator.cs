@@ -15,6 +15,7 @@ internal sealed class DriveCoordinator : IAsyncDisposable
     private readonly SqliteSightingRepository _repository;
     private readonly AppSettings _settings;
     private readonly RdwDatabaseService _rdw;
+    private readonly RecognitionTuningConfiguration _recognitionTuning;
     private readonly SemaphoreSlim _initializeGate = new(1, 1);
     private readonly SemaphoreSlim _driveGate = new(1, 1);
     private readonly object _stateGate = new();
@@ -43,11 +44,16 @@ internal sealed class DriveCoordinator : IAsyncDisposable
     private IReadOnlyList<CameraChoice> _cameraChoices = [];
     private string? _cameraDiagnostic;
     private bool _cameraHasError;
-    public DriveCoordinator(SqliteSightingRepository repository, AppSettings settings, RdwDatabaseService rdw)
+    public DriveCoordinator(
+        SqliteSightingRepository repository,
+        AppSettings settings,
+        RdwDatabaseService rdw,
+        RecognitionTuningConfiguration recognitionTuning)
     {
         _repository = repository;
         _settings = settings;
         _rdw = rdw;
+        _recognitionTuning = recognitionTuning;
         _performance.Sampled += PerformanceSampled;
     }
 
@@ -78,9 +84,14 @@ internal sealed class DriveCoordinator : IAsyncDisposable
             var recognizerPath = Path.Combine(modelDirectory, ModelCatalog.Recognizer.FileName);
             await ModelArtifactVerifier.VerifyAsync(detectorPath, ModelCatalog.Detector, cancellationToken).ConfigureAwait(false);
             await ModelArtifactVerifier.VerifyAsync(recognizerPath, ModelCatalog.Recognizer, cancellationToken).ConfigureAwait(false);
-            var pipeline = OnnxPlateRecognitionPipelineFactory.Create(detectorPath, recognizerPath, SetStatus);
+            var pipeline = OnnxPlateRecognitionPipelineFactory.Create(
+                detectorPath,
+                recognizerPath,
+                SetStatus,
+                _recognitionTuning);
             _recognition = new RecognitionSession(
                 pipeline,
+                _recognitionTuning,
                 _repository,
                 new AppVehicleLookup(_rdw.DatabasePath),
                 static () => null,

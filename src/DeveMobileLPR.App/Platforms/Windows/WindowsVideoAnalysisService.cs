@@ -16,11 +16,13 @@ internal sealed class VideoAnalysisService : IDisposable
     private const int DecodeWidth = 1280;
     private static readonly string StagingDirectory = Path.Combine(FileSystem.CacheDirectory, "video-analysis");
     private readonly SemaphoreSlim _initializationGate = new(1, 1);
+    private readonly RecognitionTuningConfiguration _recognitionTuning;
     private VideoAnalysisEngine? _engine;
     private bool _disposed;
 
-    public VideoAnalysisService()
+    public VideoAnalysisService(RecognitionTuningConfiguration recognitionTuning)
     {
+        _recognitionTuning = recognitionTuning;
     }
 
     public async Task<string> StageAsync(FileResult file, CancellationToken cancellationToken)
@@ -88,7 +90,13 @@ internal sealed class VideoAnalysisService : IDisposable
             var recognizerPath = Path.Combine(modelDirectory, ModelCatalog.Recognizer.FileName);
             await ModelArtifactVerifier.VerifyAsync(detectorPath, ModelCatalog.Detector, cancellationToken).ConfigureAwait(false);
             await ModelArtifactVerifier.VerifyAsync(recognizerPath, ModelCatalog.Recognizer, cancellationToken).ConfigureAwait(false);
-            _engine = new VideoAnalysisEngine(OnnxPlateRecognitionPipelineFactory.Create(detectorPath, recognizerPath, diagnostic));
+            _engine = new VideoAnalysisEngine(
+                OnnxPlateRecognitionPipelineFactory.Create(
+                    detectorPath,
+                    recognizerPath,
+                    diagnostic,
+                    _recognitionTuning),
+                _recognitionTuning);
             return _engine;
         }
         finally
