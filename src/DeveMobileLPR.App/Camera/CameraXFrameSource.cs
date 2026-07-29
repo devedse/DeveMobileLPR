@@ -66,6 +66,7 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
 
     public event EventHandler<string>? Diagnostic;
     public event EventHandler<IReadOnlyList<CameraChoice>>? CameraChoicesChanged;
+    public event EventHandler? VideoFrameAvailable;
     public IReadOnlyList<CameraChoice> CameraChoices => _cameraChoices;
     public string SelectedCameraId => _selectedCameraId;
 
@@ -313,6 +314,12 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
 
         try
         {
+            if (!_running)
+            {
+                return;
+            }
+
+            VideoFrameAvailable?.Invoke(this, EventArgs.Empty);
             if (!_recognitionFrameGate.TryAcquire(
                     Environment.TickCount64,
                     _recognitionFramesPerSecond()))

@@ -46,6 +46,8 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     public Color StatusAccent => _snapshot.HasError ? Color.FromArgb("#FF6B6B") : IsDriving ? Color.FromArgb("#58E0C2") : Color.FromArgb("#F5C542");
     public string StartButtonText => IsInitializing ? "Preparing…" : "Start drive";
     public string Duration => _snapshot.StartedAt is null ? "0:00" : FormatClock(DateTimeOffset.UtcNow - _snapshot.StartedAt.Value);
+    public string VideoFramesPerSecond => FormatFramesPerSecond(_snapshot.VideoFramesPerSecond);
+    public string AiFramesPerSecond => FormatFramesPerSecond(_snapshot.AiFramesPerSecond);
     public string UniqueVehicles => _snapshot.UniqueVehicles.ToString();
     public string LocationState => _snapshot.HasLocation ? "GPS active" : _settings.TrackLocation ? "Finding GPS" : "Location off";
     public bool HasLatest => _snapshot.RecentSightings.Count > 0;
@@ -116,7 +118,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         {
             nameof(IsInitializing), nameof(IsReady), nameof(IsDriving), nameof(IsStopping), nameof(ShowStartPanel), nameof(ShowDriveControls),
             nameof(CanStart), nameof(ShowNetworkStreamUrl), nameof(Status), nameof(StatusColor), nameof(StatusLabel), nameof(StatusAccent), nameof(StartButtonText), nameof(Duration),
-            nameof(UniqueVehicles), nameof(LocationState), nameof(HasLatest), nameof(LatestPlate),
+            nameof(VideoFramesPerSecond), nameof(AiFramesPerSecond), nameof(UniqueVehicles), nameof(LocationState), nameof(HasLatest), nameof(LatestPlate),
             nameof(LatestVehicle), nameof(LatestPrice), nameof(TopValue)
         }) OnPropertyChanged(property);
         ToggleDriveCommand.RaiseCanExecuteChanged();
@@ -142,6 +144,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     }
 
     private static string FormatClock(TimeSpan value) => value.TotalHours >= 1 ? $"{(int)value.TotalHours}:{value.Minutes:00}:{value.Seconds:00}" : $"{(int)value.TotalMinutes}:{value.Seconds:00}";
+    private static string FormatFramesPerSecond(double value) => value.ToString("0.0");
 
     public void Dispose()
     {

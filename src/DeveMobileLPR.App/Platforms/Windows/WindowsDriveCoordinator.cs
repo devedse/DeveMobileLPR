@@ -18,6 +18,7 @@ internal sealed class DriveCoordinator : IAsyncDisposable
     private readonly SemaphoreSlim _initializeGate = new(1, 1);
     private readonly SemaphoreSlim _driveGate = new(1, 1);
     private readonly object _stateGate = new();
+    private readonly DrivePerformanceMonitor _performance = new();
     private readonly HashSet<string> _uniqueVehicles = new(StringComparer.Ordinal);
     private readonly List<Sighting> _recentSightings = [];
     private RecognitionSession? _recognition;
@@ -33,6 +34,8 @@ internal sealed class DriveCoordinator : IAsyncDisposable
     private string _status = "Preparing the on-device recognition engine…";
     private bool _hasError;
     private DateTimeOffset? _startedAt;
+    private double _videoFramesPerSecond;
+    private double _aiFramesPerSecond;
     private Sighting? _mostExpensive;
     private IReadOnlyList<DriveOverlay> _overlays = [];
     private IReadOnlyList<CameraChoice> _cameraChoices = [];
@@ -43,6 +46,7 @@ internal sealed class DriveCoordinator : IAsyncDisposable
         _repository = repository;
         _settings = settings;
         _rdw = rdw;
+        _performance.Sampled += PerformanceSampled;
     }
 
     public event EventHandler<DriveSnapshot>? SnapshotChanged;
@@ -114,6 +118,7 @@ internal sealed class DriveCoordinator : IAsyncDisposable
         _camera = camera;
         camera.Diagnostic += CameraDiagnostic;
         camera.CameraChoicesChanged += CameraChoicesChanged;
+        camera.VideoFrameAvailable += VideoFrameAvailable;
         _cameraChoices = camera.CameraChoices;
         Publish();
     }
@@ -122,6 +127,7 @@ internal sealed class DriveCoordinator : IAsyncDisposable
     {
         camera.Diagnostic -= CameraDiagnostic;
         camera.CameraChoicesChanged -= CameraChoicesChanged;
+        camera.VideoFrameAvailable -= VideoFrameAvailable;
         if (ReferenceEquals(_camera, camera)) _camera = null;
     }
 
@@ -188,6 +194,8 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                 _driving = true;
                 _stopping = false;
                 _startedAt = now;
+                _videoFramesPerSecond = 0;
+                _aiFramesPerSecond = 0;
                 _uniqueVehicles.Clear();
                 _recentSightings.Clear();
                 _mostExpensive = null;
@@ -198,6 +206,7 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                     ? "Scanning OME LL-HLS stream · video is not saved"
                     : "Scanning webcam · video stays on this device";
             }
+            _performance.Start();
             try
             {
                 await _camera.StartAsync();
@@ -206,7 +215,13 @@ internal sealed class DriveCoordinator : IAsyncDisposable
             }
             catch
             {
-                lock (_stateGate) _driving = false;
+                _performance.Stop();
+                lock (_stateGate)
+                {
+                    _driving = false;
+                    _videoFramesPerSecond = 0;
+                    _aiFramesPerSecond = 0;
+                }
                 await _repository.EndTripAsync(trip.Id, DateTimeOffset.UtcNow, null, CancellationToken.None);
                 Interlocked.Exchange(ref _activeTripId, 0);
                 throw;
@@ -234,7 +249,10 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                 _stopping = true;
                 _status = "Finishing your trip…";
                 _overlays = [];
+                _videoFramesPerSecond = 0;
+                _aiFramesPerSecond = 0;
             }
+            _performance.Stop();
             Publish();
             if (_camera is not null) await _camera.StopAsync();
             await Task.Delay(350);
@@ -296,6 +314,7 @@ internal sealed class DriveCoordinator : IAsyncDisposable
 
     private void RecognitionProgressed(object? sender, RecognitionProgress progress)
     {
+        _performance.RecordAiFrame();
         var recognition = progress.Recognition;
         var candidates = recognition.Observations.Select(observation => new DriveOverlay(
             observation.Detection.Bounds,
@@ -352,6 +371,21 @@ internal sealed class DriveCoordinator : IAsyncDisposable
     }
 
     private void RecognitionFailed(object? sender, Exception exception) => SetStatus($"Recognition paused: {exception.Message}", true);
+    private void VideoFrameAvailable(object? sender, EventArgs args) => _performance.RecordVideoFrame();
+    private void PerformanceSampled(object? sender, DrivePerformanceSample sample)
+    {
+        lock (_stateGate)
+        {
+            if (!_driving)
+            {
+                return;
+            }
+
+            _videoFramesPerSecond = sample.VideoFramesPerSecond;
+            _aiFramesPerSecond = sample.AiFramesPerSecond;
+        }
+        Publish();
+    }
     private void CameraDiagnostic(object? sender, string message)
     {
         var error = message.StartsWith("Could not", StringComparison.Ordinal)
@@ -392,6 +426,8 @@ internal sealed class DriveCoordinator : IAsyncDisposable
         _status,
         _hasError,
         _startedAt,
+        _videoFramesPerSecond,
+        _aiFramesPerSecond,
         _uniqueVehicles.Count,
         _recentSightings.ToArray(),
         _mostExpensive,
@@ -419,6 +455,8 @@ internal sealed class DriveCoordinator : IAsyncDisposable
             _recognition.Failed -= RecognitionFailed;
             await _recognition.DisposeAsync();
         }
+        _performance.Sampled -= PerformanceSampled;
+        _performance.Dispose();
         _initializeGate.Dispose();
         _driveGate.Dispose();
     }

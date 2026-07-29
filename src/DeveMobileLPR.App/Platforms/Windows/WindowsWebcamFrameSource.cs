@@ -69,6 +69,7 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable
 
     public event EventHandler<string>? Diagnostic;
     public event EventHandler<IReadOnlyList<CameraChoice>>? CameraChoicesChanged;
+    public event EventHandler? VideoFrameAvailable;
     public IReadOnlyList<CameraChoice> CameraChoices => _cameraChoices;
     public string SelectedCameraId => _selectedCameraId;
     public bool IsReady => _selectedCameraId == DriveInputIds.NetworkLlHls
@@ -533,6 +534,7 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable
         {
             return;
         }
+        VideoFrameAvailable?.Invoke(this, EventArgs.Empty);
         if (!_webcamRecognitionFrameGate.TryAcquire(
                 Environment.TickCount64,
                 _recognitionFramesPerSecond()))
@@ -616,6 +618,7 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable
                     try
                     {
                         await _streamPreviewPresenter.PresentAsync(pending).ConfigureAwait(false);
+                        VideoFrameAvailable?.Invoke(this, EventArgs.Empty);
                     }
                     catch (Exception exception)
                     {

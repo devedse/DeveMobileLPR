@@ -24,10 +24,32 @@
                 <Border Style="{StaticResource BrandMark}">
                     <Label Style="{StaticResource BrandMarkText}" Text="DM" />
                 </Border>
-                <VerticalStackLayout Grid.Column="1" Spacing="0" VerticalOptions="Center">
-                    <Label FontAttributes="Bold" FontSize="17" Text="DeveMobileLPR" />
-                    <Label FontSize="11" Text="PRIVATE · ON-DEVICE" TextColor="{DynamicResource TextSecondary}" />
-                </VerticalStackLayout>
+                <Grid Grid.Column="1" ColumnDefinitions="Auto,*" ColumnSpacing="14">
+                    <VerticalStackLayout Spacing="0" VerticalOptions="Center">
+                        <Label FontAttributes="Bold" FontSize="17" Text="DeveMobileLPR" />
+                        <Label FontSize="11" Text="PRIVATE · ON-DEVICE" TextColor="{DynamicResource TextSecondary}" />
+                    </VerticalStackLayout>
+                    <Border
+                        AutomationId="drive_fps_metrics"
+                        Grid.Column="1"
+                        HorizontalOptions="End"
+                        IsVisible="{Binding ShowDriveControls}"
+                        Padding="12,5"
+                        Style="{StaticResource DriveControlCard}"
+                        VerticalOptions="Center">
+                        <HorizontalStackLayout Spacing="14">
+                            <VerticalStackLayout Spacing="0">
+                                <Label FontAttributes="Bold" FontSize="18" Text="{Binding VideoFramesPerSecond}" />
+                                <Label Style="{StaticResource DriveCaption}" Text="Video FPS" />
+                            </VerticalStackLayout>
+                            <BoxView BackgroundColor="{DynamicResource Divider}" WidthRequest="1" />
+                            <VerticalStackLayout Spacing="0">
+                                <Label FontAttributes="Bold" FontSize="18" Text="{Binding AiFramesPerSecond}" TextColor="{DynamicResource Primary}" />
+                                <Label Style="{StaticResource DriveCaption}" Text="AI FPS" />
+                            </VerticalStackLayout>
+                        </HorizontalStackLayout>
+                    </Border>
+                </Grid>
                 <Border Grid.Column="2" Stroke="{Binding StatusAccent}" Style="{StaticResource DriveStatusPill}">
                     <HorizontalStackLayout Spacing="8">
                         <Ellipse Fill="{Binding StatusAccent}" HeightRequest="8" VerticalOptions="Center" WidthRequest="8" />

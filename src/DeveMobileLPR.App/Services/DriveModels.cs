@@ -20,6 +20,8 @@ internal sealed record DriveSnapshot(
     string Status,
     bool HasError,
     DateTimeOffset? StartedAt,
+    double VideoFramesPerSecond,
+    double AiFramesPerSecond,
     int UniqueVehicles,
     IReadOnlyList<Sighting> RecentSightings,
     Sighting? MostExpensive,
