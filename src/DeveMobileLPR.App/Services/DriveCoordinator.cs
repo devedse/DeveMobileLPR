@@ -42,7 +42,6 @@ internal sealed class DriveCoordinator : IAsyncDisposable
     private Sighting? _mostExpensive;
     private IReadOnlyList<DriveOverlay> _overlays = [];
     private IReadOnlyList<CameraChoice> _cameraChoices = [new("rear", "Rear cameras · automatic lens")];
-
     public DriveCoordinator(SqliteSightingRepository repository, AppSettings settings, RdwDatabaseService rdw)
     {
         _repository = repository;

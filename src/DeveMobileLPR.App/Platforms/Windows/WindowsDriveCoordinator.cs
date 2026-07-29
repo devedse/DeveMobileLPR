@@ -38,7 +38,6 @@ internal sealed class DriveCoordinator : IAsyncDisposable
     private IReadOnlyList<CameraChoice> _cameraChoices = [];
     private string? _cameraDiagnostic;
     private bool _cameraHasError;
-
     public DriveCoordinator(SqliteSightingRepository repository, AppSettings settings, RdwDatabaseService rdw)
     {
         _repository = repository;
@@ -124,6 +123,34 @@ internal sealed class DriveCoordinator : IAsyncDisposable
         camera.Diagnostic -= CameraDiagnostic;
         camera.CameraChoicesChanged -= CameraChoicesChanged;
         if (ReferenceEquals(_camera, camera)) _camera = null;
+    }
+
+    public async Task ResumeCameraAsync(WindowsWebcamFrameSource camera)
+    {
+        await _driveGate.WaitAsync();
+        try
+        {
+            if (!_driving
+                || _stopping
+                || !ReferenceEquals(_camera, camera)
+                || !camera.IsReady)
+            {
+                return;
+            }
+
+            await camera.StartAsync();
+        }
+        catch (Exception exception)
+        {
+            if (ReferenceEquals(_camera, camera))
+            {
+                SetStatus($"Could not resume the video input: {exception.Message}", true);
+            }
+        }
+        finally
+        {
+            _driveGate.Release();
+        }
     }
 
     public bool SubmitFrame(Yuv420Frame frame)
