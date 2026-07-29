@@ -1,4 +1,5 @@
 using DeveMobileLPR.App.Services;
+using DeveMobileLPR.Geometry;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -16,10 +17,12 @@ internal sealed class WindowsDetectionOverlay : Canvas
     private static readonly WinUISolidColorBrush ConfirmedLabelBrush = new(WinUIColor.FromArgb(242, 245, 197, 66));
     private static readonly WinUISolidColorBrush LightTextBrush = new(WinUIColor.FromArgb(255, 247, 249, 252));
     private static readonly WinUISolidColorBrush DarkTextBrush = new(WinUIColor.FromArgb(255, 20, 17, 5));
+    private readonly AspectScaleMode _scaleMode;
     private IReadOnlyList<DriveOverlay> _overlays = [];
 
-    public WindowsDetectionOverlay()
+    public WindowsDetectionOverlay(AspectScaleMode scaleMode)
     {
+        _scaleMode = scaleMode;
         IsHitTestVisible = false;
         SizeChanged += (_, _) => Render();
     }
@@ -51,13 +54,17 @@ internal sealed class WindowsDetectionOverlay : Canvas
             return;
         }
 
-        var scale = Math.Max(ActualWidth / overlay.SourceWidth, ActualHeight / overlay.SourceHeight);
-        var offsetX = (ActualWidth - overlay.SourceWidth * scale) / 2;
-        var offsetY = (ActualHeight - overlay.SourceHeight * scale) / 2;
-        var left = overlay.Bounds.Left * scale + offsetX;
-        var top = overlay.Bounds.Top * scale + offsetY;
-        var width = overlay.Bounds.Width * scale;
-        var height = overlay.Bounds.Height * scale;
+        var transform = AspectRatioTransform.Create(
+            overlay.SourceWidth,
+            overlay.SourceHeight,
+            (float)ActualWidth,
+            (float)ActualHeight,
+            _scaleMode);
+        var projected = transform.Project(overlay.Bounds);
+        var left = projected.Left;
+        var top = projected.Top;
+        var width = projected.Width;
+        var height = projected.Height;
         var accent = overlay.Confirmed ? ConfirmedBrush : ReadingBrush;
         var box = new Rectangle
         {

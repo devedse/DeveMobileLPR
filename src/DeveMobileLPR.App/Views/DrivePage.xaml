@@ -24,10 +24,32 @@
                 <Border Style="{StaticResource BrandMark}">
                     <Label Style="{StaticResource BrandMarkText}" Text="DM" />
                 </Border>
-                <VerticalStackLayout Grid.Column="1" Spacing="0" VerticalOptions="Center">
-                    <Label FontAttributes="Bold" FontSize="17" Text="DeveMobileLPR" />
-                    <Label FontSize="11" Text="PRIVATE · ON-DEVICE" TextColor="{DynamicResource TextSecondary}" />
-                </VerticalStackLayout>
+                <Grid Grid.Column="1" ColumnDefinitions="Auto,*" ColumnSpacing="14">
+                    <VerticalStackLayout Spacing="0" VerticalOptions="Center">
+                        <Label FontAttributes="Bold" FontSize="17" Text="DeveMobileLPR" />
+                        <Label FontSize="11" Text="PRIVATE · ON-DEVICE" TextColor="{DynamicResource TextSecondary}" />
+                    </VerticalStackLayout>
+                    <Border
+                        AutomationId="drive_fps_metrics"
+                        Grid.Column="1"
+                        HorizontalOptions="End"
+                        IsVisible="{Binding ShowDriveControls}"
+                        Padding="12,5"
+                        Style="{StaticResource DriveControlCard}"
+                        VerticalOptions="Center">
+                        <HorizontalStackLayout Spacing="14">
+                            <VerticalStackLayout Spacing="0">
+                                <Label FontAttributes="Bold" FontSize="18" Text="{Binding VideoFramesPerSecond}" />
+                                <Label Style="{StaticResource DriveCaption}" Text="Video FPS" />
+                            </VerticalStackLayout>
+                            <BoxView BackgroundColor="{DynamicResource Divider}" WidthRequest="1" />
+                            <VerticalStackLayout Spacing="0">
+                                <Label FontAttributes="Bold" FontSize="18" Text="{Binding AiFramesPerSecond}" TextColor="{DynamicResource Primary}" />
+                                <Label Style="{StaticResource DriveCaption}" Text="AI FPS" />
+                            </VerticalStackLayout>
+                        </HorizontalStackLayout>
+                    </Border>
+                </Grid>
                 <Border Grid.Column="2" Stroke="{Binding StatusAccent}" Style="{StaticResource DriveStatusPill}">
                     <HorizontalStackLayout Spacing="8">
                         <Ellipse Fill="{Binding StatusAccent}" HeightRequest="8" VerticalOptions="Center" WidthRequest="8" />
@@ -58,6 +80,16 @@
                         </VerticalStackLayout>
                     </Grid>
 
+                    <VerticalStackLayout IsVisible="{Binding ShowNetworkStreamUrl}" Spacing="4">
+                        <Label Style="{StaticResource FieldCaption}" Text="OME LL-HLS playlist URL" />
+                        <Entry
+                            AutomationId="network_stream_url"
+                            ClearButtonVisibility="WhileEditing"
+                            Keyboard="Url"
+                            Placeholder="https://media.example/live/camera/llhls.m3u8"
+                            Text="{Binding NetworkStreamUrl}" />
+                    </VerticalStackLayout>
+
                     <Button
                         AutomationId="start_drive_button"
                         Command="{Binding ToggleDriveCommand}"
@@ -87,6 +119,13 @@
                                 <Slider Maximum="4" Minimum="1" Value="{Binding Zoom}" />
                             </VerticalStackLayout>
                         </Grid>
+                        <Entry
+                            AutomationId="network_stream_url_landscape"
+                            ClearButtonVisibility="WhileEditing"
+                            IsVisible="{Binding ShowNetworkStreamUrl}"
+                            Keyboard="Url"
+                            Placeholder="OME LL-HLS .m3u8 URL"
+                            Text="{Binding NetworkStreamUrl}" />
                         <Button
                             AutomationId="start_drive_landscape_button"
                             Command="{Binding ToggleDriveCommand}"

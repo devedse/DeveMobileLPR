@@ -19,6 +19,7 @@ namespace DeveMobileLPR.App;
 
 internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, FrameLayout>
 {
+    private const AspectScaleMode PreviewScaleMode = AspectScaleMode.Fill;
     public static readonly IPropertyMapper<CameraPreview, CameraPreviewHandler> Mapper =
         new PropertyMapper<CameraPreview, CameraPreviewHandler>(ViewHandler.ViewMapper);
 
@@ -40,13 +41,18 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, FrameLay
         var root = new FrameLayout(context);
         var match = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.MatchParent);
         var preview = new PreviewView(context);
-        preview.SetScaleType(PreviewView.ScaleType.FillCenter);
+        preview.SetScaleType(GetPreviewScaleType());
         // Compatible uses TextureView, which guarantees the custom detection layer composites above it.
         preview.SetImplementationMode(PreviewView.ImplementationMode.Compatible);
         root.AddView(preview, match);
-        _overlay = new DetectionOverlayView(context, () => settings.ShowRoadGuide);
+        _overlay = new DetectionOverlayView(context, () => settings.ShowRoadGuide, PreviewScaleMode);
         root.AddView(_overlay, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.MatchParent));
-        _source = new CameraXFrameSource(context, activity, preview, frame => _coordinator.SubmitFrame(frame));
+        _source = new CameraXFrameSource(
+            context,
+            activity,
+            preview,
+            () => settings.RecognitionFramesPerSecond,
+            frame => _coordinator.SubmitFrame(frame));
         _coordinator.AttachCamera(_source);
         _coordinator.SnapshotChanged += SnapshotChanged;
         _overlay.Update(_coordinator.Snapshot);
@@ -54,6 +60,13 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, FrameLay
     }
 
     private void SnapshotChanged(object? sender, DriveSnapshot snapshot) => _overlay?.Update(snapshot);
+
+    private static PreviewView.ScaleType GetPreviewScaleType() => PreviewScaleMode switch
+    {
+        AspectScaleMode.Fit => PreviewView.ScaleType.FitCenter!,
+        AspectScaleMode.Fill => PreviewView.ScaleType.FillCenter!,
+        _ => throw new ArgumentOutOfRangeException()
+    };
 
     protected override void DisconnectHandler(FrameLayout platformView)
     {
@@ -80,12 +93,14 @@ internal sealed class DetectionOverlayView : AView
     private readonly Paint _textPaint = new(PaintFlags.AntiAlias);
     private readonly Paint _detailPaint = new(PaintFlags.AntiAlias);
     private readonly Func<bool> _showGuide;
+    private readonly AspectScaleMode _scaleMode;
     private DriveSnapshot? _snapshot;
     private readonly float _density;
 
-    public DetectionOverlayView(Context context, Func<bool> showGuide) : base(context)
+    public DetectionOverlayView(Context context, Func<bool> showGuide, AspectScaleMode scaleMode) : base(context)
     {
         _showGuide = showGuide;
+        _scaleMode = scaleMode;
         _density = context.Resources?.DisplayMetrics?.Density ?? 1;
         _boxPaint.SetStyle(Paint.Style.Stroke);
         _labelPaint.SetStyle(Paint.Style.Fill);
@@ -146,19 +161,23 @@ internal sealed class DetectionOverlayView : AView
 
     private void DrawDetection(Canvas canvas, DriveOverlay overlay)
     {
-        if (overlay.SourceWidth <= 1 || overlay.SourceHeight <= 1)
+        if (overlay.SourceWidth <= 1 || overlay.SourceHeight <= 1 || Width <= 0 || Height <= 0)
         {
             return;
         }
 
-        var scale = Math.Max(Width / (float)overlay.SourceWidth, Height / (float)overlay.SourceHeight);
-        var offsetX = (Width - overlay.SourceWidth * scale) / 2f;
-        var offsetY = (Height - overlay.SourceHeight * scale) / 2f;
+        var transform = AspectRatioTransform.Create(
+            overlay.SourceWidth,
+            overlay.SourceHeight,
+            Width,
+            Height,
+            _scaleMode);
+        var projected = transform.Project(overlay.Bounds);
         var bounds = new ARectF(
-            overlay.Bounds.Left * scale + offsetX,
-            overlay.Bounds.Top * scale + offsetY,
-            overlay.Bounds.Right * scale + offsetX,
-            overlay.Bounds.Bottom * scale + offsetY);
+            projected.Left,
+            projected.Top,
+            projected.Right,
+            projected.Bottom);
         var accent = overlay.Confirmed ? AColor.Rgb(245, 197, 66) : AColor.Rgb(88, 224, 194);
         _boxPaint.Color = accent;
         _boxPaint.StrokeWidth = (overlay.Confirmed ? 3.5f : 2.25f) * _density;

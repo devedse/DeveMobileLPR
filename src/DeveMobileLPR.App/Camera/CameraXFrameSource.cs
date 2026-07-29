@@ -26,7 +26,9 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
     private readonly Context _context;
     private readonly ILifecycleOwner _lifecycleOwner;
     private readonly PreviewView _previewView;
+    private readonly Func<int> _recognitionFramesPerSecond;
     private readonly Action<Yuv420Frame> _onFrame;
+    private readonly FrameRateGate _recognitionFrameGate = new(timestampFrequency: 1000);
     private readonly IExecutorService _analysisExecutor = Executors.NewSingleThreadExecutor()
         ?? throw new InvalidOperationException("Could not create the camera analysis executor.");
     private ProcessCameraProvider? _provider;
@@ -36,7 +38,6 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
     private readonly DisplayManager? _displayManager;
     private readonly DisplayRotationListener _displayRotationListener;
     private long _sequence;
-    private long _nextCaptureTicks;
     private int _reportedResolution;
     private bool _disposed;
     private bool _running;
@@ -46,11 +47,17 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
     private string _selectedCameraId = "rear";
     private IReadOnlyList<CameraChoice> _cameraChoices = [new("rear", "Rear cameras · automatic lens")];
 
-    public CameraXFrameSource(Context context, ILifecycleOwner lifecycleOwner, PreviewView previewView, Action<Yuv420Frame> onFrame)
+    public CameraXFrameSource(
+        Context context,
+        ILifecycleOwner lifecycleOwner,
+        PreviewView previewView,
+        Func<int> recognitionFramesPerSecond,
+        Action<Yuv420Frame> onFrame)
     {
         _context = context;
         _lifecycleOwner = lifecycleOwner;
         _previewView = previewView;
+        _recognitionFramesPerSecond = recognitionFramesPerSecond;
         _onFrame = onFrame;
         _displayManager = context.GetSystemService(Context.DisplayService) as DisplayManager;
         _displayRotationListener = new DisplayRotationListener(previewView, UpdateTargetRotation);
@@ -59,12 +66,14 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
 
     public event EventHandler<string>? Diagnostic;
     public event EventHandler<IReadOnlyList<CameraChoice>>? CameraChoicesChanged;
+    public event EventHandler? VideoFrameAvailable;
     public IReadOnlyList<CameraChoice> CameraChoices => _cameraChoices;
     public string SelectedCameraId => _selectedCameraId;
 
     public Task StartAsync()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        _recognitionFrameGate.Reset();
         if (_provider is not null)
         {
             _running = true;
@@ -96,6 +105,7 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
     public void Stop()
     {
         _running = false;
+        _recognitionFrameGate.Reset();
         Interlocked.Increment(ref _zoomRequestVersion);
         _provider?.UnbindAll();
         _camera = null;
@@ -304,13 +314,18 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
 
         try
         {
-            var now = Environment.TickCount64;
-            if (now < Interlocked.Read(ref _nextCaptureTicks))
+            if (!_running)
             {
                 return;
             }
 
-            Interlocked.Exchange(ref _nextCaptureTicks, now + 250);
+            VideoFrameAvailable?.Invoke(this, EventArgs.Empty);
+            if (!_recognitionFrameGate.TryAcquire(
+                    Environment.TickCount64,
+                    _recognitionFramesPerSecond()))
+            {
+                return;
+            }
             if (Interlocked.Exchange(ref _reportedResolution, 1) == 0)
             {
                 ReportDiagnostic($"Camera analysis resolution: {image.Width}x{image.Height}; frame rotation {image.ImageInfo?.RotationDegrees ?? 0}°.");

@@ -26,21 +26,30 @@ internal sealed class AnalysisFrameOverlay : GraphicsView, IDrawable
     public void Draw(ICanvas canvas, RectF dirtyRect)
     {
         var frame = AnalysisFrame;
-        if (frame is null || frame.SourceWidth <= 0 || frame.SourceHeight <= 0)
+        if (frame is null
+            || frame.SourceWidth <= 0
+            || frame.SourceHeight <= 0
+            || dirtyRect.Width <= 0
+            || dirtyRect.Height <= 0)
         {
             return;
         }
 
-        var scale = Math.Min(dirtyRect.Width / frame.SourceWidth, dirtyRect.Height / frame.SourceHeight);
-        var offsetX = dirtyRect.Left + (dirtyRect.Width - frame.SourceWidth * scale) / 2;
-        var offsetY = dirtyRect.Top + (dirtyRect.Height - frame.SourceHeight * scale) / 2;
+        var transform = AspectRatioTransform.Create(
+            frame.SourceWidth,
+            frame.SourceHeight,
+            dirtyRect.Width,
+            dirtyRect.Height,
+            AspectScaleMode.Fit,
+            dirtyRect.Left,
+            dirtyRect.Top);
         foreach (var read in frame.Reads)
         {
-            DrawBox(canvas, read.Bounds, read.Text, false, scale, offsetX, offsetY);
+            DrawBox(canvas, read.Bounds, read.Text, false, transform);
         }
         foreach (var confirmation in frame.Confirmations)
         {
-            DrawBox(canvas, confirmation.Bounds, confirmation.DisplayPlate, true, scale, offsetX, offsetY);
+            DrawBox(canvas, confirmation.Bounds, confirmation.DisplayPlate, true, transform);
         }
     }
 
@@ -49,20 +58,15 @@ internal sealed class AnalysisFrameOverlay : GraphicsView, IDrawable
         BoundingBox bounds,
         string label,
         bool confirmed,
-        float scale,
-        float offsetX,
-        float offsetY)
+        AspectRatioTransform transform)
     {
         if (bounds.IsEmpty)
         {
             return;
         }
 
-        var rectangle = new RectF(
-            bounds.Left * scale + offsetX,
-            bounds.Top * scale + offsetY,
-            bounds.Width * scale,
-            bounds.Height * scale);
+        var projected = transform.Project(bounds);
+        var rectangle = new RectF(projected.Left, projected.Top, projected.Width, projected.Height);
         var accent = Color.FromArgb(confirmed ? "#F6C945" : "#58E0C2");
         canvas.StrokeColor = accent;
         canvas.StrokeSize = confirmed ? 4 : 3;

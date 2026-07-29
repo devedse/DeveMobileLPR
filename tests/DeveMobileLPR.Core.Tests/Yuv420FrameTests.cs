@@ -45,7 +45,7 @@ public sealed class Yuv420FrameTests
         Assert.Equal(expectedBlue, blue);
     }
 
-    internal static Yuv420Frame CreateFrame(int width, int height, int rotation = 0)
+    internal static Yuv420Frame CreateFrame(int width, int height, int rotation = 0, long sequence = 1)
     {
         var y = MemoryPool<byte>.Shared.Rent(width * height);
         var u = MemoryPool<byte>.Shared.Rent(Math.Max(1, width * height / 4));
@@ -54,7 +54,7 @@ public sealed class Yuv420FrameTests
         u.Memory.Span[..Math.Max(1, width * height / 4)].Fill(128);
         v.Memory.Span[..Math.Max(1, width * height / 4)].Fill(128);
         return new Yuv420Frame(
-            1,
+            sequence,
             DateTimeOffset.UtcNow,
             width,
             height,
