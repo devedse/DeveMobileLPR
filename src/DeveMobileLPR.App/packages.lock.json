@@ -212,6 +212,16 @@
           "Xamarin.KotlinX.Coroutines.Android": "1.11.0.1"
         }
       },
+      "Xamarin.AndroidX.Media3.ExoPlayer.Hls": {
+        "type": "Direct",
+        "requested": "[1.10.1.1, )",
+        "resolved": "1.10.1.1",
+        "contentHash": "X46M5Tv4EI8f5C1lPw4NEvhFj3l02NDEJqY5lvNtbjJneN/VAdmDjqbBUCYw2ozyr2R5m5/LqwZcFJU1GPUEvg==",
+        "dependencies": {
+          "Xamarin.AndroidX.Annotation": "1.10.0.1",
+          "Xamarin.AndroidX.Media3.ExoPlayer": "1.10.1.1"
+        }
+      },
       "Xamarin.AndroidX.SavedState.SavedState.Ktx": {
         "type": "Direct",
         "requested": "[1.5.0.1, )",
@@ -1043,6 +1053,62 @@
         "dependencies": {
           "Xamarin.AndroidX.Annotation": "1.10.0.1",
           "Xamarin.AndroidX.Media3.Common": "1.10.1.1"
+        }
+      },
+      "Xamarin.AndroidX.Media3.Database": {
+        "type": "Transitive",
+        "resolved": "1.10.1.1",
+        "contentHash": "jb5Z6jqOn+7KcZ0vVvpPowZnFHJU+VpL36ZKTxhx3C+h/+2qJTJNGThmrYI5XLP0J8WpFcqPD32jyiG62Q8lfA==",
+        "dependencies": {
+          "Xamarin.AndroidX.Annotation": "1.10.0.1",
+          "Xamarin.AndroidX.Media3.Common": "1.10.1.1"
+        }
+      },
+      "Xamarin.AndroidX.Media3.DataSource": {
+        "type": "Transitive",
+        "resolved": "1.10.1.1",
+        "contentHash": "Xc3a8m+8iMhsDrDzyb8KUOoqO+ROBcXRc8gPe9ziwSsytpM9hKpbX/O8RIiiOaeTz7bqxxJKkW8Uy/DdchZ50Q==",
+        "dependencies": {
+          "Xamarin.AndroidX.Annotation": "1.10.0.1",
+          "Xamarin.AndroidX.ExifInterface": "1.4.2.3",
+          "Xamarin.AndroidX.Media3.Common": "1.10.1.1",
+          "Xamarin.AndroidX.Media3.Database": "1.10.1.1"
+        }
+      },
+      "Xamarin.AndroidX.Media3.Decoder": {
+        "type": "Transitive",
+        "resolved": "1.10.1.1",
+        "contentHash": "sRpxq6Zzm5VD3/T7l6L0emEFQ1i0fszOAsicxaGAr/pFm+PxPMm892cbhWjS4WN76+3TkoGeiQDvIOaCvcc9tA==",
+        "dependencies": {
+          "Xamarin.AndroidX.Annotation": "1.10.0.1",
+          "Xamarin.AndroidX.Media3.Common": "1.10.1.1"
+        }
+      },
+      "Xamarin.AndroidX.Media3.ExoPlayer": {
+        "type": "Transitive",
+        "resolved": "1.10.1.1",
+        "contentHash": "RRqkdcjI1xDYkO904XTzGaOQdqjwy/cuvtLzYmjFVrzXeVME3hi4LteH8Jee1+tp6qVqVpxjlC6FWqUsT5Epzw==",
+        "dependencies": {
+          "Xamarin.AndroidX.Annotation": "1.10.0.1",
+          "Xamarin.AndroidX.ExifInterface": "1.4.2.3",
+          "Xamarin.AndroidX.Media3.Common": "1.10.1.1",
+          "Xamarin.AndroidX.Media3.Container": "1.10.1.1",
+          "Xamarin.AndroidX.Media3.DataSource": "1.10.1.1",
+          "Xamarin.AndroidX.Media3.Database": "1.10.1.1",
+          "Xamarin.AndroidX.Media3.Decoder": "1.10.1.1",
+          "Xamarin.AndroidX.Media3.Extractor": "1.10.1.1",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1"
+        }
+      },
+      "Xamarin.AndroidX.Media3.Extractor": {
+        "type": "Transitive",
+        "resolved": "1.10.1.1",
+        "contentHash": "Uhmj5gxEW0qpoLx/O+W0W9AeQL5kAiEZD0BmUzUKKWg5J2eQS16t18aO0QxIBynyBorARA5pyU85lumAjFn6oA==",
+        "dependencies": {
+          "Xamarin.AndroidX.Annotation": "1.10.0.1",
+          "Xamarin.AndroidX.Media3.Common": "1.10.1.1",
+          "Xamarin.AndroidX.Media3.Container": "1.10.1.1",
+          "Xamarin.AndroidX.Media3.Decoder": "1.10.1.1"
         }
       },
       "Xamarin.AndroidX.Media3.Muxer": {

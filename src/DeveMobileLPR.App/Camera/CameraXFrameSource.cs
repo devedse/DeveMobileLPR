@@ -17,7 +17,7 @@ using Java.Util.Concurrent;
 
 namespace DeveMobileLPR.App.Camera;
 
-internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnalyzer, IDisposable
+internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnalyzer, IDriveFrameSourceTelemetry, IDisposable
 {
     private const string LogTag = "DeveMobileLPR.Camera";
     private const int ZoomStateRetryCount = 8;
@@ -66,7 +66,13 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
 
     public event EventHandler<string>? Diagnostic;
     public event EventHandler<IReadOnlyList<CameraChoice>>? CameraChoicesChanged;
-    public event EventHandler? VideoFrameAvailable;
+    public event EventHandler<DriveFrameCountEventArgs>? SourceFramesAvailable;
+    public event EventHandler<DriveFrameCountEventArgs>? PreviewFramesPresented
+    {
+        add { }
+        remove { }
+    }
+    public bool ReportsPreviewFrames => false;
     public IReadOnlyList<CameraChoice> CameraChoices => _cameraChoices;
     public string SelectedCameraId => _selectedCameraId;
 
@@ -319,7 +325,7 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
                 return;
             }
 
-            VideoFrameAvailable?.Invoke(this, EventArgs.Empty);
+            SourceFramesAvailable?.Invoke(this, new DriveFrameCountEventArgs(1));
             if (!_recognitionFrameGate.TryAcquire(
                     Environment.TickCount64,
                     _recognitionFramesPerSecond()))

@@ -34,7 +34,8 @@ internal sealed class DriveCoordinator : IAsyncDisposable
     private string _status = "Preparing the on-device recognition engine…";
     private bool _hasError;
     private DateTimeOffset? _startedAt;
-    private double _videoFramesPerSecond;
+    private double _sourceFramesPerSecond;
+    private double? _previewFramesPerSecond;
     private double _aiFramesPerSecond;
     private Sighting? _mostExpensive;
     private IReadOnlyList<DriveOverlay> _overlays = [];
@@ -118,7 +119,8 @@ internal sealed class DriveCoordinator : IAsyncDisposable
         _camera = camera;
         camera.Diagnostic += CameraDiagnostic;
         camera.CameraChoicesChanged += CameraChoicesChanged;
-        camera.VideoFrameAvailable += VideoFrameAvailable;
+        camera.SourceFramesAvailable += SourceFramesAvailable;
+        camera.PreviewFramesPresented += PreviewFramesPresented;
         _cameraChoices = camera.CameraChoices;
         Publish();
     }
@@ -127,7 +129,8 @@ internal sealed class DriveCoordinator : IAsyncDisposable
     {
         camera.Diagnostic -= CameraDiagnostic;
         camera.CameraChoicesChanged -= CameraChoicesChanged;
-        camera.VideoFrameAvailable -= VideoFrameAvailable;
+        camera.SourceFramesAvailable -= SourceFramesAvailable;
+        camera.PreviewFramesPresented -= PreviewFramesPresented;
         if (ReferenceEquals(_camera, camera)) _camera = null;
     }
 
@@ -194,7 +197,8 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                 _driving = true;
                 _stopping = false;
                 _startedAt = now;
-                _videoFramesPerSecond = 0;
+                _sourceFramesPerSecond = 0;
+                _previewFramesPerSecond = _camera.ReportsPreviewFrames ? 0 : null;
                 _aiFramesPerSecond = 0;
                 _uniqueVehicles.Clear();
                 _recentSightings.Clear();
@@ -219,7 +223,8 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                 lock (_stateGate)
                 {
                     _driving = false;
-                    _videoFramesPerSecond = 0;
+                    _sourceFramesPerSecond = 0;
+                    _previewFramesPerSecond = _camera.ReportsPreviewFrames ? 0 : null;
                     _aiFramesPerSecond = 0;
                 }
                 await _repository.EndTripAsync(trip.Id, DateTimeOffset.UtcNow, null, CancellationToken.None);
@@ -249,7 +254,8 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                 _stopping = true;
                 _status = "Finishing your trip…";
                 _overlays = [];
-                _videoFramesPerSecond = 0;
+                _sourceFramesPerSecond = 0;
+                _previewFramesPerSecond = _camera?.ReportsPreviewFrames == true ? 0 : null;
                 _aiFramesPerSecond = 0;
             }
             _performance.Stop();
@@ -293,15 +299,51 @@ internal sealed class DriveCoordinator : IAsyncDisposable
 
     public void SelectCamera(string cameraId)
     {
-        _settings.CameraId = cameraId;
-        if (_camera is not null) _ = SelectCameraAsync(_camera, cameraId);
-        Publish();
+        if (_camera is null)
+        {
+            _settings.CameraId = cameraId;
+            Publish();
+            return;
+        }
+
+        _ = SelectCameraAsync(_camera, cameraId);
     }
 
     private async Task SelectCameraAsync(WindowsWebcamFrameSource camera, string cameraId)
     {
-        try { await camera.SelectCameraAsync(cameraId); }
-        catch (Exception exception) { SetStatus($"Could not switch video input: {exception.Message}", true); }
+        try
+        {
+            await camera.SelectCameraAsync(cameraId);
+            if (!ReferenceEquals(_camera, camera))
+            {
+                return;
+            }
+
+            _settings.CameraId = camera.SelectedCameraId;
+            ResetInputPerformance(camera);
+            Publish();
+        }
+        catch (Exception exception)
+        {
+            if (ReferenceEquals(_camera, camera))
+            {
+                SetStatus($"Could not switch video input: {exception.Message}", true);
+            }
+        }
+    }
+
+    private void ResetInputPerformance(WindowsWebcamFrameSource camera)
+    {
+        _performance.ResetSampleWindow();
+        _recognition?.ResetTracking();
+        lock (_stateGate)
+        {
+            _sourceFramesPerSecond = 0;
+            _previewFramesPerSecond = camera.ReportsPreviewFrames ? 0 : null;
+            _aiFramesPerSecond = 0;
+            _overlays = [];
+            _confirmedOverlay = null;
+        }
     }
 
     public void RefreshSettings() => Publish();
@@ -371,7 +413,8 @@ internal sealed class DriveCoordinator : IAsyncDisposable
     }
 
     private void RecognitionFailed(object? sender, Exception exception) => SetStatus($"Recognition paused: {exception.Message}", true);
-    private void VideoFrameAvailable(object? sender, EventArgs args) => _performance.RecordVideoFrame();
+    private void SourceFramesAvailable(object? sender, DriveFrameCountEventArgs args) => _performance.RecordSourceFrames(args.Count);
+    private void PreviewFramesPresented(object? sender, DriveFrameCountEventArgs args) => _performance.RecordPreviewFrames(args.Count);
     private void PerformanceSampled(object? sender, DrivePerformanceSample sample)
     {
         lock (_stateGate)
@@ -381,7 +424,10 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                 return;
             }
 
-            _videoFramesPerSecond = sample.VideoFramesPerSecond;
+            _sourceFramesPerSecond = sample.SourceFramesPerSecond;
+            _previewFramesPerSecond = _camera?.ReportsPreviewFrames == true
+                ? sample.PreviewFramesPerSecond
+                : null;
             _aiFramesPerSecond = sample.AiFramesPerSecond;
         }
         Publish();
@@ -426,7 +472,8 @@ internal sealed class DriveCoordinator : IAsyncDisposable
         _status,
         _hasError,
         _startedAt,
-        _videoFramesPerSecond,
+        _sourceFramesPerSecond,
+        _previewFramesPerSecond,
         _aiFramesPerSecond,
         _uniqueVehicles.Count,
         _recentSightings.ToArray(),

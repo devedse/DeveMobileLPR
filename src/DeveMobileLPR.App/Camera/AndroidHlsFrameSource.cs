@@ -1,0 +1,409 @@
+using System.Buffers;
+using Android.Content;
+using Android.Graphics;
+using Android.Views;
+using AndroidX.Media3.Common;
+using AndroidX.Media3.ExoPlayer;
+using AndroidX.Media3.ExoPlayer.Video;
+using DeveMobileLPR.App.Services;
+using DeveMobileLPR.Imaging;
+using DeveMobileLPR.Streaming;
+using Media3Format = AndroidX.Media3.Common.Format;
+
+namespace DeveMobileLPR.App.Camera;
+
+/// <summary>
+/// Plays an LL-HLS stream through Android's hardware-backed Media3 player and
+/// samples the same decoded texture for recognition. This keeps preview and AI
+/// on one network connection and one decoder.
+/// </summary>
+internal sealed class AndroidHlsFrameSource : Java.Lang.Object, TextureView.ISurfaceTextureListener, IDriveFrameSourceTelemetry
+{
+    private static readonly TimeSpan StartupTimeout = TimeSpan.FromSeconds(15);
+    private readonly Context _context;
+    private readonly AndroidVideoTextureView _preview;
+    private readonly Func<int> _recognitionFramesPerSecond;
+    private readonly Func<Yuv420Frame, bool> _submitFrame;
+    private readonly FrameRateGate _recognitionFrameGate = new(timestampFrequency: 1000);
+    private readonly VideoMetadataListener _metadataListener;
+    private readonly PlayerErrorListener _playerErrorListener;
+    private IExoPlayer? _player;
+    private Surface? _surface;
+    private TaskCompletionSource? _firstFrame;
+    private string _streamUrl;
+    private long _sequence;
+    private int _videoWidth;
+    private int _videoHeight;
+    private int _capturePending;
+    private int _sessionVersion;
+    private long _reportedDecoderOutputBuffers;
+    private volatile bool _running;
+    private bool _disposed;
+
+    public AndroidHlsFrameSource(
+        Context context,
+        AndroidVideoTextureView preview,
+        string streamUrl,
+        Func<int> recognitionFramesPerSecond,
+        Func<Yuv420Frame, bool> submitFrame)
+    {
+        _context = context;
+        _preview = preview;
+        _streamUrl = streamUrl;
+        _recognitionFramesPerSecond = recognitionFramesPerSecond;
+        _submitFrame = submitFrame;
+        _metadataListener = new VideoMetadataListener(OnVideoFrameDecoded);
+        _playerErrorListener = new PlayerErrorListener(OnPlayerError);
+        _preview.SurfaceTextureListener = this;
+    }
+
+    public event EventHandler<string>? Diagnostic;
+    public event EventHandler<DriveFrameCountEventArgs>? SourceFramesAvailable;
+    public event EventHandler<DriveFrameCountEventArgs>? PreviewFramesPresented;
+    public bool ReportsPreviewFrames => true;
+    public bool IsReady => NetworkVideoStream.TryParse(_streamUrl, out _);
+
+    public void SetNetworkStreamUrl(string value) => _streamUrl = value;
+
+    public async Task StartAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (!NetworkVideoStream.TryParse(_streamUrl, out var stream))
+        {
+            throw new InvalidOperationException("Enter a valid HTTP or HTTPS .m3u8 URL before starting the stream.");
+        }
+
+        _recognitionFrameGate.Reset();
+        Interlocked.Increment(ref _sessionVersion);
+        _firstFrame = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _running = true;
+        await MainThread.InvokeOnMainThreadAsync(() => StartPlayer(stream!.Uri));
+
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(StartupTimeout);
+            await _firstFrame.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
+            Diagnostic?.Invoke(this, "OME LL-HLS stream active · Media3 hardware decoding");
+        }
+        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            var playerError = _player?.PlayerError?.Message;
+            await StopAsync().ConfigureAwait(false);
+            throw new TimeoutException(
+                playerError is null
+                    ? $"The LL-HLS stream did not present a frame within {StartupTimeout.TotalSeconds:0} seconds."
+                    : $"The LL-HLS stream failed before presenting a frame: {playerError}",
+                exception);
+        }
+        catch
+        {
+            await StopAsync().ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    private void StartPlayer(Uri uri)
+    {
+        var player = EnsurePlayer();
+        _reportedDecoderOutputBuffers = GetDecoderOutputBufferCount(player);
+        player.SetMediaItem(MediaItem.FromUri(uri.AbsoluteUri));
+        player.Prepare();
+        player.PlayWhenReady = true;
+    }
+
+    private IExoPlayer EnsurePlayer()
+    {
+        if (_player is not null)
+        {
+            return _player;
+        }
+
+        var player = new ExoPlayerBuilder(_context).Build()
+            ?? throw new InvalidOperationException("Media3 could not create an ExoPlayer instance.");
+        player.SetVideoFrameMetadataListener(_metadataListener);
+        player.AddListener(_playerErrorListener);
+        if (_surface is not null)
+        {
+            player.SetVideoSurface(_surface);
+        }
+        _player = player;
+        return player;
+    }
+
+    public Task StopAsync()
+    {
+        _running = false;
+        Interlocked.Increment(ref _sessionVersion);
+        _recognitionFrameGate.Reset();
+        _firstFrame?.TrySetCanceled();
+        _firstFrame = null;
+        return MainThread.InvokeOnMainThreadAsync(() =>
+        {
+            _player?.Stop();
+            _player?.ClearMediaItems();
+        });
+    }
+
+    private void OnVideoFrameDecoded(Media3Format format)
+    {
+        if (format.Width <= 0 || format.Height <= 0)
+        {
+            return;
+        }
+
+        var width = format.Width;
+        var height = format.Height;
+        var oldWidth = Volatile.Read(ref _videoWidth);
+        var oldHeight = Volatile.Read(ref _videoHeight);
+        if (oldWidth == width && oldHeight == height)
+        {
+            return;
+        }
+
+        Volatile.Write(ref _videoWidth, width);
+        Volatile.Write(ref _videoHeight, height);
+        _preview.Post(new Java.Lang.Runnable(() =>
+        {
+            _preview.SetVideoAspectRatio((float)width / height);
+            _preview.SurfaceTexture?.SetDefaultBufferSize(width, height);
+        }));
+    }
+
+    public void OnSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int width, int height)
+    {
+        _surface?.Dispose();
+        _surface = new Surface(surfaceTexture);
+        _player?.SetVideoSurface(_surface);
+    }
+
+    public bool OnSurfaceTextureDestroyed(SurfaceTexture surfaceTexture)
+    {
+        if (_player is not null && _surface is not null)
+        {
+            _player.ClearVideoSurface(_surface);
+        }
+        _surface?.Dispose();
+        _surface = null;
+        return true;
+    }
+
+    public void OnSurfaceTextureSizeChanged(SurfaceTexture surfaceTexture, int width, int height)
+    {
+    }
+
+    public void OnSurfaceTextureUpdated(SurfaceTexture surfaceTexture)
+    {
+        if (!_running)
+        {
+            return;
+        }
+
+        ReportDecodedFrames();
+        PreviewFramesPresented?.Invoke(this, new DriveFrameCountEventArgs(1));
+        _firstFrame?.TrySetResult();
+        if (!_recognitionFrameGate.TryAcquire(Environment.TickCount64, _recognitionFramesPerSecond())
+            || Interlocked.CompareExchange(ref _capturePending, 1, 0) != 0)
+        {
+            return;
+        }
+
+        var width = Volatile.Read(ref _videoWidth);
+        var height = Volatile.Read(ref _videoHeight);
+        if (width <= 0 || height <= 0)
+        {
+            Volatile.Write(ref _capturePending, 0);
+            return;
+        }
+
+        Bitmap? bitmap = null;
+        var pixels = ArrayPool<int>.Shared.Rent(checked(width * height));
+        try
+        {
+            bitmap = _preview.GetBitmap(width, height)
+                ?? throw new InvalidOperationException("The decoded video texture could not be captured.");
+            bitmap.GetPixels(pixels, 0, width, 0, 0, width, height);
+        }
+        catch (Exception exception)
+        {
+            bitmap?.Dispose();
+            ArrayPool<int>.Shared.Return(pixels);
+            Volatile.Write(ref _capturePending, 0);
+            Diagnostic?.Invoke(this, $"Decoded frame capture failed: {exception.Message}");
+            return;
+        }
+        bitmap.Dispose();
+
+        var sessionVersion = Volatile.Read(ref _sessionVersion);
+        _ = Task.Run(() => ConvertAndSubmit(pixels, width, height, sessionVersion));
+    }
+
+    private void ReportDecodedFrames()
+    {
+        if (_player is null)
+        {
+            return;
+        }
+
+        var current = GetDecoderOutputBufferCount(_player);
+        var previous = _reportedDecoderOutputBuffers;
+        _reportedDecoderOutputBuffers = current;
+        if (current > previous)
+        {
+            SourceFramesAvailable?.Invoke(this, new DriveFrameCountEventArgs(current - previous));
+        }
+    }
+
+    private static long GetDecoderOutputBufferCount(IExoPlayer player)
+    {
+        var counters = player.VideoDecoderCounters;
+        if (counters is null)
+        {
+            return 0;
+        }
+
+        counters.EnsureUpdated();
+        return (long)counters.RenderedOutputBufferCount
+            + counters.DroppedBufferCount
+            + counters.SkippedOutputBufferCount;
+    }
+
+    private void OnPlayerError(PlaybackException exception)
+    {
+        if (!_running)
+        {
+            return;
+        }
+
+        var failure = new InvalidOperationException($"Media3 could not continue the LL-HLS stream: {exception.Message}", exception);
+        _firstFrame?.TrySetException(failure);
+        Diagnostic?.Invoke(this, $"OME LL-HLS playback failed: {exception.Message}");
+    }
+
+    private void ConvertAndSubmit(int[] pixels, int width, int height, int sessionVersion)
+    {
+        try
+        {
+            if (!_running || sessionVersion != Volatile.Read(ref _sessionVersion))
+            {
+                return;
+            }
+
+            var frame = ArgbFrameFactory.Create(
+                pixels.AsSpan(0, checked(width * height)),
+                width,
+                height,
+                Interlocked.Increment(ref _sequence),
+                DateTimeOffset.UtcNow);
+            try
+            {
+                if (!_running || sessionVersion != Volatile.Read(ref _sessionVersion))
+                {
+                    frame.Dispose();
+                }
+                else
+                {
+                    _submitFrame(frame);
+                }
+            }
+            catch
+            {
+                frame.Dispose();
+                throw;
+            }
+        }
+        catch (Exception exception)
+        {
+            Diagnostic?.Invoke(this, $"Decoded frame conversion failed: {exception.Message}");
+        }
+        finally
+        {
+            ArrayPool<int>.Shared.Return(pixels);
+            Volatile.Write(ref _capturePending, 0);
+        }
+    }
+
+    public new void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
+        _running = false;
+        _preview.SurfaceTextureListener = null;
+        if (_player is not null)
+        {
+            _player.RemoveListener(_playerErrorListener);
+            _player.ClearVideoFrameMetadataListener(_metadataListener);
+            _player.Release();
+            _player.Dispose();
+            _player = null;
+        }
+        _surface?.Dispose();
+        _surface = null;
+        base.Dispose();
+    }
+
+    private sealed class VideoMetadataListener(Action<Media3Format> onFrame) : Java.Lang.Object, IVideoFrameMetadataListener
+    {
+        public void OnVideoFrameAboutToBeRendered(
+            long presentationTimeUs,
+            long releaseTimeNs,
+            Media3Format? format,
+            Android.Media.MediaFormat? mediaFormat)
+        {
+            if (format is not null)
+            {
+                onFrame(format);
+            }
+        }
+    }
+
+    private sealed class PlayerErrorListener(Action<PlaybackException> onError) : Java.Lang.Object, IPlayerListener
+    {
+        public void OnPlayerError(PlaybackException? error)
+        {
+            if (error is not null)
+            {
+                onError(error);
+            }
+        }
+    }
+}
+
+internal sealed class AndroidVideoTextureView(Context context) : TextureView(context)
+{
+    private float _videoAspectRatio;
+
+    public void SetVideoAspectRatio(float value)
+    {
+        if (value <= 0 || Math.Abs(_videoAspectRatio - value) < 0.001f)
+        {
+            return;
+        }
+        _videoAspectRatio = value;
+        RequestLayout();
+    }
+
+    protected override void OnMeasure(int widthMeasureSpec, int heightMeasureSpec)
+    {
+        var width = MeasureSpec.GetSize(widthMeasureSpec);
+        var height = MeasureSpec.GetSize(heightMeasureSpec);
+        if (_videoAspectRatio <= 0 || width <= 0 || height <= 0)
+        {
+            base.OnMeasure(widthMeasureSpec, heightMeasureSpec);
+            return;
+        }
+
+        if ((float)width / height > _videoAspectRatio)
+        {
+            width = Math.Max(1, (int)Math.Round(height * _videoAspectRatio));
+        }
+        else
+        {
+            height = Math.Max(1, (int)Math.Round(width / _videoAspectRatio));
+        }
+        SetMeasuredDimension(width, height);
+    }
+}

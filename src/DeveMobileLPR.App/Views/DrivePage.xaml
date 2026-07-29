@@ -39,8 +39,13 @@
                         VerticalOptions="Center">
                         <HorizontalStackLayout Spacing="14">
                             <VerticalStackLayout Spacing="0">
-                                <Label FontAttributes="Bold" FontSize="18" Text="{Binding VideoFramesPerSecond}" />
-                                <Label Style="{StaticResource DriveCaption}" Text="Video FPS" />
+                                <Label FontAttributes="Bold" FontSize="18" Text="{Binding SourceFramesPerSecond}" />
+                                <Label Style="{StaticResource DriveCaption}" Text="{Binding SourceFramesPerSecondLabel}" />
+                            </VerticalStackLayout>
+                            <BoxView BackgroundColor="{DynamicResource Divider}" WidthRequest="1" />
+                            <VerticalStackLayout Spacing="0">
+                                <Label FontAttributes="Bold" FontSize="18" Text="{Binding PreviewFramesPerSecond}" />
+                                <Label Style="{StaticResource DriveCaption}" Text="Preview FPS" />
                             </VerticalStackLayout>
                             <BoxView BackgroundColor="{DynamicResource Divider}" WidthRequest="1" />
                             <VerticalStackLayout Spacing="0">

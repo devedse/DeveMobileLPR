@@ -46,7 +46,13 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     public Color StatusAccent => _snapshot.HasError ? Color.FromArgb("#FF6B6B") : IsDriving ? Color.FromArgb("#58E0C2") : Color.FromArgb("#F5C542");
     public string StartButtonText => IsInitializing ? "Preparing…" : "Start drive";
     public string Duration => _snapshot.StartedAt is null ? "0:00" : FormatClock(DateTimeOffset.UtcNow - _snapshot.StartedAt.Value);
-    public string VideoFramesPerSecond => FormatFramesPerSecond(_snapshot.VideoFramesPerSecond);
+    public string SourceFramesPerSecond => FormatFramesPerSecond(_snapshot.SourceFramesPerSecond);
+    public string SourceFramesPerSecondLabel => _snapshot.SelectedCameraId == DriveInputIds.NetworkLlHls
+        ? "Decode FPS"
+        : "Capture FPS";
+    public string PreviewFramesPerSecond => _snapshot.PreviewFramesPerSecond is { } value
+        ? FormatFramesPerSecond(value)
+        : "—";
     public string AiFramesPerSecond => FormatFramesPerSecond(_snapshot.AiFramesPerSecond);
     public string UniqueVehicles => _snapshot.UniqueVehicles.ToString();
     public string LocationState => _snapshot.HasLocation ? "GPS active" : _settings.TrackLocation ? "Finding GPS" : "Location off";
@@ -118,7 +124,8 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         {
             nameof(IsInitializing), nameof(IsReady), nameof(IsDriving), nameof(IsStopping), nameof(ShowStartPanel), nameof(ShowDriveControls),
             nameof(CanStart), nameof(ShowNetworkStreamUrl), nameof(Status), nameof(StatusColor), nameof(StatusLabel), nameof(StatusAccent), nameof(StartButtonText), nameof(Duration),
-            nameof(VideoFramesPerSecond), nameof(AiFramesPerSecond), nameof(UniqueVehicles), nameof(LocationState), nameof(HasLatest), nameof(LatestPlate),
+            nameof(SourceFramesPerSecond), nameof(SourceFramesPerSecondLabel), nameof(PreviewFramesPerSecond), nameof(AiFramesPerSecond),
+            nameof(UniqueVehicles), nameof(LocationState), nameof(HasLatest), nameof(LatestPlate),
             nameof(LatestVehicle), nameof(LatestPrice), nameof(TopValue)
         }) OnPropertyChanged(property);
         ToggleDriveCommand.RaiseCanExecuteChanged();

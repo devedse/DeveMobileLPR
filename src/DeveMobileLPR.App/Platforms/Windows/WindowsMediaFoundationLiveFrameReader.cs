@@ -13,21 +13,24 @@ internal sealed class WindowsMediaFoundationLiveFrameReader : IDisposable
 {
     private static readonly HttpClient Client = new();
     private readonly IMFSourceReader _reader;
-    private readonly string? _temporaryPath;
+    private readonly Stream _sourceStream;
     private readonly int _width;
     private readonly int _height;
     private readonly int _stride;
     private readonly int _rotationDegrees;
     private readonly byte[] _packedNv12;
+    private static int _legacyTemporaryFilesCleaned;
     private int _disposed;
 
-    private WindowsMediaFoundationLiveFrameReader(Uri mediaUri, string? temporaryPath)
+    private WindowsMediaFoundationLiveFrameReader(byte[] segment)
     {
-        _temporaryPath = temporaryPath;
-        MediaFactory.MFStartup().CheckError();
+        _sourceStream = new MemoryStream(segment, writable: false);
+        var mediaFoundationStarted = false;
         IMFSourceReader? reader = null;
         try
         {
+            MediaFactory.MFStartup().CheckError();
+            mediaFoundationStarted = true;
             // Keep this in sync with WindowsMediaFoundationVideoFrameSource. NV12 is the decoder's
             // natural output and avoids Media Foundation's software YUV-to-RGB video processor.
             using var attributes = MediaFactory.MFCreateAttributes(2);
@@ -36,11 +39,11 @@ internal sealed class WindowsMediaFoundationLiveFrameReader : IDisposable
 
             try
             {
-                reader = MediaFactory.MFCreateSourceReaderFromURL(mediaUri.AbsoluteUri, attributes);
+                reader = MediaFactory.MFCreateSourceReaderFromByteStream(_sourceStream, attributes);
             }
             catch (Exception exception)
             {
-                throw new InvalidDataException($"Opening the completed MP4 fragment failed: {exception.Message}", exception);
+                throw new InvalidDataException($"Opening the in-memory MP4 fragment failed: {exception.Message}", exception);
             }
             reader.SetStreamSelection(SourceReaderIndex.AllStreams, false);
             reader.SetStreamSelection(SourceReaderIndex.FirstVideoStream, true);
@@ -77,7 +80,11 @@ internal sealed class WindowsMediaFoundationLiveFrameReader : IDisposable
         catch
         {
             reader?.Dispose();
-            MediaFactory.MFShutdown();
+            _sourceStream.Dispose();
+            if (mediaFoundationStarted)
+            {
+                MediaFactory.MFShutdown();
+            }
             throw;
         }
     }
@@ -92,31 +99,14 @@ internal sealed class WindowsMediaFoundationLiveFrameReader : IDisposable
         await Task.WhenAll(initBytesTask, mediaBytesTask).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var directory = Path.Combine(Path.GetTempPath(), "DeveMobileLPR", "native-hls");
-        Directory.CreateDirectory(directory);
-        var path = Path.Combine(directory, $"{Guid.NewGuid():N}.mp4");
-        try
-        {
-            await using (var output = new FileStream(
-                path,
-                FileMode.CreateNew,
-                FileAccess.Write,
-                FileShare.Read,
-                81920,
-                FileOptions.Asynchronous | FileOptions.SequentialScan))
-            {
-                await output.WriteAsync(await initBytesTask.ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
-                await output.WriteAsync(await mediaBytesTask.ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
-            }
+        var initialization = await initBytesTask.ConfigureAwait(false);
+        var media = await mediaBytesTask.ConfigureAwait(false);
+        var segment = GC.AllocateUninitializedArray<byte>(checked(initialization.Length + media.Length));
+        initialization.CopyTo(segment, 0);
+        media.CopyTo(segment, initialization.Length);
 
-            cancellationToken.ThrowIfCancellationRequested();
-            return new WindowsMediaFoundationLiveFrameReader(new Uri(path), path);
-        }
-        catch
-        {
-            TryDeleteTemporaryFile(path);
-            throw;
-        }
+        CleanLegacyTemporaryFilesOnce();
+        return new WindowsMediaFoundationLiveFrameReader(segment);
     }
 
     public WindowsMediaFoundationLiveFrame? ReadNext(
@@ -257,21 +247,44 @@ internal sealed class WindowsMediaFoundationLiveFrameReader : IDisposable
         }
 
         _reader.Dispose();
+        _sourceStream.Dispose();
         MediaFactory.MFShutdown();
-        if (_temporaryPath is not null)
-        {
-            TryDeleteTemporaryFile(_temporaryPath);
-        }
     }
 
-    private static void TryDeleteTemporaryFile(string path)
+    private static void CleanLegacyTemporaryFilesOnce()
     {
+        if (Interlocked.Exchange(ref _legacyTemporaryFilesCleaned, 1) != 0)
+        {
+            return;
+        }
+
         try
         {
-            File.Delete(path);
+            var directory = Path.Combine(Path.GetTempPath(), "DeveMobileLPR", "native-hls");
+            if (!Directory.Exists(directory))
+            {
+                return;
+            }
+
+            foreach (var path in Directory.EnumerateFiles(directory, "*.mp4", SearchOption.TopDirectoryOnly))
+            {
+                try
+                {
+                    File.Delete(path);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+                {
+                }
+            }
+
+            if (!Directory.EnumerateFileSystemEntries(directory).Any())
+            {
+                Directory.Delete(directory);
+            }
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
+            // Cleanup from older versions is best-effort and must not block playback.
         }
     }
 }

@@ -24,7 +24,7 @@ internal sealed class DriveCoordinator : IAsyncDisposable
     private readonly List<Sighting> _recentSightings = [];
     private RecognitionSession? _recognition;
     private AndroidLocationTracker? _location;
-    private CameraXFrameSource? _camera;
+    private AndroidDriveFrameSource? _camera;
     private CancellationTokenSource? _routeCancellation;
     private Task? _routeWorker;
     private DriveOverlay? _confirmedOverlay;
@@ -40,7 +40,8 @@ internal sealed class DriveCoordinator : IAsyncDisposable
     private string _status = "Preparing the on-device recognition engine…";
     private bool _hasError;
     private DateTimeOffset? _startedAt;
-    private double _videoFramesPerSecond;
+    private double _sourceFramesPerSecond;
+    private double? _previewFramesPerSecond;
     private double _aiFramesPerSecond;
     private Sighting? _mostExpensive;
     private IReadOnlyList<DriveOverlay> _overlays = [];
@@ -129,24 +130,26 @@ internal sealed class DriveCoordinator : IAsyncDisposable
         }
     }
 
-    public void AttachCamera(CameraXFrameSource camera)
+    public void AttachCamera(AndroidDriveFrameSource camera)
     {
         ArgumentNullException.ThrowIfNull(camera);
         _camera = camera;
         camera.Diagnostic += CameraDiagnostic;
         camera.CameraChoicesChanged += CameraChoicesChanged;
-        camera.VideoFrameAvailable += VideoFrameAvailable;
+        camera.SourceFramesAvailable += SourceFramesAvailable;
+        camera.PreviewFramesPresented += PreviewFramesPresented;
         _cameraChoices = camera.CameraChoices;
-        camera.SelectCamera(_settings.CameraId);
+        _ = SelectCameraAsync(camera, _settings.CameraId);
         camera.SetZoom(_settings.Zoom);
         Publish();
     }
 
-    public void DetachCamera(CameraXFrameSource camera)
+    public void DetachCamera(AndroidDriveFrameSource camera)
     {
         camera.Diagnostic -= CameraDiagnostic;
         camera.CameraChoicesChanged -= CameraChoicesChanged;
-        camera.VideoFrameAvailable -= VideoFrameAvailable;
+        camera.SourceFramesAvailable -= SourceFramesAvailable;
+        camera.PreviewFramesPresented -= PreviewFramesPresented;
         if (ReferenceEquals(_camera, camera))
         {
             _camera = null;
@@ -186,8 +189,8 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                 return;
             }
 
-            var cameraPermission = await Permissions.RequestAsync<Permissions.Camera>();
-            if (cameraPermission != PermissionStatus.Granted)
+            if (_camera.SelectedCameraId != DriveInputIds.NetworkLlHls
+                && await Permissions.RequestAsync<Permissions.Camera>() != PermissionStatus.Granted)
             {
                 SetStatus("Camera access is required to recognize plates. You can enable it in Android settings.", true);
                 return;
@@ -211,7 +214,8 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                 _driving = true;
                 _stopping = false;
                 _startedAt = now;
-                _videoFramesPerSecond = 0;
+                _sourceFramesPerSecond = 0;
+                _previewFramesPerSecond = _camera.ReportsPreviewFrames ? 0 : null;
                 _aiFramesPerSecond = 0;
                 _uniqueVehicles.Clear();
                 _recentSightings.Clear();
@@ -244,7 +248,8 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                 lock (_stateGate)
                 {
                     _driving = false;
-                    _videoFramesPerSecond = 0;
+                    _sourceFramesPerSecond = 0;
+                    _previewFramesPerSecond = _camera.ReportsPreviewFrames ? 0 : null;
                     _aiFramesPerSecond = 0;
                 }
                 await _repository.EndTripAsync(trip.Id, DateTimeOffset.UtcNow, _location?.Latest, CancellationToken.None);
@@ -278,12 +283,16 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                 _stopping = true;
                 _status = "Finishing your trip…";
                 _overlays = [];
-                _videoFramesPerSecond = 0;
+                _sourceFramesPerSecond = 0;
+                _previewFramesPerSecond = _camera?.ReportsPreviewFrames == true ? 0 : null;
                 _aiFramesPerSecond = 0;
             }
             _performance.Stop();
             Publish();
-            _camera?.Stop();
+            if (_camera is not null)
+            {
+                await _camera.StopAsync();
+            }
             _routeCancellation?.Cancel();
             if (_routeWorker is not null)
             {
@@ -330,13 +339,66 @@ internal sealed class DriveCoordinator : IAsyncDisposable
         _camera?.SetZoom(_settings.Zoom);
     }
 
-    public void SetNetworkStreamUrl(string value) => _settings.NetworkStreamUrl = value;
+    public void SetNetworkStreamUrl(string value)
+    {
+        _settings.NetworkStreamUrl = value;
+        _camera?.SetNetworkStreamUrl(_settings.NetworkStreamUrl);
+        Publish();
+    }
 
     public void SelectCamera(string cameraId)
     {
-        _settings.CameraId = cameraId;
-        _camera?.SelectCamera(_settings.CameraId);
-        Publish();
+        if (_camera is null)
+        {
+            _settings.CameraId = cameraId;
+            Publish();
+            return;
+        }
+
+        _ = SelectCameraAsync(_camera, cameraId);
+    }
+
+    private async Task SelectCameraAsync(AndroidDriveFrameSource camera, string cameraId)
+    {
+        try
+        {
+            if (_driving
+                && cameraId != DriveInputIds.NetworkLlHls
+                && await Permissions.RequestAsync<Permissions.Camera>() != PermissionStatus.Granted)
+            {
+                throw new UnauthorizedAccessException(
+                    "Camera access is required to switch from the network stream to a phone camera.");
+            }
+            await camera.SelectCameraAsync(cameraId);
+            if (!ReferenceEquals(_camera, camera))
+            {
+                return;
+            }
+            _settings.CameraId = camera.SelectedCameraId;
+            ResetInputPerformance(camera);
+            Publish();
+        }
+        catch (Exception exception)
+        {
+            if (ReferenceEquals(_camera, camera))
+            {
+                SetStatus($"Could not switch video input: {exception.Message}", true);
+            }
+        }
+    }
+
+    private void ResetInputPerformance(AndroidDriveFrameSource camera)
+    {
+        _performance.ResetSampleWindow();
+        _recognition?.ResetTracking();
+        lock (_stateGate)
+        {
+            _sourceFramesPerSecond = 0;
+            _previewFramesPerSecond = camera.ReportsPreviewFrames ? 0 : null;
+            _aiFramesPerSecond = 0;
+            _overlays = [];
+            _confirmedOverlay = null;
+        }
     }
 
     public void RefreshSettings() => Publish();
@@ -444,7 +506,8 @@ internal sealed class DriveCoordinator : IAsyncDisposable
     }
 
     private void RecognitionFailed(object? sender, Exception exception) => SetStatus($"Recognition paused: {exception.Message}", true);
-    private void VideoFrameAvailable(object? sender, EventArgs args) => _performance.RecordVideoFrame();
+    private void SourceFramesAvailable(object? sender, DriveFrameCountEventArgs args) => _performance.RecordSourceFrames(args.Count);
+    private void PreviewFramesPresented(object? sender, DriveFrameCountEventArgs args) => _performance.RecordPreviewFrames(args.Count);
     private void PerformanceSampled(object? sender, DrivePerformanceSample sample)
     {
         lock (_stateGate)
@@ -454,12 +517,23 @@ internal sealed class DriveCoordinator : IAsyncDisposable
                 return;
             }
 
-            _videoFramesPerSecond = sample.VideoFramesPerSecond;
+            _sourceFramesPerSecond = sample.SourceFramesPerSecond;
+            _previewFramesPerSecond = _camera?.ReportsPreviewFrames == true
+                ? sample.PreviewFramesPerSecond
+                : null;
             _aiFramesPerSecond = sample.AiFramesPerSecond;
         }
         Publish();
     }
-    private void CameraDiagnostic(object? sender, string message) { if (!_driving || message.StartsWith("Camera active", StringComparison.Ordinal)) SetStatus(message); }
+    private void CameraDiagnostic(object? sender, string message)
+    {
+        var error = message.StartsWith("Could not", StringComparison.Ordinal)
+            || message.Contains("failed", StringComparison.OrdinalIgnoreCase);
+        if (!_driving || error || message.StartsWith("Camera active", StringComparison.Ordinal))
+        {
+            SetStatus(message, error);
+        }
+    }
     private void CameraChoicesChanged(object? sender, IReadOnlyList<CameraChoice> choices)
     {
         lock (_stateGate) _cameraChoices = choices.ToArray();
@@ -491,15 +565,16 @@ internal sealed class DriveCoordinator : IAsyncDisposable
         _status,
         _hasError,
         _startedAt,
-        _videoFramesPerSecond,
+        _sourceFramesPerSecond,
+        _previewFramesPerSecond,
         _aiFramesPerSecond,
         _uniqueVehicles.Count,
         _recentSightings.ToArray(),
         _mostExpensive,
         _overlays.ToArray(),
         _location?.Latest is not null,
-        _camera is not null,
-        false,
+        _camera?.IsReady == true,
+        true,
         _cameraChoices.ToArray(),
         _camera?.SelectedCameraId ?? _settings.CameraId);
 

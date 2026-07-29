@@ -56,6 +56,7 @@
     <PackageReference Include="Xamarin.AndroidX.Camera.Core" />
     <PackageReference Include="Xamarin.AndroidX.Camera.Lifecycle" />
     <PackageReference Include="Xamarin.AndroidX.Camera.View" />
+    <PackageReference Include="Xamarin.AndroidX.Media3.ExoPlayer.Hls" />
   </ItemGroup>
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
     <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" />

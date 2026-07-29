@@ -3,18 +3,20 @@ using System.Diagnostics;
 namespace DeveMobileLPR.App.Services;
 
 internal sealed record DrivePerformanceSample(
-    double VideoFramesPerSecond,
+    double SourceFramesPerSecond,
+    double PreviewFramesPerSecond,
     double AiFramesPerSecond);
 
 /// <summary>
-/// Samples video and completed-recognition throughput once per second without
-/// publishing UI work for every frame.
+/// Samples source, presented-preview, and completed-recognition throughput once
+/// per second without publishing UI work for every frame.
 /// </summary>
 internal sealed class DrivePerformanceMonitor : IDisposable
 {
     private static readonly TimeSpan SampleInterval = TimeSpan.FromSeconds(1);
     private readonly Timer _timer;
-    private long _videoFrames;
+    private long _sourceFrames;
+    private long _previewFrames;
     private long _aiFrames;
     private long _lastSampleTimestamp;
     private int _running;
@@ -30,7 +32,8 @@ internal sealed class DrivePerformanceMonitor : IDisposable
     public void Start()
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        Interlocked.Exchange(ref _videoFrames, 0);
+        Interlocked.Exchange(ref _sourceFrames, 0);
+        Interlocked.Exchange(ref _previewFrames, 0);
         Interlocked.Exchange(ref _aiFrames, 0);
         Interlocked.Exchange(ref _lastSampleTimestamp, Stopwatch.GetTimestamp());
         Volatile.Write(ref _running, 1);
@@ -41,16 +44,42 @@ internal sealed class DrivePerformanceMonitor : IDisposable
     {
         Volatile.Write(ref _running, 0);
         _timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
-        Interlocked.Exchange(ref _videoFrames, 0);
+        Interlocked.Exchange(ref _sourceFrames, 0);
+        Interlocked.Exchange(ref _previewFrames, 0);
         Interlocked.Exchange(ref _aiFrames, 0);
         Interlocked.Exchange(ref _lastSampleTimestamp, 0);
     }
 
-    public void RecordVideoFrame()
+    /// <summary>
+    /// Starts a fresh sampling window after the active video input changes so
+    /// one displayed rate never combines frames from two different sources.
+    /// </summary>
+    public void ResetSampleWindow()
     {
-        if (Volatile.Read(ref _running) != 0)
+        if (Volatile.Read(ref _running) == 0)
         {
-            Interlocked.Increment(ref _videoFrames);
+            return;
+        }
+
+        Interlocked.Exchange(ref _sourceFrames, 0);
+        Interlocked.Exchange(ref _previewFrames, 0);
+        Interlocked.Exchange(ref _aiFrames, 0);
+        Interlocked.Exchange(ref _lastSampleTimestamp, Stopwatch.GetTimestamp());
+    }
+
+    public void RecordSourceFrames(long count)
+    {
+        if (count > 0 && Volatile.Read(ref _running) != 0)
+        {
+            Interlocked.Add(ref _sourceFrames, count);
+        }
+    }
+
+    public void RecordPreviewFrames(long count)
+    {
+        if (count > 0 && Volatile.Read(ref _running) != 0)
+        {
+            Interlocked.Add(ref _previewFrames, count);
         }
     }
 
@@ -74,7 +103,8 @@ internal sealed class DrivePerformanceMonitor : IDisposable
         var elapsedSeconds = previous == 0
             ? 0
             : Stopwatch.GetElapsedTime(previous, now).TotalSeconds;
-        var videoFrames = Interlocked.Exchange(ref _videoFrames, 0);
+        var sourceFrames = Interlocked.Exchange(ref _sourceFrames, 0);
+        var previewFrames = Interlocked.Exchange(ref _previewFrames, 0);
         var aiFrames = Interlocked.Exchange(ref _aiFrames, 0);
         if (elapsedSeconds <= 0 || Volatile.Read(ref _running) == 0)
         {
@@ -82,7 +112,8 @@ internal sealed class DrivePerformanceMonitor : IDisposable
         }
 
         Sampled?.Invoke(this, new DrivePerformanceSample(
-            videoFrames / elapsedSeconds,
+            sourceFrames / elapsedSeconds,
+            previewFrames / elapsedSeconds,
             aiFrames / elapsedSeconds));
     }
 

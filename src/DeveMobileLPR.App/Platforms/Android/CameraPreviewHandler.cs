@@ -23,7 +23,7 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, FrameLay
     public static readonly IPropertyMapper<CameraPreview, CameraPreviewHandler> Mapper =
         new PropertyMapper<CameraPreview, CameraPreviewHandler>(ViewHandler.ViewMapper);
 
-    private CameraXFrameSource? _source;
+    private AndroidDriveFrameSource? _source;
     private DriveCoordinator? _coordinator;
     private DetectionOverlayView? _overlay;
 
@@ -45,12 +45,29 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, FrameLay
         // Compatible uses TextureView, which guarantees the custom detection layer composites above it.
         preview.SetImplementationMode(PreviewView.ImplementationMode.Compatible);
         root.AddView(preview, match);
-        _overlay = new DetectionOverlayView(context, () => settings.ShowRoadGuide, PreviewScaleMode);
+        var streamPreview = new AndroidVideoTextureView(context)
+        {
+            Visibility = ViewStates.Gone
+        };
+        root.AddView(streamPreview, new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MatchParent,
+            ViewGroup.LayoutParams.MatchParent)
+        {
+            Gravity = GravityFlags.Center
+        });
+        _overlay = new DetectionOverlayView(
+            context,
+            () => settings.ShowRoadGuide,
+            () => _coordinator?.Snapshot.SelectedCameraId == DriveInputIds.NetworkLlHls
+                ? AspectScaleMode.Fit
+                : PreviewScaleMode);
         root.AddView(_overlay, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.MatchParent));
-        _source = new CameraXFrameSource(
+        _source = new AndroidDriveFrameSource(
             context,
             activity,
             preview,
+            streamPreview,
+            settings.NetworkStreamUrl,
             () => settings.RecognitionFramesPerSecond,
             frame => _coordinator.SubmitFrame(frame));
         _coordinator.AttachCamera(_source);
@@ -77,12 +94,24 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, FrameLay
         if (_source is not null)
         {
             _coordinator?.DetachCamera(_source);
-            _source.Dispose();
+            _ = DisposeSourceAsync(_source);
             _source = null;
         }
         _overlay = null;
         _coordinator = null;
         base.DisconnectHandler(platformView);
+    }
+
+    private static async Task DisposeSourceAsync(AndroidDriveFrameSource source)
+    {
+        try
+        {
+            await source.DisposeAsync();
+        }
+        catch (Exception exception)
+        {
+            global::Android.Util.Log.Warn("DeveMobileLPR.Video", $"Android video cleanup failed: {exception}");
+        }
     }
 }
 
@@ -93,11 +122,14 @@ internal sealed class DetectionOverlayView : AView
     private readonly Paint _textPaint = new(PaintFlags.AntiAlias);
     private readonly Paint _detailPaint = new(PaintFlags.AntiAlias);
     private readonly Func<bool> _showGuide;
-    private readonly AspectScaleMode _scaleMode;
+    private readonly Func<AspectScaleMode> _scaleMode;
     private DriveSnapshot? _snapshot;
     private readonly float _density;
 
-    public DetectionOverlayView(Context context, Func<bool> showGuide, AspectScaleMode scaleMode) : base(context)
+    public DetectionOverlayView(
+        Context context,
+        Func<bool> showGuide,
+        Func<AspectScaleMode> scaleMode) : base(context)
     {
         _showGuide = showGuide;
         _scaleMode = scaleMode;
@@ -171,7 +203,7 @@ internal sealed class DetectionOverlayView : AView
             overlay.SourceHeight,
             Width,
             Height,
-            _scaleMode);
+            _scaleMode());
         var projected = transform.Project(overlay.Bounds);
         var bounds = new ARectF(
             projected.Left,

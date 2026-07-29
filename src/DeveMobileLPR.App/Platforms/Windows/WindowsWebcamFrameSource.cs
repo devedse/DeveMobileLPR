@@ -14,7 +14,7 @@ using Windows.Media.Playback;
 
 namespace DeveMobileLPR.App.Platforms.Windows;
 
-internal sealed class WindowsWebcamFrameSource : IAsyncDisposable
+internal sealed class WindowsWebcamFrameSource : IDriveFrameSourceTelemetry, IAsyncDisposable
 {
     private static readonly TimeSpan NetworkStartupTimeout = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan NetworkPreviewCatchUpThreshold = TimeSpan.FromMilliseconds(2);
@@ -69,9 +69,11 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable
 
     public event EventHandler<string>? Diagnostic;
     public event EventHandler<IReadOnlyList<CameraChoice>>? CameraChoicesChanged;
-    public event EventHandler? VideoFrameAvailable;
+    public event EventHandler<DriveFrameCountEventArgs>? SourceFramesAvailable;
+    public event EventHandler<DriveFrameCountEventArgs>? PreviewFramesPresented;
     public IReadOnlyList<CameraChoice> CameraChoices => _cameraChoices;
     public string SelectedCameraId => _selectedCameraId;
+    public bool ReportsPreviewFrames => _selectedCameraId == DriveInputIds.NetworkLlHls;
     public bool IsReady => _selectedCameraId == DriveInputIds.NetworkLlHls
         ? NetworkVideoStream.TryParse(_networkStreamUrl, out _)
         : _capture is not null;
@@ -388,6 +390,7 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable
                             break;
                         }
 
+                        SourceFramesAvailable?.Invoke(this, new DriveFrameCountEventArgs(1));
                         opened.TrySetResult();
 
                         var timestamp = decodedFrame.Timestamp;
@@ -534,7 +537,7 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable
         {
             return;
         }
-        VideoFrameAvailable?.Invoke(this, EventArgs.Empty);
+        SourceFramesAvailable?.Invoke(this, new DriveFrameCountEventArgs(1));
         if (!_webcamRecognitionFrameGate.TryAcquire(
                 Environment.TickCount64,
                 _recognitionFramesPerSecond()))
@@ -618,7 +621,7 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable
                     try
                     {
                         await _streamPreviewPresenter.PresentAsync(pending).ConfigureAwait(false);
-                        VideoFrameAvailable?.Invoke(this, EventArgs.Empty);
+                        PreviewFramesPresented?.Invoke(this, new DriveFrameCountEventArgs(1));
                     }
                     catch (Exception exception)
                     {
