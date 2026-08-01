@@ -22,13 +22,14 @@ internal static class CropQualityEstimator
         var rows = configuration.CropQuality_SampleRows;
         var luminance = new float[columns * rows];
         var mean = 0f;
+        var sampler = new YuvImageSampler(frame);
         for (var y = 0; y < rows; y++)
         {
             for (var x = 0; x < columns; x++)
             {
                 var sourceX = bounds.Left + (x + 0.5f) * bounds.Width / columns;
                 var sourceY = bounds.Top + (y + 0.5f) * bounds.Height / rows;
-                YuvImageSampler.SampleBilinear(frame, sourceX, sourceY, out var red, out var green, out var blue);
+                sampler.SampleBilinear(sourceX, sourceY, out var red, out var green, out var blue);
                 var value = 0.2126f * red + 0.7152f * green + 0.0722f * blue;
                 luminance[y * columns + x] = value;
                 mean += value;

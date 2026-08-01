@@ -25,7 +25,11 @@ public sealed class OnnxYoloV9PlateDetector : IPlateDetector, IDisposable
     {
         _configuration = configuration ?? new RecognitionTuningConfiguration();
         _configuration.Validate();
-        _session = OnnxSessionFactory.Create(modelPath, _configuration.Detector_XnnpackThreads, diagnostic);
+        _session = OnnxSessionFactory.Create(
+            modelPath,
+            _configuration.Detector_XnnpackThreads,
+            diagnostic,
+            _configuration.Detector_AndroidAllowNnapiFp16);
         ValidateInputContract();
         _inputValue = OrtValue.CreateTensorValueFromMemory(_input, InputShape);
         _inputs = new Dictionary<string, OrtValue>(StringComparer.Ordinal)

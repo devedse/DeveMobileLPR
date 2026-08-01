@@ -388,12 +388,10 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
     {
         var buffer = plane.Buffer?.Duplicate() ?? throw new InvalidDataException("Camera plane has no buffer.");
         var length = buffer.Remaining();
-        var owner = MemoryPool<byte>.Shared.Rent(length);
-        var temporary = ArrayPool<byte>.Shared.Rent(length);
+        var owner = new PooledByteOwner(length);
         try
         {
-            buffer.Get(temporary, 0, length);
-            temporary.AsSpan(0, length).CopyTo(owner.Memory.Span);
+            buffer.Get(owner.Array, 0, length);
             return new PlaneCopy(owner, length);
         }
         catch
@@ -403,7 +401,6 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
         }
         finally
         {
-            ArrayPool<byte>.Shared.Return(temporary);
             buffer.Dispose();
         }
     }
@@ -424,4 +421,26 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
     }
 
     private readonly record struct PlaneCopy(IMemoryOwner<byte>? Owner, int Length);
+
+    private sealed class PooledByteOwner : IMemoryOwner<byte>
+    {
+        private byte[]? _array;
+
+        public PooledByteOwner(int minimumLength)
+        {
+            _array = ArrayPool<byte>.Shared.Rent(minimumLength);
+        }
+
+        public byte[] Array => _array ?? throw new ObjectDisposedException(nameof(PooledByteOwner));
+        public Memory<byte> Memory => Array;
+
+        public void Dispose()
+        {
+            var array = Interlocked.Exchange(ref _array, null);
+            if (array is not null)
+            {
+                ArrayPool<byte>.Shared.Return(array);
+            }
+        }
+    }
 }

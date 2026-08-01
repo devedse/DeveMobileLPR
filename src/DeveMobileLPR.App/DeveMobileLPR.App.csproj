@@ -16,6 +16,9 @@
     <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
     <AndroidLinkMode Condition="'$(Configuration)' == 'Release'">SdkOnly</AndroidLinkMode>
+    <!-- Profiled Mono AOT currently fails in the .NET 10 Android cross-assembler for both
+         universal and arm64 builds. Keep packaging reliable; inference acceleration is
+         provided by ONNX Runtime's native NNAPI/XNNPACK execution providers instead. -->
     <RunAOTCompilation>false</RunAOTCompilation>
     <MauiEnableXamlCBindingWithSourceCompilation>true</MauiEnableXamlCBindingWithSourceCompilation>
     <AllowUnsafeBlocks Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">true</AllowUnsafeBlocks>

@@ -15,7 +15,11 @@ public static class OnnxPlateRecognitionPipelineFactory
         var detector = new OnnxYoloV9PlateDetector(detectorPath, configuration, diagnostic);
         try
         {
-            var recognizer = new OnnxCctPlateRecognizer(recognizerPath, diagnostic: diagnostic);
+            var recognizer = new OnnxCctPlateRecognizer(
+                recognizerPath,
+                configuration.Ocr_XnnpackThreads,
+                diagnostic,
+                configuration.Ocr_AndroidAllowNnapiFp16);
             return new PlateRecognitionPipeline(detector, recognizer, configuration);
         }
         catch

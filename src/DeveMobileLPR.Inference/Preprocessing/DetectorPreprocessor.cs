@@ -36,6 +36,7 @@ internal static class DetectorPreprocessor
         var paddingY = (InputSize - resizedHeight) / 2f;
         tensor[..required].Fill(PaddingValue);
         var planeSize = InputSize * InputSize;
+        var sampler = new YuvImageSampler(frame);
 
         var left = (int)MathF.Round(paddingX - 0.1f);
         var top = (int)MathF.Round(paddingY - 0.1f);
@@ -57,7 +58,7 @@ internal static class DetectorPreprocessor
                     continue;
                 }
 
-                YuvImageSampler.SampleBilinear(frame, sourceX, sourceY, out var red, out var green, out var blue);
+                sampler.SampleBilinear(sourceX, sourceY, out var red, out var green, out var blue);
                 var offset = outputY * InputSize + outputX;
                 tensor[offset] = red / 255f;
                 tensor[planeSize + offset] = green / 255f;

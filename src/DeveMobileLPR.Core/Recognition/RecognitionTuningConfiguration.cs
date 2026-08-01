@@ -16,6 +16,12 @@ public sealed class RecognitionTuningConfiguration
     public float Detector_MinimumPlateHeightPixels { get; set; } = 5f;
     public int Detector_MaximumOcrAttemptsPerFrame { get; set; } = 6;
     public int Detector_XnnpackThreads { get; set; } = 4;
+    public bool Detector_AndroidAllowNnapiFp16 { get; set; } = true;
+
+    // OCR runtime. Keep character probabilities at FP32 by default; OCR accuracy is more
+    // sensitive to small output changes than detector box coordinates.
+    public int Ocr_XnnpackThreads { get; set; } = 2;
+    public bool Ocr_AndroidAllowNnapiFp16 { get; set; }
 
     // Crop quality estimator
     public float CropQuality_MinimumCropWidthPixels { get; set; } = 8f;
@@ -80,6 +86,7 @@ public sealed class RecognitionTuningConfiguration
         ValidatePositive(Detector_MinimumPlateHeightPixels, nameof(Detector_MinimumPlateHeightPixels));
         ValidatePositive(Detector_MaximumOcrAttemptsPerFrame, nameof(Detector_MaximumOcrAttemptsPerFrame));
         ValidatePositive(Detector_XnnpackThreads, nameof(Detector_XnnpackThreads));
+        ValidatePositive(Ocr_XnnpackThreads, nameof(Ocr_XnnpackThreads));
 
         ValidatePositive(CropQuality_MinimumCropWidthPixels, nameof(CropQuality_MinimumCropWidthPixels));
         ValidatePositive(CropQuality_MinimumCropHeightPixels, nameof(CropQuality_MinimumCropHeightPixels));

@@ -19,9 +19,13 @@ public sealed class OnnxCctPlateRecognizer : IPlateRecognizer, IDisposable
     private readonly SemaphoreSlim _gate = new(1, 1);
     private bool _disposed;
 
-    public OnnxCctPlateRecognizer(string modelPath, int xnnpackThreads = 2, Action<string>? diagnostic = null)
+    public OnnxCctPlateRecognizer(
+        string modelPath,
+        int xnnpackThreads = 2,
+        Action<string>? diagnostic = null,
+        bool allowNnapiFp16 = false)
     {
-        _session = OnnxSessionFactory.Create(modelPath, xnnpackThreads, diagnostic);
+        _session = OnnxSessionFactory.Create(modelPath, xnnpackThreads, diagnostic, allowNnapiFp16);
         ValidateContract();
         _inputValue = OrtValue.CreateTensorValueFromMemory(_input, InputShape);
         _inputs = new Dictionary<string, OrtValue>(StringComparer.Ordinal)

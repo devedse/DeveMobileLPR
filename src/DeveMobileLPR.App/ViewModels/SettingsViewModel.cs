@@ -222,7 +222,10 @@ internal sealed class SettingsViewModel : ViewModelBase
                     Value("Road region (L / T / R / B)", $"{Percentage(road.Left)} / {Percentage(road.Top)} / {Percentage(road.Right)} / {Percentage(road.Bottom)}", "Normalized part of the source image sent to the detector."),
                     Value("Minimum detected plate", $"{tuning.Detector_MinimumPlateWidthPixels:0.#} × {tuning.Detector_MinimumPlateHeightPixels:0.#} px", "Smaller detector boxes are discarded."),
                     Value("Maximum OCR attempts", $"{tuning.Detector_MaximumOcrAttemptsPerFrame} / frame", "Highest-confidence boxes are read first."),
-                    Value("XNNPACK threads", tuning.Detector_XnnpackThreads.ToString(), "CPU worker count selected when the ONNX detector session is created.")
+                    Value("Detector XNNPACK threads", tuning.Detector_XnnpackThreads.ToString(), "CPU worker count benchmarked against NNAPI when the detector session is created."),
+                    Value("Detector NNAPI precision", tuning.Detector_AndroidAllowNnapiFp16 ? "FP16 allowed" : "FP32 only", "Android may use reduced precision when its hardware provider is faster."),
+                    Value("OCR XNNPACK threads", tuning.Ocr_XnnpackThreads.ToString(), "CPU worker count benchmarked against NNAPI when the OCR session is created."),
+                    Value("OCR NNAPI precision", tuning.Ocr_AndroidAllowNnapiFp16 ? "FP16 allowed" : "FP32 only", "FP32 is retained by default to protect character probabilities.")
                 ]),
             new(
                 "Crop quality",
