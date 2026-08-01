@@ -75,6 +75,8 @@ public sealed record RecognitionFrameDiagnostics(
 
     public IReadOnlyList<PlateCandidateDiagnostics> Candidates { get; init; } = [];
     public double CropQualityMilliseconds { get; init; }
+    public string DetectorBackend { get; init; } = "Unknown";
+    public string OcrBackend { get; init; } = "Unknown";
 }
 
 public sealed record FrameRecognition(
@@ -254,6 +256,11 @@ public interface IPlateDetector
     ValueTask<PlateDetectionResult> DetectAsync(
         Yuv420Frame frame,
         CancellationToken cancellationToken);
+}
+
+public interface IInferenceBackendInfo
+{
+    string BackendName { get; }
 }
 
 public interface IPlateRecognizer

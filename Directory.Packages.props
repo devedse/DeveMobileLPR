@@ -9,6 +9,7 @@
     <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.24.4" />
     <PackageVersion Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.24.4" />
     <PackageVersion Include="Microsoft.ML.OnnxRuntime.Managed" Version="1.24.4" />
+    <PackageVersion Include="Xamarin.Google.AI.Edge.LiteRT" Version="2.1.5.1" />
     <PackageVersion Include="Vortice.MediaFoundation" Version="3.8.3" />
     <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.4" />
     <PackageVersion Include="Sylvan.Data.Csv" Version="1.4.4" />

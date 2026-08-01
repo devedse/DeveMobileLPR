@@ -32,5 +32,9 @@ jobs:
         shell: pwsh
         run: ./eng/Download-Models.ps1
 
+      - name: Generate and verify LiteRT detector
+        shell: pwsh
+        run: ./eng/Generate-LiteRt-Models.ps1
+
       - name: Restore dependencies
         run: dotnet restore DeveMobileLPR.slnx --locked-mode

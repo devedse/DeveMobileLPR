@@ -16,4 +16,9 @@ public static class ModelCatalog
         "cct_s_v2_global.onnx",
         "384BBBD2CEA3EF54761D3DF70822EF3A349EE1A112AEAFDDBE0E3BA06BC6E47B",
         5_262_230);
+
+    public static ModelArtifact AndroidLiteRtDetector { get; } = new(
+        "yolo-v9-s-608-license-plates-raw_float32.tflite",
+        "EE20A2F2DAAD51525A449E2A7E388965E4F9DEC5F39CB8D0348C21232FFAA1E2",
+        28_561_524);
 }

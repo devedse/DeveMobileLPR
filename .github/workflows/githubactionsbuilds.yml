@@ -22,8 +22,33 @@ jobs:
         with:
           token: ${{ secrets.github_token }}
 
+  generate_litert_model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Download and verify source model
+        shell: pwsh
+        run: ./eng/Download-Models.ps1
+
+      - name: Generate and verify LiteRT detector
+        shell: pwsh
+        run: ./eng/Generate-LiteRt-Models.ps1
+
+      - name: Upload generated LiteRT detector
+        uses: actions/upload-artifact@v7
+        with:
+          name: litert-detector-${{ github.sha }}
+          path: |
+            artifacts/models/yolo-v9-s-608-license-plates-raw.onnx
+            artifacts/models/yolo-v9-s-608-license-plates-raw_float32.tflite
+          if-no-files-found: error
+          retention-days: 1
+
   build:
-    needs: generate_version_number
+    needs: [generate_version_number, generate_litert_model]
     runs-on: windows-latest
     timeout-minutes: 45
     outputs:
@@ -51,6 +76,16 @@ jobs:
       - name: Download and verify model assets
         shell: pwsh
         run: ./eng/Download-Models.ps1
+
+      - name: Download generated LiteRT detector
+        uses: actions/download-artifact@v8
+        with:
+          name: litert-detector-${{ github.sha }}
+          path: artifacts/models
+
+      - name: Verify generated LiteRT detector
+        shell: pwsh
+        run: ./eng/Generate-LiteRt-Models.ps1
 
       - name: Restore dependencies
         shell: pwsh

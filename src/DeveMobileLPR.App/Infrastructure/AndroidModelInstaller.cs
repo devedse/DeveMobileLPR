@@ -12,7 +12,7 @@ internal static class AndroidModelInstaller
     {
         var modelDirectory = Path.Combine(filesDirectory, "models");
         Directory.CreateDirectory(modelDirectory);
-        var detector = await CopyVerifiedAsync(assets, ModelCatalog.Detector, modelDirectory, cancellationToken);
+        var detector = await CopyVerifiedAsync(assets, ModelCatalog.AndroidLiteRtDetector, modelDirectory, cancellationToken);
         var ocr = await CopyVerifiedAsync(assets, ModelCatalog.Recognizer, modelDirectory, cancellationToken);
         return (detector, ocr);
     }

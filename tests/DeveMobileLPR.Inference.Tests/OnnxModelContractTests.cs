@@ -1,6 +1,7 @@
 using System.Buffers;
 using DeveMobileLPR.Imaging;
 using DeveMobileLPR.Inference.Onnx;
+using DeveMobileLPR.Inference.Yolo;
 
 namespace DeveMobileLPR.Tests;
 
@@ -26,6 +27,23 @@ public sealed class OnnxModelContractTests
         Assert.NotNull(read.Read.Text);
         Assert.InRange(read.Read.Confidence, 0, 1);
         Assert.True(read.Timing.TotalMilliseconds > 0);
+    }
+
+    [Fact]
+    [Trait("Category", "Model")]
+    [Trait("GeneratedModel", "true")]
+    public void RawDetectorModel_LoadsAndReturnsPreNmsBoxesAndScores()
+    {
+        var modelDirectory = FindModelDirectory();
+        using var model = new OnnxYoloV9RawModel(
+            Path.Combine(modelDirectory, "yolo-v9-s-608-license-plates-raw.onnx"));
+
+        var output = model.Run(new float[YoloV9RawPlateDetector.InputValueCount]);
+
+        Assert.Equal(7_581 * 4, output.Boxes.Length);
+        Assert.Equal(7_581, output.Scores.Length);
+        Assert.Equal(YoloV9InputLayout.ChannelsFirst, model.InputLayout);
+        Assert.StartsWith("ONNX Runtime", model.BackendName, StringComparison.Ordinal);
     }
 
     private static string FindModelDirectory()

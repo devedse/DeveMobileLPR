@@ -16,6 +16,8 @@ public sealed class RecognitionTuningConfigurationTests
         Assert.Equal(new NormalizedRegion(0.03f, 0.18f, 0.97f, 0.94f), configuration.Detector_RoadRegion);
         Assert.Equal(12f, configuration.Detector_MinimumPlateWidthPixels);
         Assert.Equal(5f, configuration.Detector_MinimumPlateHeightPixels);
+        Assert.Equal(0.45f, configuration.Detector_NonMaximumSuppressionIntersectionOverUnionThreshold);
+        Assert.Equal(100, configuration.Detector_MaximumDetectionsPerFrame);
         Assert.Equal(6, configuration.Detector_MaximumOcrAttemptsPerFrame);
         Assert.Equal(4, configuration.Detector_XnnpackThreads);
         Assert.True(configuration.Detector_AndroidAllowNnapiFp16);

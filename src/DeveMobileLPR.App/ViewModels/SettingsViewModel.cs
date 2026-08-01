@@ -221,9 +221,11 @@ internal sealed class SettingsViewModel : ViewModelBase
                     Value("Minimum detector confidence", Percentage(tuning.Detector_ConfidenceThreshold), "Lower-scoring plate boxes are ignored."),
                     Value("Road region (L / T / R / B)", $"{Percentage(road.Left)} / {Percentage(road.Top)} / {Percentage(road.Right)} / {Percentage(road.Bottom)}", "Normalized part of the source image sent to the detector."),
                     Value("Minimum detected plate", $"{tuning.Detector_MinimumPlateWidthPixels:0.#} × {tuning.Detector_MinimumPlateHeightPixels:0.#} px", "Smaller detector boxes are discarded."),
+                    Value("Duplicate-box overlap", Percentage(tuning.Detector_NonMaximumSuppressionIntersectionOverUnionThreshold), "A lower-confidence box is removed when it overlaps a stronger box by more than this IoU."),
+                    Value("Maximum detections", $"{tuning.Detector_MaximumDetectionsPerFrame} / frame", "Safety limit applied after duplicate boxes are removed."),
                     Value("Maximum OCR attempts", $"{tuning.Detector_MaximumOcrAttemptsPerFrame} / frame", "Highest-confidence boxes are read first."),
-                    Value("Detector XNNPACK threads", tuning.Detector_XnnpackThreads.ToString(), "CPU worker count benchmarked against NNAPI when the detector session is created."),
-                    Value("Detector NNAPI precision", tuning.Detector_AndroidAllowNnapiFp16 ? "FP16 allowed" : "FP32 only", "Android may use reduced precision when its hardware provider is faster."),
+                    Value("ONNX detector XNNPACK threads", tuning.Detector_XnnpackThreads.ToString(), "Used by the ONNX comparison backend; the Android LiteRT detector selects GPU or CPU explicitly."),
+                    Value("ONNX detector NNAPI precision", tuning.Detector_AndroidAllowNnapiFp16 ? "FP16 allowed" : "FP32 only", "Used by the ONNX comparison backend; it does not change the LiteRT model precision."),
                     Value("OCR XNNPACK threads", tuning.Ocr_XnnpackThreads.ToString(), "CPU worker count benchmarked against NNAPI when the OCR session is created."),
                     Value("OCR NNAPI precision", tuning.Ocr_AndroidAllowNnapiFp16 ? "FP16 allowed" : "FP32 only", "FP32 is retained by default to protect character probabilities.")
                 ]),

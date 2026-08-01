@@ -1,5 +1,6 @@
 using DeveMobileLPR.Geometry;
 using DeveMobileLPR.Imaging;
+using DeveMobileLPR.Inference.Yolo;
 
 namespace DeveMobileLPR.Inference.Preprocessing;
 
@@ -20,7 +21,8 @@ internal static class DetectorPreprocessor
     public static LetterboxTransform Fill(
         Yuv420Frame frame,
         BoundingBox source,
-        Span<float> tensor)
+        Span<float> tensor,
+        YoloV9InputLayout layout = YoloV9InputLayout.ChannelsFirst)
     {
         var required = 3 * InputSize * InputSize;
         if (tensor.Length < required)
@@ -59,10 +61,20 @@ internal static class DetectorPreprocessor
                 }
 
                 sampler.SampleBilinear(sourceX, sourceY, out var red, out var green, out var blue);
-                var offset = outputY * InputSize + outputX;
-                tensor[offset] = red / 255f;
-                tensor[planeSize + offset] = green / 255f;
-                tensor[2 * planeSize + offset] = blue / 255f;
+                var pixelOffset = outputY * InputSize + outputX;
+                if (layout == YoloV9InputLayout.ChannelsFirst)
+                {
+                    tensor[pixelOffset] = red / 255f;
+                    tensor[planeSize + pixelOffset] = green / 255f;
+                    tensor[2 * planeSize + pixelOffset] = blue / 255f;
+                }
+                else
+                {
+                    var interleavedOffset = pixelOffset * 3;
+                    tensor[interleavedOffset] = red / 255f;
+                    tensor[interleavedOffset + 1] = green / 255f;
+                    tensor[interleavedOffset + 2] = blue / 255f;
+                }
             }
         }
 

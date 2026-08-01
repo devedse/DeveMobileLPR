@@ -9,7 +9,7 @@ using Microsoft.ML.OnnxRuntime;
 
 namespace DeveMobileLPR.Inference.Onnx;
 
-public sealed class OnnxCctPlateRecognizer : IPlateRecognizer, IDisposable
+public sealed class OnnxCctPlateRecognizer : IPlateRecognizer, IInferenceBackendInfo, IDisposable
 {
     private static readonly long[] InputShape = [1, CctV2Metadata.Height, CctV2Metadata.Width, CctV2Metadata.Channels];
     private readonly InferenceSession _session;
@@ -25,7 +25,9 @@ public sealed class OnnxCctPlateRecognizer : IPlateRecognizer, IDisposable
         Action<string>? diagnostic = null,
         bool allowNnapiFp16 = false)
     {
-        _session = OnnxSessionFactory.Create(modelPath, xnnpackThreads, diagnostic, allowNnapiFp16);
+        var session = OnnxSessionFactory.Create(modelPath, xnnpackThreads, diagnostic, allowNnapiFp16);
+        _session = session.Session;
+        BackendName = session.BackendName;
         ValidateContract();
         _inputValue = OrtValue.CreateTensorValueFromMemory(_input, InputShape);
         _inputs = new Dictionary<string, OrtValue>(StringComparer.Ordinal)
@@ -33,6 +35,8 @@ public sealed class OnnxCctPlateRecognizer : IPlateRecognizer, IDisposable
             [_session.InputNames[0]] = _inputValue
         };
     }
+
+    public string BackendName { get; }
 
     public async ValueTask<PlateRecognitionResult> RecognizeAsync(
         Yuv420Frame frame,

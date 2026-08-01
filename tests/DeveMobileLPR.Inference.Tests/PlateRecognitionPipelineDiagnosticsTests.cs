@@ -34,10 +34,14 @@ public sealed class PlateRecognitionPipelineDiagnosticsTests
         Assert.Equal(new ModelExecutionTiming(0, 1, 3, 1), result.Diagnostics.Ocr);
         Assert.True(result.Diagnostics.CropQualityMilliseconds >= 0);
         Assert.True(result.Diagnostics.TotalMilliseconds >= result.Diagnostics.CropQualityMilliseconds);
+        Assert.Equal("Test detector", result.Diagnostics.DetectorBackend);
+        Assert.Equal("Test OCR", result.Diagnostics.OcrBackend);
     }
 
-    private sealed class FakeDetector : IPlateDetector
+    private sealed class FakeDetector : IPlateDetector, IInferenceBackendInfo
     {
+        public string BackendName => "Test detector";
+
         public ValueTask<PlateDetectionResult> DetectAsync(Yuv420Frame frame, CancellationToken cancellationToken) =>
             ValueTask.FromResult(new PlateDetectionResult(
                 [
@@ -47,8 +51,10 @@ public sealed class PlateRecognitionPipelineDiagnosticsTests
                 new ModelExecutionTiming(0, 1, 2, 1)));
     }
 
-    private sealed class EmptyRecognizer : IPlateRecognizer
+    private sealed class EmptyRecognizer : IPlateRecognizer, IInferenceBackendInfo
     {
+        public string BackendName => "Test OCR";
+
         public ValueTask<PlateRecognitionResult> RecognizeAsync(
             Yuv420Frame frame,
             BoundingBox plateBounds,

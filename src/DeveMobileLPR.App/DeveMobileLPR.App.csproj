@@ -49,6 +49,7 @@
   </ItemGroup>
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
     <PackageReference Include="Microsoft.ML.OnnxRuntime" />
+    <PackageReference Include="Xamarin.Google.AI.Edge.LiteRT" />
     <!-- CameraX 1.6.1 uses the current AndroidX generation. Pin its KTX companions so
          MAUI's older transitive minimums cannot produce mixed, incompatible pairs. -->
     <PackageReference Include="Xamarin.AndroidX.Activity.Ktx" />
@@ -73,9 +74,17 @@
     <MauiImage Include="Resources\Images\*.svg" />
   </ItemGroup>
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
-    <AndroidAsset Include="..\..\artifacts\models\yolo-v9-s-608-license-plates-end2end.onnx" Link="models\yolo-v9-s-608-license-plates-end2end.onnx" />
+    <AndroidAsset Include="..\..\artifacts\models\yolo-v9-s-608-license-plates-raw_float32.tflite" Link="models\yolo-v9-s-608-license-plates-raw_float32.tflite" />
     <AndroidAsset Include="..\..\artifacts\models\cct_s_v2_global.onnx" Link="models\cct_s_v2_global.onnx" />
   </ItemGroup>
+
+  <Target Name="GenerateAndroidLiteRtDetector"
+          BeforeTargets="PrepareForBuild"
+          Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'"
+          Inputs="..\..\artifacts\models\yolo-v9-s-608-license-plates-end2end.onnx;..\..\eng\Generate-LiteRt-Models.ps1;..\..\eng\model-tools\prepare_litert_detector.py"
+          Outputs="..\..\artifacts\models\yolo-v9-s-608-license-plates-raw.onnx;..\..\artifacts\models\yolo-v9-s-608-license-plates-raw_float32.tflite">
+    <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildProjectDirectory)\..\..\eng\Generate-LiteRt-Models.ps1&quot;" />
+  </Target>
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
     <Content Include="..\..\artifacts\models\yolo-v9-s-608-license-plates-end2end.onnx" Link="models\yolo-v9-s-608-license-plates-end2end.onnx" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\artifacts\models\cct_s_v2_global.onnx" Link="models\cct_s_v2_global.onnx" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

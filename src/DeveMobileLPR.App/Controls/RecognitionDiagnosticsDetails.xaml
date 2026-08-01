@@ -29,6 +29,19 @@
     </ContentView.Resources>
 
     <VerticalStackLayout Spacing="7">
+        <Border Style="{StaticResource DiagnosticCard}">
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                <VerticalStackLayout Spacing="1">
+                    <Label Style="{StaticResource DiagnosticName}" Text="Detector backend" />
+                    <Label LineBreakMode="TailTruncation" Style="{StaticResource DiagnosticValue}" Text="{Binding Frame.DetectorBackend}" />
+                </VerticalStackLayout>
+                <VerticalStackLayout Grid.Column="1" Spacing="1">
+                    <Label Style="{StaticResource DiagnosticName}" Text="Plate reader backend" />
+                    <Label LineBreakMode="TailTruncation" Style="{StaticResource DiagnosticValue}" Text="{Binding Frame.OcrBackend}" />
+                </VerticalStackLayout>
+            </Grid>
+        </Border>
+
         <Border Style="{StaticResource DiagnosticCard}" Stroke="{DynamicResource Primary}">
             <Grid ColumnDefinitions="1.2*,*" ColumnSpacing="12">
                 <VerticalStackLayout Spacing="1">
