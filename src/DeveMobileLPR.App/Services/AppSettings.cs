@@ -1,6 +1,8 @@
+using DeveMobileLPR.Application;
+
 namespace DeveMobileLPR.App.Services;
 
-internal sealed class AppSettings
+internal sealed class AppSettings : IDriveSettings
 {
     private const string TrackLocationKey = "track_location";
     private const string ShowGuideKey = "show_road_guide";

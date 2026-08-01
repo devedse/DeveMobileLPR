@@ -32,6 +32,7 @@ public sealed class PlateRecognitionPipeline : IFrameRecognitionPipeline, IDispo
             _configuration.Detector_MaximumOcrAttemptsPerFrame));
         var candidates = new List<PlateCandidateDiagnostics>(detections.Count);
         var ocrTiming = ModelExecutionTiming.Empty;
+        var cropQualityMilliseconds = 0d;
         var ocrAttemptCount = 0;
         foreach (var detection in detections.OrderByDescending(static detection => detection.Confidence))
         {
@@ -42,7 +43,9 @@ public sealed class PlateRecognitionPipeline : IFrameRecognitionPipeline, IDispo
                 continue;
             }
 
+            var qualityStartedAt = Stopwatch.GetTimestamp();
             var quality = CropQualityEstimator.Estimate(frame, detection.Bounds, _configuration);
+            cropQualityMilliseconds += Stopwatch.GetElapsedTime(qualityStartedAt).TotalMilliseconds;
             var recognitionResult = await _recognizer.RecognizeAsync(frame, detection.Bounds, cancellationToken).ConfigureAwait(false);
             var read = recognitionResult.Read;
             ocrTiming += recognitionResult.Timing;
@@ -78,7 +81,8 @@ public sealed class PlateRecognitionPipeline : IFrameRecognitionPipeline, IDispo
                 ocrAttemptCount,
                 observations.Count)
             {
-                Candidates = candidates
+                Candidates = candidates,
+                CropQualityMilliseconds = cropQualityMilliseconds
             }
         };
     }

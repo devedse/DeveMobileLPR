@@ -36,7 +36,7 @@ internal sealed record TripVehicleCardViewModel(
     public bool HasLocation => Location is not null;
 }
 
-internal sealed class TripDetailViewModel(SqliteSightingRepository repository, long tripId) : ViewModelBase
+internal sealed class TripDetailViewModel(ISightingRepository repository, long tripId) : ViewModelBase
 {
     internal const string SortByTime = "Time seen";
     internal const string SortByValue = "Highest value";
@@ -157,7 +157,7 @@ internal sealed class TripDetailViewModel(SqliteSightingRepository repository, l
     }
 }
 
-internal sealed class VehicleDetailViewModel(SqliteSightingRepository repository, string normalizedPlate) : ViewModelBase
+internal sealed class VehicleDetailViewModel(ISightingRepository repository, string normalizedPlate) : ViewModelBase
 {
     private bool _isBusy;
     private string _displayPlate = PlateText.FormatDutchPlate(normalizedPlate);

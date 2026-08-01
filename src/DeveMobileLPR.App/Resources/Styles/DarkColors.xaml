@@ -10,6 +10,8 @@
     <Color x:Key="Primary">#58E0C2</Color>
     <Color x:Key="PrimaryDark">#1A6659</Color>
     <Color x:Key="AnalysisProgressFill">#4058E0C2</Color>
+    <Color x:Key="DiagnosticsDecodeAccent">#55C7F3</Color>
+    <Color x:Key="DiagnosticsPreviewAccent">#B39DFF</Color>
     <Color x:Key="PlateYellow">#F5C542</Color>
     <Color x:Key="ValueAccent">#F5C542</Color>
     <Color x:Key="TextPrimary">#F7F9FC</Color>

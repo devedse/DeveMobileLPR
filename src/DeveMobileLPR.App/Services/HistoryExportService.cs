@@ -1,10 +1,10 @@
 using System.Globalization;
 using System.Text;
-using DeveMobileLPR.Storage;
+using DeveMobileLPR.Recognition;
 
 namespace DeveMobileLPR.App.Services;
 
-internal sealed class HistoryExportService(SqliteSightingRepository repository)
+internal sealed class HistoryExportService(ISightingRepository repository)
 {
     public async Task<string> CreateCsvAsync(CancellationToken cancellationToken)
     {

@@ -1,4 +1,4 @@
-using DeveMobileLPR.App.Services;
+using DeveMobileLPR.Application;
 using DeveMobileLPR.Geometry;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -30,10 +30,7 @@ internal sealed class WindowsDetectionOverlay : Canvas
 
     public void Update(DriveSnapshot snapshot)
     {
-        _overlays = snapshot.IsDriving
-            ? snapshot.Overlays.Where(overlay => snapshot.RecognitionDebugEnabled
-                || overlay.Kind is not (DriveOverlayKind.Candidate or DriveOverlayKind.Track)).ToArray()
-            : [];
+        _overlays = DriveOverlayLayout.GetVisibleOverlays(snapshot);
         Render();
     }
 
@@ -53,18 +50,15 @@ internal sealed class WindowsDetectionOverlay : Canvas
 
     private void DrawDetection(DriveOverlay overlay)
     {
-        if (overlay.SourceWidth <= 1 || overlay.SourceHeight <= 1)
+        if (!DriveOverlayLayout.TryProject(
+                overlay,
+                (float)ActualWidth,
+                (float)ActualHeight,
+                _scaleMode,
+                out var projected))
         {
             return;
         }
-
-        var transform = AspectRatioTransform.Create(
-            overlay.SourceWidth,
-            overlay.SourceHeight,
-            (float)ActualWidth,
-            (float)ActualHeight,
-            _scaleMode);
-        var projected = transform.Project(overlay.Bounds);
         var left = projected.Left;
         var top = projected.Top;
         var width = projected.Width;

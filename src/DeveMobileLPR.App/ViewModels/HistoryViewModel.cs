@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using DeveMobileLPR.App.Services;
+using DeveMobileLPR.Application;
 using DeveMobileLPR.App.UI;
 using DeveMobileLPR.Recognition;
 

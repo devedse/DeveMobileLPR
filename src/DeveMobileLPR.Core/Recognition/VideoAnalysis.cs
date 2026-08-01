@@ -19,7 +19,8 @@ public sealed record VideoAnalysisProgress(
     TimeSpan Position,
     TimeSpan Elapsed,
     TimeSpan DecodeElapsed = default,
-    TimeSpan RecognitionElapsed = default)
+    TimeSpan RecognitionElapsed = default,
+    RecognitionStreamDiagnostics? Diagnostics = null)
 {
     public double Fraction => TotalFrames == 0 ? 0 : (double)ProcessedFrames / TotalFrames;
     public double AverageTotalMilliseconds => ProcessedFrames == 0 ? 0 : Elapsed.TotalMilliseconds / ProcessedFrames;

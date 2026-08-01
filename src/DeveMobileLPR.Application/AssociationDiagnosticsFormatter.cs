@@ -1,6 +1,6 @@
 using DeveMobileLPR.Recognition;
 
-namespace DeveMobileLPR.App.Services;
+namespace DeveMobileLPR.Application;
 
 internal static class AssociationDiagnosticsFormatter
 {

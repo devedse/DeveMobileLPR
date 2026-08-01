@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
 using DeveMobileLPR.App.Services;
+using DeveMobileLPR.Application;
 using DeveMobileLPR.App.UI;
-using DeveMobileLPR.Recognition;
 
 namespace DeveMobileLPR.App.ViewModels;
 
@@ -47,14 +47,8 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     public Color StatusAccent => _snapshot.HasError ? Color.FromArgb("#FF6B6B") : IsDriving ? Color.FromArgb("#58E0C2") : Color.FromArgb("#F5C542");
     public string StartButtonText => IsInitializing ? "Preparing…" : "Start drive";
     public string Duration => _snapshot.StartedAt is null ? "0:00" : FormatClock(DateTimeOffset.UtcNow - _snapshot.StartedAt.Value);
-    public string SourceFrameInterval => FormatMilliseconds(_snapshot.SourceFrameIntervalMilliseconds);
-    public string SourceFrameIntervalLabel => _snapshot.SelectedCameraId == DriveInputIds.NetworkLlHls
-        ? "Decode"
-        : "Capture";
-    public string PreviewFrameInterval => FormatMilliseconds(_snapshot.PreviewFrameIntervalMilliseconds);
-    public string RecognitionFrameInterval => FormatMilliseconds(_snapshot.RecognitionFrameIntervalMilliseconds);
+    public DriveDiagnosticsSnapshot Diagnostics => _snapshot.Diagnostics;
     public bool ShowRecognitionDebug => ShowDriveControls && _snapshot.RecognitionDebugEnabled;
-    public string RecognitionDebugText => FormatRecognitionDiagnostics(_snapshot.RecognitionDiagnostics);
     public string UniqueVehicles => _snapshot.UniqueVehicles.ToString();
     public string LocationState => _snapshot.HasLocation ? "GPS active" : _settings.TrackLocation ? "Finding GPS" : "Location off";
     public bool HasLatest => _snapshot.RecentSightings.Count > 0;
@@ -125,8 +119,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         {
             nameof(IsInitializing), nameof(IsReady), nameof(IsDriving), nameof(IsStopping), nameof(ShowStartPanel), nameof(ShowDriveControls),
             nameof(CanStart), nameof(ShowNetworkStreamUrl), nameof(Status), nameof(StatusColor), nameof(StatusLabel), nameof(StatusAccent), nameof(StartButtonText), nameof(Duration),
-            nameof(SourceFrameInterval), nameof(SourceFrameIntervalLabel), nameof(PreviewFrameInterval), nameof(RecognitionFrameInterval),
-            nameof(ShowRecognitionDebug), nameof(RecognitionDebugText),
+            nameof(Diagnostics), nameof(ShowRecognitionDebug),
             nameof(UniqueVehicles), nameof(LocationState), nameof(HasLatest), nameof(LatestPlate),
             nameof(LatestVehicle), nameof(LatestPrice), nameof(TopValue)
         }) OnPropertyChanged(property);
@@ -153,23 +146,6 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     }
 
     private static string FormatClock(TimeSpan value) => value.TotalHours >= 1 ? $"{(int)value.TotalHours}:{value.Minutes:00}:{value.Seconds:00}" : $"{(int)value.TotalMinutes}:{value.Seconds:00}";
-    private static string FormatMilliseconds(double? value) => value is { } milliseconds
-        ? $"{milliseconds:0.0} ms"
-        : "—";
-
-    private static string FormatRecognitionDiagnostics(RecognitionStreamDiagnostics? diagnostics)
-    {
-        if (diagnostics is null)
-        {
-            return "Waiting for a recognition frame…";
-        }
-
-        var frame = diagnostics.Frame;
-        return $"Frame {frame.TotalMilliseconds:0.0} ms · detector {frame.Detector.TotalMilliseconds:0.0} ms · OCR {frame.Ocr.TotalMilliseconds:0.0} ms · tracking {diagnostics.TrackingMilliseconds:0.0} ms\n"
-            + $"Detector: queue {frame.Detector.QueueMilliseconds:0.0} · prep {frame.Detector.PreprocessingMilliseconds:0.0} · inference {frame.Detector.InferenceMilliseconds:0.0} · post {frame.Detector.PostprocessingMilliseconds:0.0} ms\n"
-            + $"{frame.DetectionCount} detections · {frame.OcrAttemptCount} OCR attempts · {frame.ObservationCount} observations · {diagnostics.Tracks.Count} tracks · {diagnostics.ReplacedInputFrames} replaced inputs";
-    }
-
     public void Dispose()
     {
         _coordinator.SnapshotChanged -= SnapshotChanged;

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using DeveMobileLPR.App.Services;
+using DeveMobileLPR.Application;
 using DeveMobileLPR.Recognition;
 using DeveMobileLPR.Storage;
 
@@ -79,6 +80,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     private bool _initialized;
     private int _customSamplingInterval = 15;
     private bool _limitToFirstThirtySeconds;
+    private RecognitionStreamDiagnostics? _processingDiagnostics;
 
     public AnalyzeViewModel(
         VideoAnalysisService analysis,
@@ -122,6 +124,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
             if (SetProperty(ref _isProcessing, value))
             {
                 OnPropertyChanged(nameof(CanSelectVideo));
+                OnPropertyChanged(nameof(ShowProcessingDiagnostics));
                 RefreshCommands();
             }
         }
@@ -134,14 +137,27 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     public double Progress { get => _progress; private set => SetProperty(ref _progress, value); }
     public string ProgressText { get => _progressText; private set => SetProperty(ref _progressText, value); }
     public string StatusMessage { get => _statusMessage; private set => SetProperty(ref _statusMessage, value); }
+    public RecognitionStreamDiagnostics? ProcessingDiagnostics { get => _processingDiagnostics; private set => SetProperty(ref _processingDiagnostics, value); }
     public ImageSource? CurrentPreview { get => _currentPreview; private set => SetProperty(ref _currentPreview, value); }
-    public AnalyzedVideoFrame? CurrentFrame { get => _currentFrame; private set => SetProperty(ref _currentFrame, value); }
+    public AnalyzedVideoFrame? CurrentFrame
+    {
+        get => _currentFrame;
+        private set
+        {
+            if (SetProperty(ref _currentFrame, value))
+            {
+                OnPropertyChanged(nameof(ShowCurrentDiagnostics));
+            }
+        }
+    }
     public string CurrentFrameTitle { get => _currentFrameTitle; private set => SetProperty(ref _currentFrameTitle, value); }
     public string CurrentFrameDetail { get => _currentFrameDetail; private set => SetProperty(ref _currentFrameDetail, value); }
     public double CurrentPositionFraction { get => _currentPositionFraction; set => SetProperty(ref _currentPositionFraction, value); }
     public IReadOnlyList<double> DetectionMarkers { get => _detectionMarkers; private set => SetProperty(ref _detectionMarkers, value); }
     public IReadOnlyList<double> FramePositions { get => _framePositions; private set => SetProperty(ref _framePositions, value); }
     public bool RecognitionDebugEnabled => _settings.RecognitionDebugEnabled;
+    public bool ShowProcessingDiagnostics => IsProcessing && RecognitionDebugEnabled;
+    public bool ShowCurrentDiagnostics => RecognitionDebugEnabled && CurrentFrame?.Diagnostics is not null;
     public bool UsesCustomSampling => SelectedSampling.Interval is null;
     public string SelectedSamplingDetail => SelectedSampling.Detail;
 
@@ -179,6 +195,8 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     public void RefreshSettings()
     {
         OnPropertyChanged(nameof(RecognitionDebugEnabled));
+        OnPropertyChanged(nameof(ShowProcessingDiagnostics));
+        OnPropertyChanged(nameof(ShowCurrentDiagnostics));
     }
 
     public async Task InitializeAsync()
@@ -200,7 +218,12 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         var previousPath = _stagedPath;
         try
         {
-            _stagedPath = await _analysis.StageAsync(file, CancellationToken.None);
+            _stagedPath = await _analysis.StageAsync(
+                new SelectedVideoFile(
+                    file.FileName,
+                    file.FullPath,
+                    _ => file.OpenReadAsync()),
+                CancellationToken.None);
             SelectedFileName = file.FileName;
             ClearResult();
             StatusMessage = "Ready to process. The video stays on this device.";
@@ -260,6 +283,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         {
             Progress = update.Fraction;
             ProgressText = $"{update.Fraction:P0} · {update.ProcessedFrames:N0} of {update.TotalFrames:N0} frames · total {update.AverageTotalMilliseconds:F0} ms/frame · decode {update.AverageDecodeMilliseconds:F0} ms/frame · recognition {update.AverageRecognitionMilliseconds:F0} ms/frame · {FormatPosition(update.Position)}";
+            ProcessingDiagnostics = update.Diagnostics;
             processingItem.Progress = update.Fraction;
             processingItem.Detail = ProgressText;
         });
@@ -347,25 +371,6 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         {
             CurrentReads.Add($"Confirmed {confirmation.DisplayPlate} · {confirmation.Confidence:P0}");
         }
-        if (RecognitionDebugEnabled && frame.Diagnostics is { } diagnostics)
-        {
-            var timing = diagnostics.Frame;
-            CurrentReads.Add($"Timing · total {diagnostics.TotalMilliseconds:F1} ms · detector {timing.Detector.TotalMilliseconds:F1} ms · OCR {timing.Ocr.TotalMilliseconds:F1} ms · tracking {diagnostics.TrackingMilliseconds:F1} ms");
-            CurrentReads.Add($"Detector · queue {timing.Detector.QueueMilliseconds:F1} ms · prep {timing.Detector.PreprocessingMilliseconds:F1} ms · inference {timing.Detector.InferenceMilliseconds:F1} ms · post {timing.Detector.PostprocessingMilliseconds:F1} ms");
-            CurrentReads.Add($"Frame · {timing.DetectionCount} detections · {timing.OcrAttemptCount} OCR attempts · {timing.ObservationCount} observations · {diagnostics.Tracks.Count} active tracks");
-            foreach (var candidate in timing.Candidates)
-            {
-                var read = string.IsNullOrWhiteSpace(candidate.ReadText) ? "no text" : candidate.ReadText;
-                var ocr = candidate.OcrAttempted
-                    ? $"{read} ({candidate.OcrConfidence:P0}, {candidate.OcrTiming?.TotalMilliseconds:F1} ms)"
-                    : "not attempted";
-                CurrentReads.Add($"Candidate · det {candidate.Detection.Confidence:P0} · OCR {ocr} · quality {candidate.Quality:P0}");
-            }
-            foreach (var association in diagnostics.Associations)
-            {
-                CurrentReads.Add($"Track {ShortTrackId(association.TrackId)} · {AssociationDiagnosticsFormatter.Format(association)}");
-            }
-        }
         if (CurrentReads.Count == 0)
         {
             CurrentReads.Add("No plate observations near this point.");
@@ -410,6 +415,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         _result = null;
         Progress = 0;
         ProgressText = string.Empty;
+        ProcessingDiagnostics = null;
         CurrentPreview = null;
         CurrentFrame = null;
         CurrentReads.Clear();
@@ -517,6 +523,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         var progress = new Progress<VideoAnalysisProgress>(update =>
         {
             Progress = update.Fraction;
+            ProcessingDiagnostics = update.Diagnostics;
             CurrentFrameDetail = $"Adding detection boxes · {update.Fraction:P0} · {update.ProcessedFrames:N0} of {update.TotalFrames:N0} frames";
         });
         try
@@ -588,5 +595,4 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     }
 
     private static string FormatPosition(TimeSpan position) => position.ToString(position.TotalHours >= 1 ? @"h\:mm\:ss\.fff" : @"m\:ss\.fff");
-    private static string ShortTrackId(Guid trackId) => trackId.ToString("N")[..6];
 }

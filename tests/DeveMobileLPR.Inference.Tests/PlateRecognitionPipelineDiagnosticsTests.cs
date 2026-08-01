@@ -30,6 +30,10 @@ public sealed class PlateRecognitionPipelineDiagnosticsTests
         Assert.Equal(string.Empty, result.Diagnostics.Candidates[0].ReadText);
         Assert.False(result.Diagnostics.Candidates[1].OcrAttempted);
         Assert.Null(result.Diagnostics.Candidates[1].OcrTiming);
+        Assert.Equal(new ModelExecutionTiming(0, 1, 2, 1), result.Diagnostics.Detector);
+        Assert.Equal(new ModelExecutionTiming(0, 1, 3, 1), result.Diagnostics.Ocr);
+        Assert.True(result.Diagnostics.CropQualityMilliseconds >= 0);
+        Assert.True(result.Diagnostics.TotalMilliseconds >= result.Diagnostics.CropQualityMilliseconds);
     }
 
     private sealed class FakeDetector : IPlateDetector

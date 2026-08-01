@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentView
+    x:Class="DeveMobileLPR.App.Controls.DriveDiagnosticsPanel"
+    x:DataType="application:DriveDiagnosticsSnapshot"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:controls="clr-namespace:DeveMobileLPR.App.Controls"
+    xmlns:application="clr-namespace:DeveMobileLPR.Application;assembly=DeveMobileLPR.Application">
+    <ContentView.Resources>
+        <Style x:Key="SectionCard" TargetType="Border">
+            <Setter Property="BackgroundColor" Value="{DynamicResource DriveMetric}" />
+            <Setter Property="Padding" Value="10,7" />
+            <Setter Property="Stroke" Value="{DynamicResource Divider}" />
+            <Setter Property="StrokeShape" Value="RoundRectangle 10" />
+        </Style>
+        <Style x:Key="SectionTitle" TargetType="Label">
+            <Setter Property="FontAttributes" Value="Bold" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="TextTransform" Value="Uppercase" />
+        </Style>
+        <Style x:Key="SectionValue" TargetType="Label">
+            <Setter Property="FontAttributes" Value="Bold" />
+            <Setter Property="FontSize" Value="16" />
+        </Style>
+    </ContentView.Resources>
+
+    <Border Padding="12" Style="{StaticResource DriveControlCard}">
+        <VerticalStackLayout Spacing="8">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                <BoxView BackgroundColor="{DynamicResource Primary}" CornerRadius="2" HeightRequest="14" VerticalOptions="Center" WidthRequest="4" />
+                <VerticalStackLayout Grid.Column="1" Spacing="0">
+                    <Label FontAttributes="Bold" FontSize="12" Text="Processing diagnostics" />
+                    <Label FontSize="9" Text="Latest completed frame · all values are independently measured" TextColor="{DynamicResource TextMuted}" />
+                </VerticalStackLayout>
+            </Grid>
+
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="7">
+                <Border Style="{StaticResource SectionCard}" Stroke="{DynamicResource DiagnosticsDecodeAccent}">
+                    <VerticalStackLayout Spacing="1">
+                        <Label Style="{StaticResource SectionTitle}" Text="{Binding Source.Label}" TextColor="{DynamicResource DiagnosticsDecodeAccent}" />
+                        <Label Style="{StaticResource SectionValue}" Text="{Binding Source.IntervalMilliseconds, Converter={StaticResource Milliseconds}}" />
+                        <Label FontSize="9" Text="Time between source frames" TextColor="{DynamicResource TextMuted}" />
+                    </VerticalStackLayout>
+                </Border>
+                <Border Grid.Column="1" Style="{StaticResource SectionCard}" Stroke="{DynamicResource DiagnosticsPreviewAccent}">
+                    <VerticalStackLayout Spacing="1">
+                        <Label Style="{StaticResource SectionTitle}" Text="{Binding Preview.Label}" TextColor="{DynamicResource DiagnosticsPreviewAccent}" />
+                        <Label Style="{StaticResource SectionValue}" Text="{Binding Preview.IntervalMilliseconds, Converter={StaticResource Milliseconds}}" />
+                        <Label FontSize="9" Text="Time between presented frames" TextColor="{DynamicResource TextMuted}" />
+                    </VerticalStackLayout>
+                </Border>
+            </Grid>
+            <controls:RecognitionDiagnosticsDetails BindingContext="{Binding Recognition}" />
+        </VerticalStackLayout>
+    </Border>
+</ContentView>

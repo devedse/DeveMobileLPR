@@ -1657,6 +1657,13 @@
           "Xamarin.Kotlin.StdLib": "2.4.0.1"
         }
       },
+      "devemobilelpr.application": {
+        "type": "Project",
+        "dependencies": {
+          "DeveMobileLPR.Core": "[1.0.0, )",
+          "DeveMobileLPR.Inference": "[1.0.0, )"
+        }
+      },
       "devemobilelpr.core": {
         "type": "Project"
       },
@@ -2180,6 +2187,13 @@
         "type": "Transitive",
         "resolved": "2.1.0",
         "contentHash": "KK+SjNSuKdP+zbavekubi+vaeb1Jo4k87ZF6CMkVWjr6RjJwc8peVtmgzXXDIMy4ZC3ZISyk3llY3q65ISOkBQ=="
+      },
+      "devemobilelpr.application": {
+        "type": "Project",
+        "dependencies": {
+          "DeveMobileLPR.Core": "[1.0.0, )",
+          "DeveMobileLPR.Inference": "[1.0.0, )"
+        }
       },
       "devemobilelpr.core": {
         "type": "Project"

@@ -3,10 +3,11 @@ using Android.Content;
 using Android.Content.PM;
 using Android.Locations;
 using DeveMobileLPR.Recognition;
+using DeveMobileLPR.Application;
 
 namespace DeveMobileLPR.App.Infrastructure;
 
-internal sealed class AndroidLocationTracker : Java.Lang.Object, ILocationListener
+internal sealed class AndroidLocationTracker : Java.Lang.Object, ILocationListener, IDriveLocationTracker
 {
     private readonly Context _context;
     private readonly LocationManager _manager;
@@ -39,6 +40,14 @@ internal sealed class AndroidLocationTracker : Java.Lang.Object, ILocationListen
         _manager.RequestLocationUpdates(LocationManager.GpsProvider, 1_000, 2f, this);
         _running = true;
         return true;
+    }
+
+    public async Task<bool> StartAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var permission = await Permissions.RequestAsync<Permissions.LocationWhenInUse>();
+        cancellationToken.ThrowIfCancellationRequested();
+        return permission == PermissionStatus.Granted && Start();
     }
 
     public void Stop()

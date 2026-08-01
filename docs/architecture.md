@@ -2,6 +2,16 @@
 
 The visual architecture, reusable components, and responsive-layout rules are documented in [DeveMobileLPR UI design system](ui-design-system.md).
 
+## Platform boundary
+
+`DeveMobileLPR.Application` is a plain `net10.0` project: it references Core and Inference, but not MAUI, Android, WinUI, or Storage. It owns the complete Drive and Analyze workflows, their snapshots and diagnostics, recognition-session lifetime, frame backpressure, overlay visibility/projection, and the ports through which a host supplies storage, settings, model creation, video input/decoding, location, dispatch, and device feedback.
+
+The MAUI project is the composition root. Android and Windows register different implementations of `IRecognitionPipelineProvider`, `IDriveVideoInput`, `IVideoFileBackend`, and `IDriveLocationTracker`; ViewModels and shared workflows never select a platform or construct a native implementation. Both Drive and Analyze receive the same platform pipeline provider and the same `RecognitionTuningConfiguration`, so model verification/installation and ONNX pipeline creation cannot drift between modes.
+
+Native UI handlers still own native preview controls and source lifetime. CameraX/Media3 and MediaCapture/Media Foundation remain platform adapters because their lifecycle, permissions, and buffers are genuinely different. Android camera permission is requested by the Android video-input adapter; location permission is requested by the Android location adapter. The shared coordinator sees only explicit success/error data and never references MAUI permissions or infers failure from diagnostic text.
+
+Detection rendering remains native, but `DriveOverlayLayout` performs the shared debug filtering and fit/fill projection used by both renderers. ARGB and BGRA decoded frames use shared Core factories and one YUV color conversion formula. Windows locks `SoftwareBitmap` memory directly and passes its actual stride to the shared BGRA factory, avoiding the previous full-frame managed byte-array allocation on every webcam frame.
+
 ## Resolution before frame rate
 
 License-plate OCR fails when characters occupy too few pixels, so the camera path asks CameraX for 3840×2160 analysis and accepts the nearest device-supported resolution. The configured recognition-rate gate decides which frames are copied from CameraX. This gives the detector multiple observations while preserving character detail without copying every preview frame by default.
@@ -81,9 +91,9 @@ Review previews are decoded lazily from the source video and held in a bounded i
 
 Offline analysis applies backpressure and processes every requested sample. Unlike the live camera's latest-frame slot, it does not drop selected frames. Sampling accepts any positive source-frame interval; the UI provides common presets plus a custom interval. Runs can optionally be limited to the first 30 seconds. When frame-rate metadata is absent, timing is derived from reported frame count and duration before falling back to 30 frames per second.
 
-Recognition diagnostics use milliseconds consistently. Live telemetry reports source, preview, and completed-recognition cadence as milliseconds per frame. Per-recognition diagnostics separately record detector and OCR queue, preprocessing, inference, and postprocessing time, plus every detector candidate (including empty or skipped OCR), tracking time, active tracks, observation counts, current-frame associations, and live latest-slot replacements. Enabling diagnostics in Settings shows these values and candidate/track overlays in Drive and Analyze; analyzed-video JSON retains the compact numeric/text diagnostics but never image pixels.
+Recognition diagnostics use milliseconds consistently. Live telemetry reports source and preview cadence as milliseconds between frames, while AI processing reports the actual stopwatch duration of the latest completed recognition. Per-recognition diagnostics separately record detector and plate-reader wait, input preparation, model execution, and output processing time, plus crop-quality evaluation, every detector candidate (including empty or skipped OCR), tracking time, active tracks, observation counts, current-frame associations, and live latest-slot replacements. Enabling diagnostics in Settings shows the same timing names and candidate/track overlays in Drive and Analyze; analyzed-video JSON retains the compact numeric/text diagnostics but never image pixels.
 
-Analysis progress reports average total, decode, and recognition milliseconds per processed frame. Those cumulative progress values are not persisted. When recognition diagnostics are enabled, compact per-frame model and tracking timings are persisted so runs can be compared later without retaining frames. Windows attempts DirectML for detector and OCR sessions, then falls back to the multi-core CPU provider when DirectML is absent or session creation fails.
+Analysis progress reports average total, decode, and recognition milliseconds per processed frame. Those cumulative progress values are not persisted. When recognition diagnostics are enabled, progress also carries the latest `RecognitionStreamDiagnostics` object so Analyze renders the same structured timing control as Drive without reconstructing individual values in its view model. The same compact per-frame model and tracking diagnostics are persisted so runs can be compared later without retaining frames. Windows attempts DirectML for detector and OCR sessions, then falls back to the multi-core CPU provider when DirectML is absent or session creation fails.
 
 The Windows Media Foundation frame source lives in a separate Windows-only library
 referenced by both the MAUI app and the end-to-end test project. A local video can

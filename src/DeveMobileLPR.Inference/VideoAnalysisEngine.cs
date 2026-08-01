@@ -72,6 +72,7 @@ public sealed class VideoAnalysisEngine : IDisposable
             var stopwatch = Stopwatch.StartNew();
             var decodeElapsed = TimeSpan.Zero;
             var recognitionElapsed = TimeSpan.Zero;
+            RecognitionStreamDiagnostics? latestDiagnostics = null;
 
             for (var sourceFrameIndex = 0; sourceFrameIndex < sourceFrameCount; sourceFrameIndex++)
             {
@@ -91,6 +92,7 @@ public sealed class VideoAnalysisEngine : IDisposable
                     var result = await _processor.ProcessAsync(frame, cancellationToken).ConfigureAwait(false);
                     frames.Add(CreateAnalyzedFrame(sourceFrameIndex, position, result, options.IncludeDiagnostics));
                     recognitionElapsed += stopwatch.Elapsed - stageStartedAt;
+                    latestDiagnostics = options.IncludeDiagnostics ? result.Diagnostics : null;
                 }
 
                 processedFrames++;
@@ -100,7 +102,8 @@ public sealed class VideoAnalysisEngine : IDisposable
                     position,
                     stopwatch.Elapsed,
                     decodeElapsed,
-                    recognitionElapsed));
+                    recognitionElapsed,
+                    latestDiagnostics));
             }
 
             return new VideoAnalysisResult(

@@ -62,10 +62,21 @@
                 <Border Style="{StaticResource StatusCard}">
                     <Label Style="{StaticResource SecondaryText}" Text="{Binding StatusMessage}" />
                 </Border>
+
+                <Border IsVisible="{Binding ShowProcessingDiagnostics}" Padding="10" Style="{StaticResource DriveControlCard}">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Style="{StaticResource FieldCaption}" Text="Live processing diagnostics" />
+                        <ScrollView HorizontalScrollBarVisibility="Never" Orientation="Horizontal">
+                            <controls:RecognitionDiagnosticsDetails
+                                BindingContext="{Binding ProcessingDiagnostics}"
+                                MinimumWidthRequest="760" />
+                        </ScrollView>
+                    </VerticalStackLayout>
+                </Border>
             </VerticalStackLayout>
         </ScrollView>
 
-        <Grid IsVisible="{Binding IsReviewing}" RowDefinitions="Auto,*,Auto,Auto" RowSpacing="8" Style="{StaticResource PageGrid}">
+        <Grid IsVisible="{Binding IsReviewing}" RowDefinitions="Auto,*,Auto,Auto,Auto" RowSpacing="8" Style="{StaticResource PageGrid}">
             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
                 <Button Clicked="CloseReviewClicked" Style="{StaticResource CompactSecondaryButton}" Text="Back" />
                 <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
@@ -119,6 +130,14 @@
                     </ScrollView>
                 </Border>
             </Grid>
+
+            <Border Grid.Row="4" IsVisible="{Binding ShowCurrentDiagnostics}" Padding="10" Style="{StaticResource DriveControlCard}">
+                <ScrollView HorizontalScrollBarVisibility="Never" Orientation="Horizontal">
+                    <controls:RecognitionDiagnosticsDetails
+                        BindingContext="{Binding CurrentFrame.Diagnostics}"
+                        MinimumWidthRequest="760" />
+                </ScrollView>
+            </Border>
         </Grid>
     </Grid>
 </ContentPage>

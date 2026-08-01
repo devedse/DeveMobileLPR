@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentView
+    x:Class="DeveMobileLPR.App.Controls.RecognitionDiagnosticsDetails"
+    x:DataType="recognition:RecognitionStreamDiagnostics"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:recognition="clr-namespace:DeveMobileLPR.Recognition;assembly=DeveMobileLPR.Core">
+    <ContentView.Resources>
+        <Style x:Key="DiagnosticCard" TargetType="Border">
+            <Setter Property="BackgroundColor" Value="{DynamicResource DriveMetric}" />
+            <Setter Property="Padding" Value="10,7" />
+            <Setter Property="Stroke" Value="{DynamicResource Divider}" />
+            <Setter Property="StrokeShape" Value="RoundRectangle 10" />
+        </Style>
+        <Style x:Key="DiagnosticTitle" TargetType="Label">
+            <Setter Property="FontAttributes" Value="Bold" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="TextTransform" Value="Uppercase" />
+        </Style>
+        <Style x:Key="DiagnosticValue" TargetType="Label">
+            <Setter Property="FontAttributes" Value="Bold" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+        <Style x:Key="DiagnosticName" TargetType="Label">
+            <Setter Property="FontSize" Value="9" />
+            <Setter Property="TextColor" Value="{DynamicResource TextMuted}" />
+            <Setter Property="TextTransform" Value="Uppercase" />
+        </Style>
+    </ContentView.Resources>
+
+    <VerticalStackLayout Spacing="7">
+        <Border Style="{StaticResource DiagnosticCard}" Stroke="{DynamicResource Primary}">
+            <Grid ColumnDefinitions="1.2*,*" ColumnSpacing="12">
+                <VerticalStackLayout Spacing="1">
+                    <Label Style="{StaticResource DiagnosticTitle}" Text="AI processing" TextColor="{DynamicResource Primary}" />
+                    <Label FontAttributes="Bold" FontSize="17" Text="{Binding TotalMilliseconds, Converter={StaticResource Milliseconds}}" TextColor="{DynamicResource Primary}" />
+                    <Label FontSize="9" Text="Detector + plate reader + tracking" TextColor="{DynamicResource TextMuted}" />
+                </VerticalStackLayout>
+                <VerticalStackLayout Grid.Column="1" Spacing="1">
+                    <Label Style="{StaticResource DiagnosticName}" Text="Frame pipeline" />
+                    <Label Style="{StaticResource DiagnosticValue}" Text="{Binding Frame.TotalMilliseconds, Converter={StaticResource Milliseconds}}" />
+                    <Label FontSize="9" Text="Before tracking" TextColor="{DynamicResource TextMuted}" />
+                </VerticalStackLayout>
+            </Grid>
+        </Border>
+
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="7">
+            <Border Style="{StaticResource DiagnosticCard}">
+                <VerticalStackLayout Spacing="5">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Label Style="{StaticResource DiagnosticTitle}" Text="Plate detector" TextColor="{DynamicResource DiagnosticsDecodeAccent}" />
+                        <Label Grid.Column="1" Style="{StaticResource DiagnosticValue}" Text="{Binding Frame.Detector.TotalMilliseconds, Converter={StaticResource Milliseconds}}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="7">
+                        <VerticalStackLayout><Label Style="{StaticResource DiagnosticName}" Text="Wait" /><Label Style="{StaticResource DiagnosticValue}" Text="{Binding Frame.Detector.QueueMilliseconds, Converter={StaticResource Milliseconds}}" /></VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="1"><Label Style="{StaticResource DiagnosticName}" Text="Prepare" /><Label Style="{StaticResource DiagnosticValue}" Text="{Binding Frame.Detector.PreprocessingMilliseconds, Converter={StaticResource Milliseconds}}" /></VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="2"><Label Style="{StaticResource DiagnosticName}" Text="Model" /><Label Style="{StaticResource DiagnosticValue}" Text="{Binding Frame.Detector.InferenceMilliseconds, Converter={StaticResource Milliseconds}}" /></VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="3"><Label Style="{StaticResource DiagnosticName}" Text="Output" /><Label Style="{StaticResource DiagnosticValue}" Text="{Binding Frame.Detector.PostprocessingMilliseconds, Converter={StaticResource Milliseconds}}" /></VerticalStackLayout>
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+
+            <Border Grid.Column="1" Style="{StaticResource DiagnosticCard}">
+                <VerticalStackLayout Spacing="5">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Label Style="{StaticResource DiagnosticTitle}" Text="{Binding Frame.OcrAttemptCount, StringFormat='Plate reader ×{0}'}" TextColor="{DynamicResource ValueAccent}" />
+                        <Label Grid.Column="1" Style="{StaticResource DiagnosticValue}" Text="{Binding Frame.Ocr.TotalMilliseconds, Converter={StaticResource Milliseconds}}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="7">
+                        <VerticalStackLayout><Label Style="{StaticResource DiagnosticName}" Text="Wait" /><Label Style="{StaticResource DiagnosticValue}" Text="{Binding Frame.Ocr.QueueMilliseconds, Converter={StaticResource Milliseconds}}" /></VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="1"><Label Style="{StaticResource DiagnosticName}" Text="Prepare" /><Label Style="{StaticResource DiagnosticValue}" Text="{Binding Frame.Ocr.PreprocessingMilliseconds, Converter={StaticResource Milliseconds}}" /></VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="2"><Label Style="{StaticResource DiagnosticName}" Text="Model" /><Label Style="{StaticResource DiagnosticValue}" Text="{Binding Frame.Ocr.InferenceMilliseconds, Converter={StaticResource Milliseconds}}" /></VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="3"><Label Style="{StaticResource DiagnosticName}" Text="Output" /><Label Style="{StaticResource DiagnosticValue}" Text="{Binding Frame.Ocr.PostprocessingMilliseconds, Converter={StaticResource Milliseconds}}" /></VerticalStackLayout>
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
+
+        <Grid ColumnDefinitions="*,*,1.4*" ColumnSpacing="7">
+            <Border Style="{StaticResource DiagnosticCard}">
+                <VerticalStackLayout Spacing="1">
+                    <Label Style="{StaticResource DiagnosticName}" Text="Crop quality" />
+                    <Label Style="{StaticResource DiagnosticValue}" Text="{Binding Frame.CropQualityMilliseconds, Converter={StaticResource Milliseconds}}" />
+                </VerticalStackLayout>
+            </Border>
+            <Border Grid.Column="1" Style="{StaticResource DiagnosticCard}" Stroke="{DynamicResource DiagnosticsPreviewAccent}">
+                <VerticalStackLayout Spacing="1">
+                    <Label Style="{StaticResource DiagnosticName}" Text="Tracking" TextColor="{DynamicResource DiagnosticsPreviewAccent}" />
+                    <Label Style="{StaticResource DiagnosticValue}" Text="{Binding TrackingMilliseconds, Converter={StaticResource Milliseconds}}" />
+                </VerticalStackLayout>
+            </Border>
+            <Border Grid.Column="2" Style="{StaticResource DiagnosticCard}">
+                <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="7">
+                    <VerticalStackLayout><Label Style="{StaticResource DiagnosticName}" Text="Detected" /><Label Style="{StaticResource DiagnosticValue}" Text="{Binding Frame.DetectionCount}" /></VerticalStackLayout>
+                    <VerticalStackLayout Grid.Column="1"><Label Style="{StaticResource DiagnosticName}" Text="Reads" /><Label Style="{StaticResource DiagnosticValue}" Text="{Binding Frame.ObservationCount}" /></VerticalStackLayout>
+                    <VerticalStackLayout Grid.Column="2"><Label Style="{StaticResource DiagnosticName}" Text="Tracks" /><Label Style="{StaticResource DiagnosticValue}" Text="{Binding Tracks.Count}" /></VerticalStackLayout>
+                    <VerticalStackLayout Grid.Column="3"><Label Style="{StaticResource DiagnosticName}" Text="Replaced" /><Label Style="{StaticResource DiagnosticValue}" Text="{Binding ReplacedInputFrames}" /></VerticalStackLayout>
+                </Grid>
+            </Border>
+        </Grid>
+    </VerticalStackLayout>
+</ContentView>

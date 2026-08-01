@@ -28,6 +28,7 @@ public sealed class JsonVideoAnalysisRepositoryTests : IDisposable
         Assert.Equal(new BoundingBox(100, 200, 300, 260), Assert.Single(frame.Reads).Bounds);
         Assert.Equal(new BoundingBox(105, 202, 298, 258), Assert.Single(frame.Confirmations).Bounds);
         Assert.Equal(42, frame.Diagnostics?.Frame.TotalMilliseconds);
+        Assert.Equal(0.75, frame.Diagnostics?.Frame.CropQualityMilliseconds);
         Assert.Equal(3, Assert.Single(frame.Diagnostics!.Tracks).ObservationCount);
         Assert.Equal("AB1234", Assert.Single(frame.Diagnostics.Frame.Candidates).ReadText);
         var association = Assert.Single(frame.Diagnostics.Associations);
@@ -103,6 +104,7 @@ public sealed class JsonVideoAnalysisRepositoryTests : IDisposable
                         1,
                         1)
                     {
+                        CropQualityMilliseconds = 0.75,
                         Candidates = [new PlateCandidateDiagnostics(
                             new PlateDetection(new BoundingBox(100, 200, 300, 260), 0.9f),
                             0.9f,

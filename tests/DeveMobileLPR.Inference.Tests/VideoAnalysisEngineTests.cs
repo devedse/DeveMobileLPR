@@ -18,7 +18,9 @@ public sealed class VideoAnalysisEngineTests
             source,
             "video.mp4",
             "Video",
-            new VideoFrameSampling(2),
+            new VideoAnalysisOptions(
+                new VideoFrameSampling(2),
+                IncludeDiagnostics: true),
             new InlineProgress<VideoAnalysisProgress>(progress.Add),
             CancellationToken.None);
 
@@ -31,6 +33,7 @@ public sealed class VideoAnalysisEngineTests
         Assert.True(progress[^1].RecognitionElapsed > TimeSpan.Zero);
         Assert.True(progress[^1].AverageDecodeMilliseconds > 0);
         Assert.True(progress[^1].AverageRecognitionMilliseconds > 0);
+        Assert.Same(result.Frames[^1].Diagnostics, progress[^1].Diagnostics);
         Assert.Equal([0L, 2L], result.Frames.Select(static frame => frame.SourceFrameIndex));
         Assert.Equal(source.Timeline, new VideoFrameTimeline(result.Duration, result.SourceFrameRate, result.SourceFrameCount));
         Assert.Equal(new VideoFrameSampling(2), result.Sampling);

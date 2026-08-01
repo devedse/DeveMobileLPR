@@ -2,7 +2,7 @@ using DeveMobileLPR.Imaging;
 using DeveMobileLPR.Inference;
 using DeveMobileLPR.Recognition;
 
-namespace DeveMobileLPR.App.Recognition;
+namespace DeveMobileLPR.Application;
 
 internal sealed record RecognitionProgress(RecognitionStreamResult Result)
 {
@@ -10,9 +10,7 @@ internal sealed record RecognitionProgress(RecognitionStreamResult Result)
     public RecognitionStreamDiagnostics Diagnostics => Result.Diagnostics;
 }
 
-internal sealed record RecognitionConfirmation(
-    Sighting Sighting,
-    ConfirmedPlate Confirmation);
+internal sealed record RecognitionConfirmation(Sighting Sighting, ConfirmedPlate Confirmation);
 
 internal sealed class RecognitionSession : IAsyncDisposable
 {
@@ -47,6 +45,7 @@ internal sealed class RecognitionSession : IAsyncDisposable
     public event EventHandler<Exception>? Failed;
 
     public bool Submit(Yuv420Frame frame) => _frames.TryWrite(frame);
+
     public void ResetTracking()
     {
         _frames.ResetStatistics();
@@ -69,6 +68,7 @@ internal sealed class RecognitionSession : IAsyncDisposable
                 {
                     _processor.Reset();
                 }
+
                 var result = await _processor.ProcessAsync(frame, _cancellation.Token).ConfigureAwait(false);
                 result = result with
                 {
@@ -80,8 +80,15 @@ internal sealed class RecognitionSession : IAsyncDisposable
                 Progress?.Invoke(this, new RecognitionProgress(result));
                 foreach (var confirmation in result.Confirmations)
                 {
-                    var vehicle = await _vehicleLookup.FindAsync(confirmation.Consensus.NormalizedPlate, _cancellation.Token).ConfigureAwait(false);
-                    var sighting = await _repository.AddOrMergeAsync(confirmation, _location(), vehicle, _tripId(), _cancellation.Token).ConfigureAwait(false);
+                    var vehicle = await _vehicleLookup.FindAsync(
+                        confirmation.Consensus.NormalizedPlate,
+                        _cancellation.Token).ConfigureAwait(false);
+                    var sighting = await _repository.AddOrMergeAsync(
+                        confirmation,
+                        _location(),
+                        vehicle,
+                        _tripId(),
+                        _cancellation.Token).ConfigureAwait(false);
                     PlateConfirmed?.Invoke(this, new RecognitionConfirmation(sighting, confirmation));
                 }
             }

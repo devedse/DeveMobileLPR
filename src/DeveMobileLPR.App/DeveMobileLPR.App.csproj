@@ -33,6 +33,7 @@
     <RuntimeIdentifier>$(RuntimeIdentifierOverride)</RuntimeIdentifier>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\DeveMobileLPR.Application\DeveMobileLPR.Application.csproj" />
     <ProjectReference Include="..\DeveMobileLPR.Core\DeveMobileLPR.Core.csproj" />
     <ProjectReference Include="..\DeveMobileLPR.Inference\DeveMobileLPR.Inference.csproj" />
     <ProjectReference Include="..\DeveMobileLPR.Storage\DeveMobileLPR.Storage.csproj" />
@@ -79,8 +80,6 @@
     <Compile Remove="Infrastructure\AndroidLocationTracker.cs" />
     <Compile Remove="Infrastructure\AndroidModelInstaller.cs" />
     <Compile Remove="Platforms\Android\**\*.cs" />
-    <Compile Remove="Services\DriveCoordinator.cs" />
-    <Compile Remove="Services\VideoAnalysisService.cs" />
   </ItemGroup>
   <Target Name="RemoveDuplicateDirectMLPublishAsset"
           BeforeTargets="_HandleFileConflictsForPublish"

@@ -1,6 +1,7 @@
 using DeveMobileLPR.App.Controls;
 using DeveMobileLPR.App.Platforms.Windows;
 using DeveMobileLPR.App.Services;
+using DeveMobileLPR.Application;
 using DeveMobileLPR.Geometry;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.Handlers;
@@ -55,7 +56,6 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, WinUIGri
         _coordinator.AttachCamera(_source);
         _coordinator.SnapshotChanged += SnapshotChanged;
         _overlay.Update(_coordinator.Snapshot);
-        _ = InitializeSourceAsync(_source, _coordinator, settings.CameraId);
         return root;
     }
 
@@ -67,22 +67,6 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, WinUIGri
         AspectScaleMode.Fill => Microsoft.UI.Xaml.Media.Stretch.UniformToFill,
         _ => throw new ArgumentOutOfRangeException()
     };
-
-    private static async Task InitializeSourceAsync(
-        WindowsWebcamFrameSource source,
-        DriveCoordinator coordinator,
-        string cameraId)
-    {
-        try
-        {
-            await source.InitializeAsync(cameraId);
-            await coordinator.ResumeCameraAsync(source);
-        }
-        catch (Exception exception)
-        {
-            source.ReportInitializationFailure(exception);
-        }
-    }
 
     protected override void DisconnectHandler(WinUIGrid platformView)
     {

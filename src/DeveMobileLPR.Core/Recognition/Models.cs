@@ -74,6 +74,7 @@ public sealed record RecognitionFrameDiagnostics(
         0);
 
     public IReadOnlyList<PlateCandidateDiagnostics> Candidates { get; init; } = [];
+    public double CropQualityMilliseconds { get; init; }
 }
 
 public sealed record FrameRecognition(

@@ -5,7 +5,7 @@ using Android.Views;
 using AndroidX.Media3.Common;
 using AndroidX.Media3.ExoPlayer;
 using AndroidX.Media3.ExoPlayer.Video;
-using DeveMobileLPR.App.Services;
+using DeveMobileLPR.Application;
 using DeveMobileLPR.Imaging;
 using DeveMobileLPR.Streaming;
 using Media3Format = AndroidX.Media3.Common.Format;
@@ -25,8 +25,8 @@ internal sealed class AndroidHlsFrameSource : Java.Lang.Object, TextureView.ISur
     private readonly Func<int> _recognitionFramesPerSecond;
     private readonly Func<Yuv420Frame, bool> _submitFrame;
     private readonly FrameRateGate _recognitionFrameGate = new(timestampFrequency: 1000);
-    private readonly VideoMetadataListener _metadataListener;
-    private readonly PlayerErrorListener _playerErrorListener;
+    private readonly AndroidHlsVideoMetadataListener _metadataListener;
+    private readonly AndroidHlsPlayerErrorListener _playerErrorListener;
     private IExoPlayer? _player;
     private Surface? _surface;
     private TaskCompletionSource? _firstFrame;
@@ -52,8 +52,8 @@ internal sealed class AndroidHlsFrameSource : Java.Lang.Object, TextureView.ISur
         _streamUrl = streamUrl;
         _recognitionFramesPerSecond = recognitionFramesPerSecond;
         _submitFrame = submitFrame;
-        _metadataListener = new VideoMetadataListener(OnVideoFrameDecoded);
-        _playerErrorListener = new PlayerErrorListener(OnPlayerError);
+        _metadataListener = new AndroidHlsVideoMetadataListener(OnVideoFrameDecoded);
+        _playerErrorListener = new AndroidHlsPlayerErrorListener(OnPlayerError);
         _preview.SurfaceTextureListener = this;
     }
 
@@ -345,65 +345,4 @@ internal sealed class AndroidHlsFrameSource : Java.Lang.Object, TextureView.ISur
         base.Dispose();
     }
 
-    private sealed class VideoMetadataListener(Action<Media3Format> onFrame) : Java.Lang.Object, IVideoFrameMetadataListener
-    {
-        public void OnVideoFrameAboutToBeRendered(
-            long presentationTimeUs,
-            long releaseTimeNs,
-            Media3Format? format,
-            Android.Media.MediaFormat? mediaFormat)
-        {
-            if (format is not null)
-            {
-                onFrame(format);
-            }
-        }
-    }
-
-    private sealed class PlayerErrorListener(Action<PlaybackException> onError) : Java.Lang.Object, IPlayerListener
-    {
-        public void OnPlayerError(PlaybackException? error)
-        {
-            if (error is not null)
-            {
-                onError(error);
-            }
-        }
-    }
-}
-
-internal sealed class AndroidVideoTextureView(Context context) : TextureView(context)
-{
-    private float _videoAspectRatio;
-
-    public void SetVideoAspectRatio(float value)
-    {
-        if (value <= 0 || Math.Abs(_videoAspectRatio - value) < 0.001f)
-        {
-            return;
-        }
-        _videoAspectRatio = value;
-        RequestLayout();
-    }
-
-    protected override void OnMeasure(int widthMeasureSpec, int heightMeasureSpec)
-    {
-        var width = MeasureSpec.GetSize(widthMeasureSpec);
-        var height = MeasureSpec.GetSize(heightMeasureSpec);
-        if (_videoAspectRatio <= 0 || width <= 0 || height <= 0)
-        {
-            base.OnMeasure(widthMeasureSpec, heightMeasureSpec);
-            return;
-        }
-
-        if ((float)width / height > _videoAspectRatio)
-        {
-            width = Math.Max(1, (int)Math.Round(height * _videoAspectRatio));
-        }
-        else
-        {
-            height = Math.Max(1, (int)Math.Round(width / _videoAspectRatio));
-        }
-        SetMeasuredDimension(width, height);
-    }
 }

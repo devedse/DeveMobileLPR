@@ -43,7 +43,7 @@ public static class ArgbFrameFactory
                 {
                     var pixel = argb[y * width + x];
                     GetRgb(pixel, out var red, out var green, out var blue);
-                    yPlane[y * width + x] = Luma(red, green, blue);
+                    yPlane[y * width + x] = YuvColor.Luma(red, green, blue);
                 }
             }
 
@@ -80,8 +80,8 @@ public static class ArgbFrameFactory
                     }
 
                     var index = chromaY * chromaWidth + chromaX;
-                    uPlane[index] = ChromaBlue(red / samples, green / samples, blue / samples);
-                    vPlane[index] = ChromaRed(red / samples, green / samples, blue / samples);
+                    uPlane[index] = YuvColor.ChromaBlue(red / samples, green / samples, blue / samples);
+                    vPlane[index] = YuvColor.ChromaRed(red / samples, green / samples, blue / samples);
                 }
             }
 
@@ -123,14 +123,4 @@ public static class ArgbFrameFactory
         blue = argb & 0xff;
     }
 
-    private static byte Luma(int red, int green, int blue) =>
-        Clamp(((66 * red + 129 * green + 25 * blue + 128) >> 8) + 16);
-
-    private static byte ChromaBlue(int red, int green, int blue) =>
-        Clamp(((-38 * red - 74 * green + 112 * blue + 128) >> 8) + 128);
-
-    private static byte ChromaRed(int red, int green, int blue) =>
-        Clamp(((112 * red - 94 * green - 18 * blue + 128) >> 8) + 128);
-
-    private static byte Clamp(int value) => (byte)Math.Clamp(value, 0, 255);
 }
