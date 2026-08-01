@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>DeveMobileLPR.Application</RootNamespace>
+    <AssemblyName>DeveMobileLPR.Application</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../DeveMobileLPR.Core/DeveMobileLPR.Core.csproj" />
+    <ProjectReference Include="../DeveMobileLPR.Inference/DeveMobileLPR.Inference.csproj" />
+  </ItemGroup>
+</Project>

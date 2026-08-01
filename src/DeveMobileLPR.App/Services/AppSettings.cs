@@ -1,6 +1,8 @@
+using DeveMobileLPR.Application;
+
 namespace DeveMobileLPR.App.Services;
 
-internal sealed class AppSettings
+internal sealed class AppSettings : IDriveSettings
 {
     private const string TrackLocationKey = "track_location";
     private const string ShowGuideKey = "show_road_guide";
@@ -8,6 +10,7 @@ internal sealed class AppSettings
     private const string ZoomKey = "camera_zoom";
     private const string CameraKey = "camera_id";
     private const string RecognitionFramesPerSecondKey = "recognition_frames_per_second";
+    private const string RecognitionDebugKey = "recognition_debug";
     private const int DefaultRecognitionFramesPerSecond = 4;
     private string _networkStreamUrl = string.Empty;
 
@@ -48,6 +51,12 @@ internal sealed class AppSettings
         set => Preferences.Default.Set(
             RecognitionFramesPerSecondKey,
             NormalizeRecognitionFramesPerSecond(value));
+    }
+
+    public bool RecognitionDebugEnabled
+    {
+        get => Preferences.Default.Get(RecognitionDebugKey, false);
+        set => Preferences.Default.Set(RecognitionDebugKey, value);
     }
 
     public string NetworkStreamUrl

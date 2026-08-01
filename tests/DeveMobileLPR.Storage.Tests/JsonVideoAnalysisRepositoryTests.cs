@@ -27,6 +27,14 @@ public sealed class JsonVideoAnalysisRepositoryTests : IDisposable
         Assert.Equal(720, frame.SourceHeight);
         Assert.Equal(new BoundingBox(100, 200, 300, 260), Assert.Single(frame.Reads).Bounds);
         Assert.Equal(new BoundingBox(105, 202, 298, 258), Assert.Single(frame.Confirmations).Bounds);
+        Assert.Equal(42, frame.Diagnostics?.Frame.TotalMilliseconds);
+        Assert.Equal(0.75, frame.Diagnostics?.Frame.CropQualityMilliseconds);
+        Assert.Equal(3, Assert.Single(frame.Diagnostics!.Tracks).ObservationCount);
+        Assert.Equal("AB1234", Assert.Single(frame.Diagnostics.Frame.Candidates).ReadText);
+        var association = Assert.Single(frame.Diagnostics.Associations);
+        Assert.Equal(PlateAssociationKind.PredictedMotion, association.Kind);
+        Assert.Equal(new BoundingBox(110, 205, 303, 261), association.PredictedBounds);
+        Assert.Equal(0.83f, association.Score);
         var json = await File.ReadAllTextAsync(Assert.Single(Directory.GetFiles(_directory, $"{newer.Id:N}.json")));
         Assert.DoesNotContain("preview", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("image", json, StringComparison.OrdinalIgnoreCase);
@@ -86,5 +94,52 @@ public sealed class JsonVideoAnalysisRepositoryTests : IDisposable
                 [new AnalyzedPlateConfirmation("AB1234", "AB-12-34", 0.95f, 3, new BoundingBox(105, 202, 298, 258))],
                 1280,
                 720)
+            {
+                Diagnostics = new RecognitionStreamDiagnostics(
+                    new RecognitionFrameDiagnostics(
+                        42,
+                        new ModelExecutionTiming(0, 2, 20, 1),
+                        new ModelExecutionTiming(0, 3, 14, 1),
+                        1,
+                        1,
+                        1)
+                    {
+                        CropQualityMilliseconds = 0.75,
+                        Candidates = [new PlateCandidateDiagnostics(
+                            new PlateDetection(new BoundingBox(100, 200, 300, 260), 0.9f),
+                            0.9f,
+                            true,
+                            "AB1234",
+                            0.95f,
+                            new ModelExecutionTiming(0, 3, 14, 1))]
+                    },
+                    1,
+                    [new PlateTrackSnapshot(
+                        Guid.NewGuid(),
+                        analyzedAt,
+                        analyzedAt,
+                        new BoundingBox(100, 200, 300, 260),
+                        3,
+                        true,
+                        40,
+                        "AB1234",
+                        0.9f,
+                        0.95f,
+                        0.9f)],
+                    [new PlateTrackAssociation(
+                        Guid.NewGuid(),
+                        40,
+                        false,
+                        0.2f)
+                    {
+                        Kind = PlateAssociationKind.PredictedMotion,
+                        PredictedBounds = new BoundingBox(110, 205, 303, 261),
+                        PredictedIntersectionOverUnion = 0.65f,
+                        FrameCenterDistance = 0.01f,
+                        ScaleRatio = 1.05f,
+                        TextEditDistance = 1,
+                        Score = 0.83f
+                    }])
+            }
         ]);
 }

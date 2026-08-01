@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>DeveMobileLPR.EndToEnd.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/DeveMobileLPR.Inference/DeveMobileLPR.Inference.csproj" />
+    <ProjectReference Include="../../src/DeveMobileLPR.Video.Windows/DeveMobileLPR.Video.Windows.csproj" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+    <PackageReference Include="coverlet.collector" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="../../artifacts/models/yolo-v9-s-608-license-plates-end2end.onnx"
+             Link="models/yolo-v9-s-608-license-plates-end2end.onnx"
+             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../artifacts/models/cct_s_v2_global.onnx"
+             Link="models/cct_s_v2_global.onnx"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

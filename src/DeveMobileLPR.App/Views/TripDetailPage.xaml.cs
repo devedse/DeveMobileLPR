@@ -7,7 +7,7 @@ namespace DeveMobileLPR.App.Views;
 public partial class TripDetailPage : ContentPage
 {
     private readonly TripDetailViewModel _viewModel;
-    private readonly SqliteSightingRepository _repository;
+    private readonly ISightingRepository _repository;
 
     internal TripDetailPage(HistoryViewModel history, long tripId)
     {

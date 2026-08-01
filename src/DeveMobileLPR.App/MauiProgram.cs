@@ -1,8 +1,11 @@
 using DeveMobileLPR.App.Views;
 using DeveMobileLPR.App.Controls;
 using DeveMobileLPR.App.Services;
+using DeveMobileLPR.Application;
 using DeveMobileLPR.Storage;
+using DeveMobileLPR.Recognition;
 using DeveMobileLPR.App.ViewModels;
+using DeveMobileLPR.App.Infrastructure;
 
 namespace DeveMobileLPR.App;
 
@@ -18,8 +21,26 @@ public static class MauiProgram
         builder.ConfigureMauiHandlers(handlers => handlers.AddHandler<CameraPreview, CameraPreviewHandler>());
     #endif
         builder.Services.AddSingleton<AppSettings>();
+        builder.Services.AddSingleton<IDriveSettings>(services => services.GetRequiredService<AppSettings>());
+        builder.Services.AddSingleton<RecognitionTuningConfiguration>();
         builder.Services.AddSingleton<RdwDatabaseService>();
+        builder.Services.AddSingleton<IVehicleDataStatus>(services => services.GetRequiredService<RdwDatabaseService>());
         builder.Services.AddSingleton(_ => new SqliteSightingRepository(Path.Combine(FileSystem.AppDataDirectory, "sightings.sqlite")));
+        builder.Services.AddSingleton<ISightingRepository>(services => services.GetRequiredService<SqliteSightingRepository>());
+        builder.Services.AddSingleton<IVehicleLookup>(services =>
+            new AppVehicleLookup(services.GetRequiredService<RdwDatabaseService>().DatabasePath));
+        builder.Services.AddSingleton<IApplicationDispatcher, MauiApplicationDispatcher>();
+        builder.Services.AddSingleton<IDeviceExperience, MauiDeviceExperience>();
+    #if ANDROID
+        builder.Services.AddSingleton<IDriveLocationTracker>(_ =>
+            new AndroidLocationTracker(global::Android.App.Application.Context));
+        builder.Services.AddSingleton<IRecognitionPipelineProvider, AndroidRecognitionPipelineProvider>();
+        builder.Services.AddSingleton<IVideoFileBackend, AndroidVideoFileBackend>();
+    #elif WINDOWS
+        builder.Services.AddSingleton<IDriveLocationTracker, NoOpDriveLocationTracker>();
+        builder.Services.AddSingleton<IRecognitionPipelineProvider, WindowsRecognitionPipelineProvider>();
+        builder.Services.AddSingleton<IVideoFileBackend, WindowsVideoFileBackend>();
+    #endif
         builder.Services.AddSingleton<DriveCoordinator>();
         builder.Services.AddSingleton<VideoAnalysisService>();
         builder.Services.AddSingleton(_ => new JsonVideoAnalysisRepository(Path.Combine(FileSystem.AppDataDirectory, "video-analyses")));

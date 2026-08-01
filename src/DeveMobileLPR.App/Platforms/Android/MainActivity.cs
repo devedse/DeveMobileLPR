@@ -14,7 +14,7 @@ public sealed class MainActivity : MauiAppCompatActivity
 {
     protected override void OnStop()
     {
-        if (!IsChangingConfigurations && IPlatformApplication.Current?.Services.GetService<Services.DriveCoordinator>() is { Snapshot.IsDriving: true } coordinator)
+        if (!IsChangingConfigurations && IPlatformApplication.Current?.Services.GetService<DeveMobileLPR.Application.DriveCoordinator>() is { Snapshot.IsDriving: true } coordinator)
         {
             _ = coordinator.StopDriveAsync();
         }

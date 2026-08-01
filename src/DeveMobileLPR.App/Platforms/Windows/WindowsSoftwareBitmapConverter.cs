@@ -1,90 +1,49 @@
-using System.Buffers;
+using System.Runtime.InteropServices;
 using DeveMobileLPR.Imaging;
 using Windows.Graphics.Imaging;
-using Windows.Storage.Streams;
 
 namespace DeveMobileLPR.App.Platforms.Windows;
 
 internal static class WindowsSoftwareBitmapConverter
 {
-    public static Yuv420Frame ToYuv420Frame(SoftwareBitmap bitmap, long sequence, DateTimeOffset timestamp)
+    public static unsafe Yuv420Frame ToYuv420Frame(
+        SoftwareBitmap bitmap,
+        long sequence,
+        DateTimeOffset timestamp)
     {
-        var width = bitmap.PixelWidth;
-        var height = bitmap.PixelHeight;
-        var pixelCount = checked(width * height);
-        var bgraLength = checked(pixelCount * 4);
-        var chromaWidth = (width + 1) / 2;
-        var chromaHeight = (height + 1) / 2;
-        var chromaLength = checked(chromaWidth * chromaHeight);
-        var buffer = new global::Windows.Storage.Streams.Buffer(checked((uint)bgraLength));
-        bitmap.CopyToBuffer(buffer);
-        var pixels = new byte[bgraLength];
-        var yOwner = MemoryPool<byte>.Shared.Rent(pixelCount);
-        var uOwner = MemoryPool<byte>.Shared.Rent(chromaLength);
-        var vOwner = MemoryPool<byte>.Shared.Rent(chromaLength);
-        try
+        ArgumentNullException.ThrowIfNull(bitmap);
+        if (bitmap.BitmapPixelFormat != BitmapPixelFormat.Bgra8)
         {
-            using var reader = DataReader.FromBuffer(buffer);
-            reader.ReadBytes(pixels);
-            var yPlane = yOwner.Memory.Span[..pixelCount];
-            var uPlane = uOwner.Memory.Span[..chromaLength];
-            var vPlane = vOwner.Memory.Span[..chromaLength];
-            for (var y = 0; y < height; y++)
-            {
-                for (var x = 0; x < width; x++)
-                {
-                    var offset = (y * width + x) * 4;
-                    var blue = pixels[offset];
-                    var green = pixels[offset + 1];
-                    var red = pixels[offset + 2];
-                    yPlane[y * width + x] = Clamp((66 * red + 129 * green + 25 * blue + 128 >> 8) + 16);
-                }
-            }
-
-            for (var y = 0; y < height; y += 2)
-            {
-                for (var x = 0; x < width; x += 2)
-                {
-                    var offset = (y * width + x) * 4;
-                    var blue = pixels[offset];
-                    var green = pixels[offset + 1];
-                    var red = pixels[offset + 2];
-                    var chromaIndex = y / 2 * chromaWidth + x / 2;
-                    uPlane[chromaIndex] = Clamp((-38 * red - 74 * green + 112 * blue + 128 >> 8) + 128);
-                    vPlane[chromaIndex] = Clamp((112 * red - 94 * green - 18 * blue + 128 >> 8) + 128);
-                }
-            }
-
-            var frame = new Yuv420Frame(
-                sequence,
-                timestamp,
-                width,
-                height,
-                0,
-                yOwner,
-                pixelCount,
-                width,
-                1,
-                uOwner,
-                chromaLength,
-                chromaWidth,
-                1,
-                vOwner,
-                chromaLength,
-                chromaWidth,
-                1);
-            yOwner = null!;
-            uOwner = null!;
-            vOwner = null!;
-            return frame;
+            throw new ArgumentException("The software bitmap must use BGRA8 pixels.", nameof(bitmap));
         }
-        finally
+
+        using var buffer = bitmap.LockBuffer(BitmapBufferAccessMode.Read);
+        using var reference = buffer.CreateReference();
+        ((IMemoryBufferByteAccess)reference).GetBuffer(out var data, out var capacity);
+        var plane = buffer.GetPlaneDescription(0);
+        var requiredLength = checked(plane.Stride * bitmap.PixelHeight);
+        if (plane.StartIndex < 0
+            || requiredLength < 0
+            || checked((uint)(plane.StartIndex + requiredLength)) > capacity)
         {
-            yOwner?.Dispose();
-            uOwner?.Dispose();
-            vOwner?.Dispose();
+            throw new InvalidDataException("The software bitmap exposes an invalid BGRA buffer layout.");
         }
+
+        var pixels = new ReadOnlySpan<byte>(data + plane.StartIndex, requiredLength);
+        return BgraFrameFactory.Create(
+            pixels,
+            bitmap.PixelWidth,
+            bitmap.PixelHeight,
+            plane.Stride,
+            sequence,
+            timestamp);
     }
 
-    private static byte Clamp(int value) => (byte)Math.Clamp(value, 0, 255);
+    [ComImport]
+    [Guid("5B0D3235-4DBA-4D44-8656-1D76863FA917")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private unsafe interface IMemoryBufferByteAccess
+    {
+        void GetBuffer(out byte* value, out uint capacity);
+    }
 }

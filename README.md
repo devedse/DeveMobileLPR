@@ -9,14 +9,15 @@ The first implementation targets Android because direct CameraX access gives the
 - Direct CameraX preview and YUV analysis, requesting a practical 3840×2160 stream with device-specific fallback.
 - Live Windows webcam preview and frame analysis with camera selection and latest-frame backpressure.
 - A full-screen, low-distraction Drive mode with live plate boxes, OCR text, RDW vehicle labels, camera selection, 1×–4× zoom, and a visible road-region guide.
-- Latest-frame-only ingestion at up to four high-resolution samples per second. Slow inference drops stale frames instead of consuming more memory.
+- Latest-frame-only ingestion with configurable 2, 4, 8, or 12 frame-per-second limits plus an unlimited option. Slow inference drops stale frames instead of consuming more memory.
 - MIT-licensed YOLOv9-S 608 plate detection and CCT-S V2 global OCR through ONNX Runtime.
 - Direct YUV-to-model sampling: there is no full-frame RGB bitmap allocation.
-- IoU tracking and confidence/quality-weighted multi-frame consensus. A plate needs at least three supporting frames and character-level majority support.
+- Hybrid plate tracking using weighted OCR identity, timestamp-aware motion prediction, geometry gates, and global one-to-one assignment. Complete Dutch plates can confirm from two exceptionally strong exact reads; all other cases retain the conservative three-frame confidence/quality-weighted consensus.
 - Dutch sidecode validation and official three-group formatting for sidecodes 1–14.
 - Local SQLite trips, filtered route traces, duplicate merging within a drive, a searchable vehicle library, daily/drive statistics, CSV export, optional GPS, and “most expensive car” highlights.
-- Recorded-video analysis on Android and Windows with scaled decoding, temporal consensus, a unified processing/history list, lazy previews, frame-snapped timelines, and plate-based seeking.
-- .NET MAUI Shell navigation with Drive, History, and Settings surfaces plus trip and vehicle detail views.
+- Recorded-video analysis on Android and Windows using the same recognition/tracking processor as Drive mode, full-resolution OCR crops, configurable frame sampling, optional 30-second diagnostic runs, lazy previews, frame-snapped timelines, and plate-based seeking.
+- Opt-in recognition diagnostics with millisecond stage timings, track IDs, associations, and overlays in both live and recorded-video views.
+- .NET MAUI Shell navigation with Drive, History, and Settings surfaces plus trip and vehicle detail views. Settings includes a read-only, sectioned view of every recognition tuning value currently shared by live and recorded analysis.
 - A resumable C# console downloader that builds the app's indexed SQLite database directly from official RDW Open Data.
 - Import of the generated RDW SQLite database through Android's document picker. Imports are validated and replaced atomically.
 - Model integrity verification at download time and before bundled assets are used on Android or Windows.
@@ -38,7 +39,7 @@ road ROI → YOLOv9 detector (RGB CHW float, 608×608)
         ├─ plate crop → CCT OCR (RGB NHWC uint8, 128×64)
         │
         ▼
-IoU tracks → 3+ frame weighted consensus → Dutch validation
+hybrid OCR/motion tracks → 3+ frame weighted consensus → Dutch validation
         │
         ├─ optional indexed RDW lookup
         ▼
@@ -94,6 +95,23 @@ To run only the model check:
 $env:DEVEMOBILELPR_MODEL_DIR = (Resolve-Path ./artifacts/models).Path
 dotnet test ./tests/DeveMobileLPR.Inference.Tests -c Release --filter 'Category=Model'
 ```
+
+To replay a real video through the production Windows decoder, ONNX models, tracking,
+and consensus pipeline, set a local fixture path and run the opt-in end-to-end test:
+
+```powershell
+$env:DEVEMOBILELPR_E2E_VIDEO = 'C:\path\to\video.webm'
+$env:DEVEMOBILELPR_E2E_DURATION_SECONDS = '30'
+$env:DEVEMOBILELPR_E2E_SAMPLE_INTERVAL = '15'
+$env:DEVEMOBILELPR_E2E_ALLOW_STRONG_EXACT_PAIR = 'true' # optional; production default
+$env:DEVEMOBILELPR_E2E_REPORT = 'C:\XGitPrivate\DeveMobileLPRStuff\Investigation-RecognitionReplay\recognition-replay.json' # optional
+dotnet test ./tests/DeveMobileLPR.EndToEnd.Tests -c Debug --filter 'FullyQualifiedName~RealVideoRecognitionReplayTests' --logger 'console;verbosity=detailed'
+```
+
+Duration defaults to 30 seconds. When no interval is specified, the replay derives
+one that is closest to two analyzed frames per second from the video's reported
+frame rate. The large video fixture remains outside Git; a missing
+`DEVEMOBILELPR_E2E_VIDEO` causes only this local-fixture test to be skipped.
 
 Model binaries are build inputs and are ignored by Git. Their URLs, sizes, and hashes are pinned in both `ModelCatalog` and `eng/Download-Models.ps1`; details are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 

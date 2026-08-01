@@ -1,12 +1,14 @@
 using DeveMobileLPR.Storage;
+using DeveMobileLPR.Application;
 
 namespace DeveMobileLPR.App.Services;
 
-internal sealed class RdwDatabaseService
+internal sealed class RdwDatabaseService : IVehicleDataStatus
 {
     public const string FileName = "rdw.sqlite";
     public string DatabasePath { get; } = Path.Combine(FileSystem.AppDataDirectory, FileName);
     public bool IsInstalled => File.Exists(DatabasePath);
+    public bool IsAvailable => IsInstalled;
     public long SizeBytes => IsInstalled ? new FileInfo(DatabasePath).Length : 0;
     public DateTimeOffset? UpdatedAt => IsInstalled ? new FileInfo(DatabasePath).LastWriteTimeUtc : null;
 

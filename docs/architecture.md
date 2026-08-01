@@ -2,9 +2,19 @@
 
 The visual architecture, reusable components, and responsive-layout rules are documented in [DeveMobileLPR UI design system](ui-design-system.md).
 
+## Platform boundary
+
+`DeveMobileLPR.Application` is a plain `net10.0` project: it references Core and Inference, but not MAUI, Android, WinUI, or Storage. It owns the complete Drive and Analyze workflows, their snapshots and diagnostics, recognition-session lifetime, frame backpressure, overlay visibility/projection, and the ports through which a host supplies storage, settings, model creation, video input/decoding, location, dispatch, and device feedback.
+
+The MAUI project is the composition root. Android and Windows register different implementations of `IRecognitionPipelineProvider`, `IDriveVideoInput`, `IVideoFileBackend`, and `IDriveLocationTracker`; ViewModels and shared workflows never select a platform or construct a native implementation. Both Drive and Analyze receive the same platform pipeline provider and the same `RecognitionTuningConfiguration`, so model verification/installation and ONNX pipeline creation cannot drift between modes.
+
+Native UI handlers still own native preview controls and source lifetime. CameraX/Media3 and MediaCapture/Media Foundation remain platform adapters because their lifecycle, permissions, and buffers are genuinely different. Android camera permission is requested by the Android video-input adapter; location permission is requested by the Android location adapter. The shared coordinator sees only explicit success/error data and never references MAUI permissions or infers failure from diagnostic text.
+
+Detection rendering remains native, but `DriveOverlayLayout` performs the shared debug filtering and fit/fill projection used by both renderers. ARGB and BGRA decoded frames use shared Core factories and one YUV color conversion formula. Windows locks `SoftwareBitmap` memory directly and passes its actual stride to the shared BGRA factory, avoiding the previous full-frame managed byte-array allocation on every webcam frame.
+
 ## Resolution before frame rate
 
-License-plate OCR fails when characters occupy too few pixels, so the camera path asks CameraX for 3840×2160 analysis and accepts the nearest device-supported resolution. Only one frame every 250 ms is copied from CameraX. This gives the detector multiple observations while preserving character detail and avoiding sustained 30 fps memory bandwidth.
+License-plate OCR fails when characters occupy too few pixels, so the camera path asks CameraX for 3840×2160 analysis and accepts the nearest device-supported resolution. The configured recognition-rate gate decides which frames are copied from CameraX. This gives the detector multiple observations while preserving character detail without copying every preview frame by default.
 
 `ImageAnalysis.StrategyKeepOnlyLatest` is paired with an application-level slot of capacity one. There are therefore two independent backpressure boundaries: CameraX does not queue proxies, and inference does not queue copied frames. A slow/thermally throttled phone reduces sampling rate rather than increasing latency or memory.
 
@@ -24,9 +34,15 @@ Inference sessions and input `OrtValue` objects are long-lived. XNNPACK is attem
 
 ## Confirmation policy
 
-Detections are associated with active tracks by intersection-over-union. Each track retains at most twelve observations and expires after 1.5 seconds without a match.
+Each track retains at most twelve observations and expires after 1.5 seconds without a match. Association runs in three ordered tiers: exact weighted OCR identity, one-character OCR variation with a tighter geometry gate, and timestamp-aware constant-velocity prediction for compatible partial or near-identical reads. Center movement, scale change, previous/predicted overlap, and elapsed time constrain every candidate. Conflicting full plate strings are never joined solely because their boxes overlap.
 
-An exact plate can be confirmed when at least three distinct frames agree and its weighted share and winner margin pass the configured thresholds. Weight combines detection confidence, OCR confidence, and a crop-quality estimate. If exact strings differ, character alternatives are fused position by position. Every selected character must have at least 60% support; this prevents three mutually different final characters from being accepted merely because the other five agree.
+Within each tier a maximum-weight bipartite assignment selects one global one-to-one mapping between observations and tracks. This avoids the order-dependent identity swaps of greedy nearest-box matching when several vehicles are visible. The tier, predicted box, movement, scale, overlap, edit distance, and score are retained in optional diagnostics so thresholds can be tuned from replay evidence rather than guesses.
+
+A complete Dutch plate can use a narrow expedited path when two distinct frames contain exactly the same text, both observations pass strict OCR, character-margin, crop-quality, and combined-evidence thresholds, and the text matches a valid Dutch sidecode. This recovers short-lived plates on devices that cannot produce a third AI frame. Partial and foreign plates, weaker pairs, and every conflicting sequence continue through normal consensus.
+
+Normal consensus requires at least three distinct frames to agree and its weighted share and winner margin to pass the configured thresholds. Weight combines detection confidence, OCR confidence, and a crop-quality estimate. If exact strings differ, character alternatives are fused position by position. Every selected character must have at least 60% support; this prevents three mutually different final characters from being accepted merely because the other five agree.
+
+All detector, crop-quality, tracking, association-ranking, normal-consensus, and strong-fast-path thresholds live in one `RecognitionTuningConfiguration` object. The MAUI dependency container shares that same instance with Drive and Analyze on both platforms, and Settings formats every property into read-only subsections. This gives replay tests and future editable settings one source of truth instead of separate UI and algorithm defaults.
 
 For OCR results classified as Dutch, a confirmed string must match one of RDW sidecode layouts 1–14. Formatting uses the exact group lengths for that layout rather than guessing where hyphens belong.
 
@@ -65,14 +81,25 @@ False confirmations are more damaging than missed sightings because they poison 
 
 The Analyze tab is intentionally separate from Drive and History. Android copies a selected document-provider video into durable private app storage because those streams cannot be reopened reliably by the platform media decoder. Windows reuses the selected local path when available and falls back to a private staged copy. A source is removed only when no saved analysis references it. Detections and confirmations are persisted as compact JSON metadata, atomically replaced, and remain separate from sighting history. Raw frames, previews, and plate crops are never persisted.
 
-Android's media retriever and a Windows Media Foundation Source Reader implement the shared `IVideoFrameSource` contract. These adapters own only native media opening, timeline metadata, decoding, and conversion into pooled planar YUV. Android uses timestamp-based retrieval. Windows requests NV12 and reads forward sequentially, discarding unsampled frames without seeking; it permits hardware transforms and DXVA while retaining system-memory output so driver-specific GPU-surface failures cannot abort an analysis. Review previews remain independent, lazy thumbnail requests. Decoding is capped at 1280 pixels wide where the platform decoder supports output resizing because the detector consumes a 608×608 tensor.
+Android's media retriever and a Windows Media Foundation Source Reader implement the shared `IVideoFrameSource` contract. These adapters own only native media opening, timeline metadata, decoding, and conversion into pooled planar YUV. Android uses timestamp-based retrieval. Windows requests NV12 and reads forward sequentially, discarding unsampled frames without seeking; it permits hardware transforms and DXVA while retaining system-memory output so driver-specific GPU-surface failures cannot abort an analysis. Recognition receives the decoded source resolution on both platforms: the detector still preprocesses to 608×608, while OCR crops from the full source frame. Only lazy review thumbnails are scaled to 1280 pixels wide.
 
-The platform-independent `VideoAnalysisEngine` owns sampling, cancellation, progress, serialized runs, inference, tracking, temporal consensus, and compact result projection. Shared analysis records, `VideoFrameSampling`, and `VideoFrameTimeline` keep processing and persistence semantics consistent across Android and Windows. This boundary keeps native media APIs out of the recognition workflow while ensuring both platforms exercise the same behavior.
+The platform-independent `VideoAnalysisEngine` owns sampling, duration limits, cancellation, progress, serialized runs, and compact result projection. It delegates recognition, geometry resets, tracking, and temporal consensus to `RecognitionStreamProcessor`, the same stateful component used by Drive mode. Shared analysis records, `VideoFrameSampling`, and `VideoFrameTimeline` keep processing and persistence semantics consistent across Android and Windows. This boundary keeps native media APIs out of the recognition workflow while ensuring live and recorded frames exercise the same recognition behavior.
 
 The Analyze UI has one pending-video section and one analyses stream. Starting a run clears the pending selection and inserts a non-openable progress row; its background fills from left to right as sampled frames complete. Finished and previously saved rows share the same click-to-review behavior. Review seeks always resolve to an analyzed frame, so the slider, timestamp, decoded preview, and previous/next frame controls cannot disagree.
 
 Review previews are decoded lazily from the source video and held in a bounded in-memory cache. The timeline stores only normalized detection positions, and plate-index entries seek to the nearest analyzed frame. If a source video is missing, saved detection metadata remains reviewable without a preview.
 
-Offline analysis applies backpressure and processes every requested sample. Unlike the live camera's latest-frame slot, it does not drop selected frames. Sampling can process every frame or every second, fourth, or eighth source frame. When frame-rate metadata is absent, timing is derived from reported frame count and duration before falling back to 30 fps.
+Offline analysis applies backpressure and processes every requested sample. Unlike the live camera's latest-frame slot, it does not drop selected frames. Sampling accepts any positive source-frame interval; the UI provides common presets plus a custom interval. Runs can optionally be limited to the first 30 seconds. When frame-rate metadata is absent, timing is derived from reported frame count and duration before falling back to 30 frames per second.
 
-Analysis progress reports end-to-end throughput plus cumulative decode and recognition time. These stage timings are diagnostic rather than persisted metadata and make provider or decoder regressions visible without retaining frames. Windows attempts DirectML for detector and OCR sessions, then falls back to the multi-core CPU provider when DirectML is absent or session creation fails.
+Recognition diagnostics use milliseconds consistently. Live telemetry reports source and preview cadence as milliseconds between frames, while AI processing reports the actual stopwatch duration of the latest completed recognition. Per-recognition diagnostics separately record detector and plate-reader wait, input preparation, model execution, and output processing time, plus crop-quality evaluation, every detector candidate (including empty or skipped OCR), tracking time, active tracks, observation counts, current-frame associations, and live latest-slot replacements. Enabling diagnostics in Settings shows the same timing names and candidate/track overlays in Drive and Analyze; analyzed-video JSON retains the compact numeric/text diagnostics but never image pixels.
+
+Analysis progress reports average total, decode, and recognition milliseconds per processed frame. Those cumulative progress values are not persisted. When recognition diagnostics are enabled, progress also carries the latest `RecognitionStreamDiagnostics` object so Analyze renders the same structured timing control as Drive without reconstructing individual values in its view model. The same compact per-frame model and tracking diagnostics are persisted so runs can be compared later without retaining frames. Windows attempts DirectML for detector and OCR sessions, then falls back to the multi-core CPU provider when DirectML is absent or session creation fails.
+
+The Windows Media Foundation frame source lives in a separate Windows-only library
+referenced by both the MAUI app and the end-to-end test project. A local video can
+therefore be replayed through the production decoder, production ONNX models, and
+the same `RecognitionStreamProcessor` used by Drive and Analyze. The opt-in fixture
+defaults to the first 30 seconds and approximately two analyzed frames per second,
+accepts arbitrary duration and source-frame interval overrides, and can write the
+complete diagnostic result as JSON. Large source videos and generated reports remain
+outside version control.

@@ -8,7 +8,7 @@ public partial class VehicleDetailPage : ContentPage
 {
     private readonly VehicleDetailViewModel _viewModel;
 
-    internal VehicleDetailPage(SqliteSightingRepository repository, string normalizedPlate)
+    internal VehicleDetailPage(ISightingRepository repository, string normalizedPlate)
     {
         InitializeComponent();
         BindingContext = _viewModel = new VehicleDetailViewModel(repository, normalizedPlate);

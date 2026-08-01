@@ -18,7 +18,18 @@
                         <Label LineBreakMode="MiddleTruncation" Style="{StaticResource SecondaryText}" Text="{Binding SelectedFileName}" />
                         <Button Clicked="SelectVideoClicked" IsEnabled="{Binding CanSelectVideo}" Style="{StaticResource SecondaryButton}" Text="Select video" />
                         <Picker ItemsSource="{Binding SamplingOptions}" SelectedItem="{Binding SelectedSampling}" />
-                        <Label Style="{StaticResource SecondaryText}" Text="{Binding SelectedSampling.Detail}" />
+                        <Label Style="{StaticResource SecondaryText}" Text="{Binding SelectedSamplingDetail}" />
+                        <VerticalStackLayout IsVisible="{Binding UsesCustomSampling}" Spacing="4">
+                            <Label Style="{StaticResource FieldCaption}" Text="Process every Nth source frame" />
+                            <Entry Keyboard="Numeric" Text="{Binding CustomSamplingInterval}" />
+                        </VerticalStackLayout>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <VerticalStackLayout Spacing="2">
+                                <Label Style="{StaticResource SettingTitle}" Text="Limit test run to 30 seconds" />
+                                <Label Style="{StaticResource SettingDescription}" Text="Keeps local recognition experiments quick and repeatable." />
+                            </VerticalStackLayout>
+                            <Switch Grid.Column="1" IsToggled="{Binding LimitToFirstThirtySeconds}" VerticalOptions="Center" />
+                        </Grid>
                         <Button Command="{Binding ProcessCommand}" Text="Process video" />
                     </VerticalStackLayout>
                 </Border>
@@ -51,10 +62,21 @@
                 <Border Style="{StaticResource StatusCard}">
                     <Label Style="{StaticResource SecondaryText}" Text="{Binding StatusMessage}" />
                 </Border>
+
+                <Border IsVisible="{Binding ShowProcessingDiagnostics}" Padding="10" Style="{StaticResource DriveControlCard}">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Style="{StaticResource FieldCaption}" Text="Live processing diagnostics" />
+                        <ScrollView HorizontalScrollBarVisibility="Never" Orientation="Horizontal">
+                            <controls:RecognitionDiagnosticsDetails
+                                BindingContext="{Binding ProcessingDiagnostics}"
+                                MinimumWidthRequest="760" />
+                        </ScrollView>
+                    </VerticalStackLayout>
+                </Border>
             </VerticalStackLayout>
         </ScrollView>
 
-        <Grid IsVisible="{Binding IsReviewing}" RowDefinitions="Auto,*,Auto,Auto" RowSpacing="8" Style="{StaticResource PageGrid}">
+        <Grid IsVisible="{Binding IsReviewing}" RowDefinitions="Auto,*,Auto,Auto,Auto" RowSpacing="8" Style="{StaticResource PageGrid}">
             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
                 <Button Clicked="CloseReviewClicked" Style="{StaticResource CompactSecondaryButton}" Text="Back" />
                 <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
@@ -66,7 +88,7 @@
             <Border BackgroundColor="#000000" Grid.Row="1" Padding="0" Stroke="{DynamicResource Divider}" StrokeShape="RoundRectangle 8">
                 <Grid>
                     <Image Aspect="AspectFit" Source="{Binding CurrentPreview}" />
-                    <controls:AnalysisFrameOverlay AnalysisFrame="{Binding CurrentFrame}" />
+                    <controls:AnalysisFrameOverlay AnalysisFrame="{Binding CurrentFrame}" ShowDiagnostics="{Binding RecognitionDebugEnabled}" />
                 </Grid>
             </Border>
 
@@ -108,6 +130,14 @@
                     </ScrollView>
                 </Border>
             </Grid>
+
+            <Border Grid.Row="4" IsVisible="{Binding ShowCurrentDiagnostics}" Padding="10" Style="{StaticResource DriveControlCard}">
+                <ScrollView HorizontalScrollBarVisibility="Never" Orientation="Horizontal">
+                    <controls:RecognitionDiagnosticsDetails
+                        BindingContext="{Binding CurrentFrame.Diagnostics}"
+                        MinimumWidthRequest="760" />
+                </ScrollView>
+            </Border>
         </Grid>
     </Grid>
 </ContentPage>

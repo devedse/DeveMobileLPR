@@ -3,7 +3,7 @@ namespace DeveMobileLPR.App;
 using DeveMobileLPR.App.Resources.Styles;
 using Microsoft.Extensions.DependencyInjection;
 
-public partial class App : Application
+public partial class App : Microsoft.Maui.Controls.Application
 {
     private readonly IServiceProvider _services;
 

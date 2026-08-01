@@ -21,9 +21,11 @@ public sealed class OnnxModelContractTests
             new DeveMobileLPR.Geometry.BoundingBox(100, 100, 300, 180),
             CancellationToken.None);
 
-        Assert.NotNull(detections);
-        Assert.NotNull(read.Text);
-        Assert.InRange(read.Confidence, 0, 1);
+        Assert.NotNull(detections.Detections);
+        Assert.True(detections.Timing.TotalMilliseconds > 0);
+        Assert.NotNull(read.Read.Text);
+        Assert.InRange(read.Read.Confidence, 0, 1);
+        Assert.True(read.Timing.TotalMilliseconds > 0);
     }
 
     private static string FindModelDirectory()

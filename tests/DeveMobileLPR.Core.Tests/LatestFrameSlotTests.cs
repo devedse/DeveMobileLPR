@@ -15,6 +15,9 @@ public sealed class LatestFrameSlotTests
         Assert.True(slot.TryWrite(second));
 
         Assert.Throws<ObjectDisposedException>(() => _ = first.YPlane);
+        Assert.Equal(1, slot.ReplacedFrameCount);
+        slot.ResetStatistics();
+        Assert.Equal(0, slot.ReplacedFrameCount);
         var result = await slot.ReadAsync(CancellationToken.None);
         Assert.Same(second, result);
         result?.Dispose();

@@ -2,7 +2,7 @@ using Android.Content;
 using Android.Views;
 using AndroidX.Camera.View;
 using AndroidX.Lifecycle;
-using DeveMobileLPR.App.Services;
+using DeveMobileLPR.Application;
 using DeveMobileLPR.Imaging;
 
 namespace DeveMobileLPR.App.Camera;
@@ -11,7 +11,7 @@ namespace DeveMobileLPR.App.Camera;
 /// Selects between physical CameraX capture and Media3 LL-HLS while presenting
 /// one stable input and telemetry contract to the drive coordinator.
 /// </summary>
-internal sealed class AndroidDriveFrameSource : IDriveFrameSourceTelemetry, IAsyncDisposable
+internal sealed class AndroidDriveFrameSource : IDriveVideoInput
 {
     private readonly CameraXFrameSource _camera;
     private readonly AndroidHlsFrameSource _network;
@@ -57,7 +57,7 @@ internal sealed class AndroidDriveFrameSource : IDriveFrameSourceTelemetry, IAsy
         ApplyPreviewVisibility();
     }
 
-    public event EventHandler<string>? Diagnostic;
+    public event EventHandler<DriveInputDiagnostic>? Diagnostic;
     public event EventHandler<IReadOnlyList<CameraChoice>>? CameraChoicesChanged;
     public event EventHandler<DriveFrameCountEventArgs>? SourceFramesAvailable;
     public event EventHandler<DriveFrameCountEventArgs>? PreviewFramesPresented;
@@ -66,6 +66,10 @@ internal sealed class AndroidDriveFrameSource : IDriveFrameSourceTelemetry, IAsy
     public string SelectedCameraId => _selectedCameraId;
     public bool ReportsPreviewFrames => _selectedCameraId == DriveInputIds.NetworkLlHls;
     public bool IsReady => _selectedCameraId == DriveInputIds.NetworkLlHls ? _network.IsReady : true;
+    public bool SupportsNetworkStreams => true;
+
+    public Task InitializeAsync(string preferredCameraId, CancellationToken cancellationToken = default) =>
+        SelectCameraAsync(preferredCameraId, cancellationToken);
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
@@ -96,9 +100,9 @@ internal sealed class AndroidDriveFrameSource : IDriveFrameSourceTelemetry, IAsy
         }
     }
 
-    public async Task StopAsync()
+    public async Task StopAsync(CancellationToken cancellationToken = default)
     {
-        await _switchGate.WaitAsync().ConfigureAwait(false);
+        await _switchGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (!_running)
@@ -189,16 +193,29 @@ internal sealed class AndroidDriveFrameSource : IDriveFrameSourceTelemetry, IAsy
         _network.SetNetworkStreamUrl(value);
         if (_selectedCameraId == DriveInputIds.NetworkLlHls)
         {
-            Diagnostic?.Invoke(this, _network.IsReady
+            Diagnostic?.Invoke(this, new DriveInputDiagnostic(_network.IsReady
                 ? "OME LL-HLS stream ready"
-                : "Enter an HTTP or HTTPS .m3u8 URL for the OME LL-HLS stream.");
+                : "Enter an HTTP or HTTPS .m3u8 URL for the OME LL-HLS stream."));
         }
     }
 
-    private Task StartSelectedAsync(CancellationToken cancellationToken) =>
-        _selectedCameraId == DriveInputIds.NetworkLlHls
-            ? _network.StartAsync(cancellationToken)
-            : _camera.StartAsync();
+    private async Task StartSelectedAsync(CancellationToken cancellationToken)
+    {
+        if (_selectedCameraId == DriveInputIds.NetworkLlHls)
+        {
+            await _network.StartAsync(cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        if (await Permissions.RequestAsync<Permissions.Camera>() != PermissionStatus.Granted)
+        {
+            throw new UnauthorizedAccessException(
+                "Camera access is required to recognize plates. You can enable it in Android settings.");
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        await _camera.StartAsync().ConfigureAwait(false);
+    }
 
     private async Task StopSelectedAsync()
     {
@@ -219,7 +236,12 @@ internal sealed class AndroidDriveFrameSource : IDriveFrameSourceTelemetry, IAsy
         _networkPreview.Visibility = networkSelected ? ViewStates.Visible : ViewStates.Gone;
     }
 
-    private void ChildDiagnostic(object? sender, string message) => Diagnostic?.Invoke(this, message);
+    private void ChildDiagnostic(object? sender, string message) => Diagnostic?.Invoke(
+        this,
+        new DriveInputDiagnostic(
+            message,
+            message.StartsWith("Could not", StringComparison.Ordinal)
+                || message.Contains("failed", StringComparison.OrdinalIgnoreCase)));
     private void ChildSourceFramesAvailable(object? sender, DriveFrameCountEventArgs args) => SourceFramesAvailable?.Invoke(this, args);
     private void ChildPreviewFramesPresented(object? sender, DriveFrameCountEventArgs args) => PreviewFramesPresented?.Invoke(this, args);
 

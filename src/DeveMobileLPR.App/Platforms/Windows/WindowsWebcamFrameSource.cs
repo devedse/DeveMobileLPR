@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Threading.Channels;
-using DeveMobileLPR.App.Services;
+using DeveMobileLPR.Application;
 using DeveMobileLPR.Imaging;
 using DeveMobileLPR.Streaming;
 using Microsoft.UI.Xaml.Controls;
@@ -14,7 +14,7 @@ using Windows.Media.Playback;
 
 namespace DeveMobileLPR.App.Platforms.Windows;
 
-internal sealed class WindowsWebcamFrameSource : IDriveFrameSourceTelemetry, IAsyncDisposable
+internal sealed class WindowsWebcamFrameSource : IDriveVideoInput
 {
     private static readonly TimeSpan NetworkStartupTimeout = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan NetworkPreviewCatchUpThreshold = TimeSpan.FromMilliseconds(2);
@@ -67,13 +67,14 @@ internal sealed class WindowsWebcamFrameSource : IDriveFrameSourceTelemetry, IAs
         _streamPreviewWorker = Task.Run(ProcessStreamPreviewAsync);
     }
 
-    public event EventHandler<string>? Diagnostic;
+    public event EventHandler<DriveInputDiagnostic>? Diagnostic;
     public event EventHandler<IReadOnlyList<CameraChoice>>? CameraChoicesChanged;
     public event EventHandler<DriveFrameCountEventArgs>? SourceFramesAvailable;
     public event EventHandler<DriveFrameCountEventArgs>? PreviewFramesPresented;
     public IReadOnlyList<CameraChoice> CameraChoices => _cameraChoices;
     public string SelectedCameraId => _selectedCameraId;
     public bool ReportsPreviewFrames => _selectedCameraId == DriveInputIds.NetworkLlHls;
+    public bool SupportsNetworkStreams => true;
     public bool IsReady => _selectedCameraId == DriveInputIds.NetworkLlHls
         ? NetworkVideoStream.TryParse(_networkStreamUrl, out _)
         : _capture is not null;
@@ -100,13 +101,12 @@ internal sealed class WindowsWebcamFrameSource : IDriveFrameSourceTelemetry, IAs
             return;
         }
 
-        Diagnostic?.Invoke(this, NetworkVideoStream.TryParse(value, out _)
+        Diagnostic?.Invoke(this, new DriveInputDiagnostic(NetworkVideoStream.TryParse(value, out _)
             ? "OME LL-HLS stream ready"
-            : "Enter an HTTP or HTTPS .m3u8 URL for the OME LL-HLS stream.");
+            : "Enter an HTTP or HTTPS .m3u8 URL for the OME LL-HLS stream."));
     }
 
-    public void ReportInitializationFailure(Exception exception) =>
-        Diagnostic?.Invoke(this, $"Could not open the webcam: {exception.Message}");
+    public void SetZoom(float zoomRatio) { }
 
     public async Task InitializeAsync(string preferredCameraId, CancellationToken cancellationToken = default)
     {
@@ -211,9 +211,9 @@ internal sealed class WindowsWebcamFrameSource : IDriveFrameSourceTelemetry, IAs
             _selectedCameraId = DriveInputIds.NetworkLlHls;
             _preview.Visibility = Microsoft.UI.Xaml.Visibility.Collapsed;
             _streamPreview.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
-            Diagnostic?.Invoke(this, NetworkVideoStream.TryParse(_networkStreamUrl, out _)
+            Diagnostic?.Invoke(this, new DriveInputDiagnostic(NetworkVideoStream.TryParse(_networkStreamUrl, out _)
                 ? "OME LL-HLS stream ready"
-                : "Enter an HTTP or HTTPS .m3u8 URL for the OME LL-HLS stream.");
+                : "Enter an HTTP or HTTPS .m3u8 URL for the OME LL-HLS stream."));
             return;
         }
 
@@ -254,7 +254,7 @@ internal sealed class WindowsWebcamFrameSource : IDriveFrameSourceTelemetry, IAs
                 _preview.SetMediaPlayer(player);
                 player.Play();
             }
-            Diagnostic?.Invoke(this, $"Camera ready · {selected.Name}");
+            Diagnostic?.Invoke(this, new DriveInputDiagnostic($"Camera ready · {selected.Name}"));
         }
         catch
         {
@@ -295,7 +295,7 @@ internal sealed class WindowsWebcamFrameSource : IDriveFrameSourceTelemetry, IAs
         }
 
         _analyzing = true;
-        Diagnostic?.Invoke(this, "Camera active · processing stays on this device");
+        Diagnostic?.Invoke(this, new DriveInputDiagnostic("Camera active · processing stays on this device"));
     }
 
     private async Task StartNetworkStreamCoreAsync(CancellationToken cancellationToken)
@@ -336,7 +336,8 @@ internal sealed class WindowsWebcamFrameSource : IDriveFrameSourceTelemetry, IAs
             await opened.Task.WaitAsync(startupCancellation.Token);
             Diagnostic?.Invoke(
                 this,
-                $"OME stream active · adaptive native NV12 preview · {FormatRecognitionRate(_recognitionFramesPerSecond())} recognition");
+                new DriveInputDiagnostic(
+                    $"OME stream active · adaptive native NV12 preview · {FormatRecognitionRate(_recognitionFramesPerSecond())} recognition"));
         }
         catch (OperationCanceledException exception) when (
             !cancellationToken.IsCancellationRequested
@@ -454,7 +455,7 @@ internal sealed class WindowsWebcamFrameSource : IDriveFrameSourceTelemetry, IAs
         catch (Exception exception)
         {
             opened.TrySetException(exception);
-            Diagnostic?.Invoke(this, $"OME software decoding failed: {exception.Message}");
+            Diagnostic?.Invoke(this, new DriveInputDiagnostic($"OME software decoding failed: {exception.Message}", true));
         }
         finally
         {
@@ -574,7 +575,7 @@ internal sealed class WindowsWebcamFrameSource : IDriveFrameSourceTelemetry, IAs
         }
         catch (Exception exception)
         {
-            Diagnostic?.Invoke(this, $"Camera frame processing failed: {exception.Message}");
+            Diagnostic?.Invoke(this, new DriveInputDiagnostic($"Camera frame processing failed: {exception.Message}", true));
         }
     }
 
@@ -625,7 +626,7 @@ internal sealed class WindowsWebcamFrameSource : IDriveFrameSourceTelemetry, IAs
                     }
                     catch (Exception exception)
                     {
-                        Diagnostic?.Invoke(this, $"OME preview rendering failed: {exception.Message}");
+                        Diagnostic?.Invoke(this, new DriveInputDiagnostic($"OME preview rendering failed: {exception.Message}", true));
                     }
                     finally
                     {
@@ -636,7 +637,7 @@ internal sealed class WindowsWebcamFrameSource : IDriveFrameSourceTelemetry, IAs
         }
         catch (Exception exception)
         {
-            Diagnostic?.Invoke(this, $"OME preview worker failed: {exception.Message}");
+            Diagnostic?.Invoke(this, new DriveInputDiagnostic($"OME preview worker failed: {exception.Message}", true));
         }
     }
 

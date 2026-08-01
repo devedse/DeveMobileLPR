@@ -18,12 +18,12 @@ internal sealed class TripRouteView : GraphicsView
 
     protected override void OnParentSet()
     {
-        if (Parent is null && Application.Current is { } oldApplication)
+        if (Parent is null && Microsoft.Maui.Controls.Application.Current is { } oldApplication)
         {
             oldApplication.RequestedThemeChanged -= ThemeChanged;
         }
         base.OnParentSet();
-        if (Parent is not null && Application.Current is { } application)
+        if (Parent is not null && Microsoft.Maui.Controls.Application.Current is { } application)
         {
             application.RequestedThemeChanged -= ThemeChanged;
             application.RequestedThemeChanged += ThemeChanged;
@@ -95,7 +95,7 @@ internal sealed class TripRouteView : GraphicsView
         }
 
         private static Color ResolveColor(string key, string fallback) =>
-            Application.Current?.Resources.TryGetValue(key, out var value) == true && value is Color color
+            Microsoft.Maui.Controls.Application.Current?.Resources.TryGetValue(key, out var value) == true && value is Color color
                 ? color
                 : Color.FromArgb(fallback);
     }

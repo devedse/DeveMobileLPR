@@ -10,7 +10,7 @@ using AndroidX.Camera.View;
 using AndroidX.Core.Content;
 using AndroidX.Lifecycle;
 using AndroidX.Camera.Core.ResolutionSelector;
-using DeveMobileLPR.App.Services;
+using DeveMobileLPR.Application;
 using DeveMobileLPR.Imaging;
 using Google.Common.Util.Concurrent;
 using Java.Util.Concurrent;
@@ -36,7 +36,7 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
     private Preview? _preview;
     private ImageAnalysis? _analysis;
     private readonly DisplayManager? _displayManager;
-    private readonly DisplayRotationListener _displayRotationListener;
+    private readonly CameraXDisplayRotationListener _displayRotationListener;
     private long _sequence;
     private int _reportedResolution;
     private bool _disposed;
@@ -60,7 +60,7 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
         _recognitionFramesPerSecond = recognitionFramesPerSecond;
         _onFrame = onFrame;
         _displayManager = context.GetSystemService(Context.DisplayService) as DisplayManager;
-        _displayRotationListener = new DisplayRotationListener(previewView, UpdateTargetRotation);
+        _displayRotationListener = new CameraXDisplayRotationListener(previewView, UpdateTargetRotation);
         _displayManager?.RegisterDisplayListener(_displayRotationListener, null);
     }
 
@@ -421,25 +421,6 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
         _displayManager?.UnregisterDisplayListener(_displayRotationListener);
         _analysisExecutor.Shutdown();
         base.Dispose();
-    }
-
-    private sealed class DisplayRotationListener(PreviewView previewView, Action changed) : Java.Lang.Object, DisplayManager.IDisplayListener
-    {
-        public void OnDisplayAdded(int displayId)
-        {
-        }
-
-        public void OnDisplayChanged(int displayId)
-        {
-            if (previewView.Display?.DisplayId == displayId)
-            {
-                previewView.Post(new Java.Lang.Runnable(changed));
-            }
-        }
-
-        public void OnDisplayRemoved(int displayId)
-        {
-        }
     }
 
     private readonly record struct PlaneCopy(IMemoryOwner<byte>? Owner, int Length);

@@ -14,6 +14,9 @@ public sealed class LatestFrameSlot : IAsyncDisposable
     });
     private Yuv420Frame? _latest;
     private bool _completed;
+    private long _replacedFrameCount;
+
+    public long ReplacedFrameCount => Interlocked.Read(ref _replacedFrameCount);
 
     public bool TryWrite(Yuv420Frame frame)
     {
@@ -31,10 +34,16 @@ public sealed class LatestFrameSlot : IAsyncDisposable
             _latest = frame;
         }
 
-        replaced?.Dispose();
+        if (replaced is not null)
+        {
+            Interlocked.Increment(ref _replacedFrameCount);
+            replaced.Dispose();
+        }
         _available.Writer.TryWrite(0);
         return true;
     }
+
+    public void ResetStatistics() => Interlocked.Exchange(ref _replacedFrameCount, 0);
 
     public async ValueTask<Yuv420Frame?> ReadAsync(CancellationToken cancellationToken)
     {

@@ -89,6 +89,11 @@
                             SelectedItem="{Binding SelectedRecognitionFrameRate}"
                             Title="Recognition frames per second" />
                         <Label Style="{StaticResource SettingDescription}" Text="{Binding RecognitionFrameRateDetail}" />
+                        <BoxView Style="{StaticResource DividerLine}" />
+                        <controls:SettingsToggleRow
+                            Description="Shows track IDs, associations, and per-stage millisecond timings in Drive and Analyze. Saved debug analyses also retain these diagnostics."
+                            IsToggled="{Binding RecognitionDebugEnabled}"
+                            Title="Recognition diagnostics" />
                     </VerticalStackLayout>
                 </Border>
                 <Border Style="{StaticResource Card}">
@@ -99,6 +104,57 @@
                     </VerticalStackLayout>
                 </Border>
             </controls:ResponsiveGrid>
+
+            <Border Style="{StaticResource Card}">
+                <VerticalStackLayout Style="{StaticResource CardContent}">
+                    <VerticalStackLayout Spacing="3">
+                        <Label Style="{StaticResource SectionTitle}" Text="Recognition tuning" />
+                        <Label Style="{StaticResource SecondaryText}" Text="Current production values used by both Drive and Analyze." />
+                        <Label Style="{StaticResource MutedText}" Text="Read-only for now. These are centralized so they can become editable settings later without duplicating algorithm defaults." />
+                    </VerticalStackLayout>
+
+                    <VerticalStackLayout
+                        BindableLayout.ItemsSource="{Binding RecognitionTuningSections}"
+                        Spacing="12">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="vm:RecognitionTuningSection">
+                                <Border Style="{StaticResource InsetCard}">
+                                    <VerticalStackLayout Spacing="10">
+                                        <VerticalStackLayout Spacing="2">
+                                            <Label Style="{StaticResource SettingTitle}" Text="{Binding Name}" />
+                                            <Label Style="{StaticResource SettingDescription}" Text="{Binding Description}" />
+                                        </VerticalStackLayout>
+                                        <VerticalStackLayout
+                                            BindableLayout.ItemsSource="{Binding Values}"
+                                            Spacing="8">
+                                            <BindableLayout.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:RecognitionTuningValue">
+                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" RowDefinitions="Auto,Auto" RowSpacing="2">
+                                                        <Label FontAttributes="Bold" FontSize="13" Text="{Binding Name}" />
+                                                        <Label
+                                                            Grid.Column="1"
+                                                            FontAttributes="Bold"
+                                                            FontSize="13"
+                                                            HorizontalTextAlignment="End"
+                                                            MaximumWidthRequest="280"
+                                                            Text="{Binding Value}"
+                                                            TextColor="{DynamicResource Accent}" />
+                                                        <Label
+                                                            Grid.Row="1"
+                                                            Grid.ColumnSpan="2"
+                                                            Style="{StaticResource MutedText}"
+                                                            Text="{Binding Description}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </BindableLayout.ItemTemplate>
+                                        </VerticalStackLayout>
+                                    </VerticalStackLayout>
+                                </Border>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
 
             <Border IsVisible="{Binding HasStatus}" Style="{StaticResource StatusCard}">
                 <Label Text="{Binding StatusMessage}" />

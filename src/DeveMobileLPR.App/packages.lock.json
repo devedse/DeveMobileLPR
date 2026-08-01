@@ -1657,6 +1657,13 @@
           "Xamarin.Kotlin.StdLib": "2.4.0.1"
         }
       },
+      "devemobilelpr.application": {
+        "type": "Project",
+        "dependencies": {
+          "DeveMobileLPR.Core": "[1.0.0, )",
+          "DeveMobileLPR.Inference": "[1.0.0, )"
+        }
+      },
       "devemobilelpr.core": {
         "type": "Project"
       },
@@ -1818,16 +1825,6 @@
         "requested": "[10.0.10, )",
         "resolved": "10.0.10",
         "contentHash": "f5VCIE7AJpd5YvzNTeMGVzQIgyE9tX+AreTYwQF+REbu+DZo/2Ae+jNSwhPEYrVz6RRkd7y8ubXjk6Nn6Ka+Cg=="
-      },
-      "Vortice.MediaFoundation": {
-        "type": "Direct",
-        "requested": "[3.8.3, )",
-        "resolved": "3.8.3",
-        "contentHash": "TeAN7tKrf1XfUxXe1+fukRvPCTW53DQUxuPR0pZLivuhmLlFCgpvb+EQWfCKENnEwbJnL+OdrHxWn2qUZiYMuA==",
-        "dependencies": {
-          "SharpGen.Runtime": "2.4.2-beta",
-          "Vortice.DirectX": "3.8.3"
-        }
       },
       "Microsoft.AI.DirectML": {
         "type": "Transitive",
@@ -2191,6 +2188,13 @@
         "resolved": "2.1.0",
         "contentHash": "KK+SjNSuKdP+zbavekubi+vaeb1Jo4k87ZF6CMkVWjr6RjJwc8peVtmgzXXDIMy4ZC3ZISyk3llY3q65ISOkBQ=="
       },
+      "devemobilelpr.application": {
+        "type": "Project",
+        "dependencies": {
+          "DeveMobileLPR.Core": "[1.0.0, )",
+          "DeveMobileLPR.Inference": "[1.0.0, )"
+        }
+      },
       "devemobilelpr.core": {
         "type": "Project"
       },
@@ -2207,6 +2211,13 @@
           "DeveMobileLPR.Core": "[1.0.0, )",
           "Microsoft.Data.Sqlite": "[10.0.10, )",
           "SQLitePCLRaw.bundle_e_sqlite3": "[3.0.4, )"
+        }
+      },
+      "devemobilelpr.video.windows": {
+        "type": "Project",
+        "dependencies": {
+          "DeveMobileLPR.Core": "[1.0.0, )",
+          "Vortice.MediaFoundation": "[3.8.3, )"
         }
       },
       "Microsoft.Data.Sqlite": {
@@ -2237,6 +2248,16 @@
         "dependencies": {
           "SQLitePCLRaw.config.e_sqlite3": "3.0.4",
           "SourceGear.sqlite3": "3.53.3"
+        }
+      },
+      "Vortice.MediaFoundation": {
+        "type": "CentralTransitive",
+        "requested": "[3.8.3, )",
+        "resolved": "3.8.3",
+        "contentHash": "TeAN7tKrf1XfUxXe1+fukRvPCTW53DQUxuPR0pZLivuhmLlFCgpvb+EQWfCKENnEwbJnL+OdrHxWn2qUZiYMuA==",
+        "dependencies": {
+          "SharpGen.Runtime": "2.4.2-beta",
+          "Vortice.DirectX": "3.8.3"
         }
       }
     },

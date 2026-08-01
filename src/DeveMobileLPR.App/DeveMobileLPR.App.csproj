@@ -33,9 +33,12 @@
     <RuntimeIdentifier>$(RuntimeIdentifierOverride)</RuntimeIdentifier>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\DeveMobileLPR.Application\DeveMobileLPR.Application.csproj" />
     <ProjectReference Include="..\DeveMobileLPR.Core\DeveMobileLPR.Core.csproj" />
     <ProjectReference Include="..\DeveMobileLPR.Inference\DeveMobileLPR.Inference.csproj" />
     <ProjectReference Include="..\DeveMobileLPR.Storage\DeveMobileLPR.Storage.csproj" />
+    <ProjectReference Include="..\DeveMobileLPR.Video.Windows\DeveMobileLPR.Video.Windows.csproj"
+                      Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" />
@@ -60,7 +63,6 @@
   </ItemGroup>
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
     <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" />
-    <PackageReference Include="Vortice.MediaFoundation" />
   </ItemGroup>
   <ItemGroup>
     <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#0B0D10" />
@@ -78,8 +80,6 @@
     <Compile Remove="Infrastructure\AndroidLocationTracker.cs" />
     <Compile Remove="Infrastructure\AndroidModelInstaller.cs" />
     <Compile Remove="Platforms\Android\**\*.cs" />
-    <Compile Remove="Services\DriveCoordinator.cs" />
-    <Compile Remove="Services\VideoAnalysisService.cs" />
   </ItemGroup>
   <Target Name="RemoveDuplicateDirectMLPublishAsset"
           BeforeTargets="_HandleFileConflictsForPublish"

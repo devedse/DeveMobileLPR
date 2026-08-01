@@ -1,20 +1,25 @@
 using DeveMobileLPR.Geometry;
 using DeveMobileLPR.Imaging;
+using DeveMobileLPR.Recognition;
 
 namespace DeveMobileLPR.Inference.Preprocessing;
 
 internal static class CropQualityEstimator
 {
-    public static float Estimate(Yuv420Frame frame, BoundingBox bounds)
+    public static float Estimate(
+        Yuv420Frame frame,
+        BoundingBox bounds,
+        RecognitionTuningConfiguration configuration)
     {
         bounds = bounds.Clamp(frame.OrientedWidth, frame.OrientedHeight);
-        if (bounds.Width < 8 || bounds.Height < 4)
+        if (bounds.Width < configuration.CropQuality_MinimumCropWidthPixels
+            || bounds.Height < configuration.CropQuality_MinimumCropHeightPixels)
         {
             return 0;
         }
 
-        const int columns = 24;
-        const int rows = 10;
+        var columns = configuration.CropQuality_SampleColumns;
+        var rows = configuration.CropQuality_SampleRows;
         var luminance = new float[columns * rows];
         var mean = 0f;
         for (var y = 0; y < rows; y++)
@@ -42,9 +47,20 @@ internal static class CropQualityEstimator
             }
         }
 
-        var sharpness = Math.Clamp(edge / ((columns - 2) * (rows - 2) * 55f), 0, 1);
-        var exposure = 1 - Math.Clamp(Math.Abs(mean - 130f) / 130f, 0, 1);
-        var size = Math.Clamp(bounds.Width / 140f, 0, 1);
-        return Math.Clamp(0.55f * sharpness + 0.25f * exposure + 0.20f * size, 0.05f, 1);
+        var sharpness = Math.Clamp(
+            edge / ((columns - 2) * (rows - 2) * configuration.CropQuality_SharpnessNormalization),
+            0,
+            1);
+        var exposure = 1 - Math.Clamp(
+            Math.Abs(mean - configuration.CropQuality_TargetLuminance) / configuration.CropQuality_ExposureRange,
+            0,
+            1);
+        var size = Math.Clamp(bounds.Width / configuration.CropQuality_FullSizeWidthPixels, 0, 1);
+        return Math.Clamp(
+            configuration.CropQuality_SharpnessWeight * sharpness
+            + configuration.CropQuality_ExposureWeight * exposure
+            + configuration.CropQuality_SizeWeight * size,
+            configuration.CropQuality_MinimumScore,
+            1);
     }
 }

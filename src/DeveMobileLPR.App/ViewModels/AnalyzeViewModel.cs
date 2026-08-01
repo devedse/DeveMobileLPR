@@ -1,12 +1,13 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using DeveMobileLPR.App.Services;
+using DeveMobileLPR.Application;
 using DeveMobileLPR.Recognition;
 using DeveMobileLPR.Storage;
 
 namespace DeveMobileLPR.App.ViewModels;
 
-internal sealed record FrameSamplingOption(string Name, string Detail, int Interval)
+internal sealed record FrameSamplingOption(string Name, string Detail, int? Interval)
 {
     public override string ToString() => Name;
 }
@@ -48,6 +49,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     private const int MaximumPreviewCacheEntries = 8;
     private readonly VideoAnalysisService _analysis;
     private readonly JsonVideoAnalysisRepository _repository;
+    private readonly AppSettings _settings;
     private readonly AsyncCommand _processCommand;
     private readonly AsyncCommand _previousFrameCommand;
     private readonly AsyncCommand _nextFrameCommand;
@@ -76,17 +78,26 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     private IReadOnlyList<double> _detectionMarkers = [];
     private IReadOnlyList<double> _framePositions = [];
     private bool _initialized;
+    private int _customSamplingInterval = 15;
+    private bool _limitToFirstThirtySeconds;
+    private RecognitionStreamDiagnostics? _processingDiagnostics;
 
-    public AnalyzeViewModel(VideoAnalysisService analysis, JsonVideoAnalysisRepository repository)
+    public AnalyzeViewModel(
+        VideoAnalysisService analysis,
+        JsonVideoAnalysisRepository repository,
+        AppSettings settings)
     {
         _analysis = analysis;
         _repository = repository;
+        _settings = settings;
         SamplingOptions =
         [
             new("All frames", "Process every reported source frame", 1),
             new("Every 2nd frame", "Process half of the source frames", 2),
             new("Every 4th frame", "Balanced analysis for most recordings", 4),
-            new("Every 8th frame", "Faster exploratory pass", 8)
+            new("Every 8th frame", "Faster exploratory pass", 8),
+            new("Every 15th frame", "Equivalent to about two analyzed frames per second for a 30 FPS source", 15),
+            new("Custom interval", "Choose exactly how many source frames to skip between recognition runs", null)
         ];
         _selectedSampling = SamplingOptions[2];
         _processCommand = new AsyncCommand(ProcessAsync, () => HasSelectedFile && !IsProcessing);
@@ -113,6 +124,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
             if (SetProperty(ref _isProcessing, value))
             {
                 OnPropertyChanged(nameof(CanSelectVideo));
+                OnPropertyChanged(nameof(ShowProcessingDiagnostics));
                 RefreshCommands();
             }
         }
@@ -125,18 +137,66 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     public double Progress { get => _progress; private set => SetProperty(ref _progress, value); }
     public string ProgressText { get => _progressText; private set => SetProperty(ref _progressText, value); }
     public string StatusMessage { get => _statusMessage; private set => SetProperty(ref _statusMessage, value); }
+    public RecognitionStreamDiagnostics? ProcessingDiagnostics { get => _processingDiagnostics; private set => SetProperty(ref _processingDiagnostics, value); }
     public ImageSource? CurrentPreview { get => _currentPreview; private set => SetProperty(ref _currentPreview, value); }
-    public AnalyzedVideoFrame? CurrentFrame { get => _currentFrame; private set => SetProperty(ref _currentFrame, value); }
+    public AnalyzedVideoFrame? CurrentFrame
+    {
+        get => _currentFrame;
+        private set
+        {
+            if (SetProperty(ref _currentFrame, value))
+            {
+                OnPropertyChanged(nameof(ShowCurrentDiagnostics));
+            }
+        }
+    }
     public string CurrentFrameTitle { get => _currentFrameTitle; private set => SetProperty(ref _currentFrameTitle, value); }
     public string CurrentFrameDetail { get => _currentFrameDetail; private set => SetProperty(ref _currentFrameDetail, value); }
     public double CurrentPositionFraction { get => _currentPositionFraction; set => SetProperty(ref _currentPositionFraction, value); }
     public IReadOnlyList<double> DetectionMarkers { get => _detectionMarkers; private set => SetProperty(ref _detectionMarkers, value); }
     public IReadOnlyList<double> FramePositions { get => _framePositions; private set => SetProperty(ref _framePositions, value); }
+    public bool RecognitionDebugEnabled => _settings.RecognitionDebugEnabled;
+    public bool ShowProcessingDiagnostics => IsProcessing && RecognitionDebugEnabled;
+    public bool ShowCurrentDiagnostics => RecognitionDebugEnabled && CurrentFrame?.Diagnostics is not null;
+    public bool UsesCustomSampling => SelectedSampling.Interval is null;
+    public string SelectedSamplingDetail => SelectedSampling.Detail;
+
+    public int CustomSamplingInterval
+    {
+        get => _customSamplingInterval;
+        set
+        {
+            if (SetProperty(ref _customSamplingInterval, Math.Clamp(value, 1, 10_000)))
+            {
+                _processCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool LimitToFirstThirtySeconds
+    {
+        get => _limitToFirstThirtySeconds;
+        set => SetProperty(ref _limitToFirstThirtySeconds, value);
+    }
 
     public FrameSamplingOption SelectedSampling
     {
         get => _selectedSampling;
-        set => SetProperty(ref _selectedSampling, value);
+        set
+        {
+            if (SetProperty(ref _selectedSampling, value))
+            {
+                OnPropertyChanged(nameof(UsesCustomSampling));
+                OnPropertyChanged(nameof(SelectedSamplingDetail));
+            }
+        }
+    }
+
+    public void RefreshSettings()
+    {
+        OnPropertyChanged(nameof(RecognitionDebugEnabled));
+        OnPropertyChanged(nameof(ShowProcessingDiagnostics));
+        OnPropertyChanged(nameof(ShowCurrentDiagnostics));
     }
 
     public async Task InitializeAsync()
@@ -158,7 +218,12 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         var previousPath = _stagedPath;
         try
         {
-            _stagedPath = await _analysis.StageAsync(file, CancellationToken.None);
+            _stagedPath = await _analysis.StageAsync(
+                new SelectedVideoFile(
+                    file.FileName,
+                    file.FullPath,
+                    _ => file.OpenReadAsync()),
+                CancellationToken.None);
             SelectedFileName = file.FileName;
             ClearResult();
             StatusMessage = "Ready to process. The video stays on this device.";
@@ -197,21 +262,28 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         var sourcePath = _stagedPath;
         var displayName = SelectedFileName;
         var sampling = SelectedSampling;
+        var samplingInterval = sampling.Interval ?? CustomSamplingInterval;
+        var samplingName = sampling.Interval is null ? $"Every {samplingInterval}th frame" : sampling.Name;
+        var options = new VideoAnalysisOptions(
+            new VideoFrameSampling(samplingInterval),
+            LimitToFirstThirtySeconds ? TimeSpan.FromSeconds(30) : null,
+            RecognitionDebugEnabled);
         ClearResult();
         _stagedPath = null;
         SelectedFileName = "No video selected";
         OnPropertyChanged(nameof(HasSelectedFile));
         IsProcessing = true;
         ProgressText = "Preparing models…";
-        StatusMessage = "Processing scaled frames on this device.";
-        var processingItem = new AnalysisListItem(displayName, ProgressText, sampling.Name, true, null);
+        StatusMessage = "Processing full-resolution frames on this device.";
+        var processingItem = new AnalysisListItem(displayName, ProgressText, samplingName, true, null);
         _processingItem = processingItem;
         RebuildAnalyses();
         _runCancellation = new CancellationTokenSource();
         var progress = new Progress<VideoAnalysisProgress>(update =>
         {
             Progress = update.Fraction;
-            ProgressText = $"{update.Fraction:P0} · {update.ProcessedFrames:N0} of {update.TotalFrames:N0} frames · {update.FramesPerSecond:F1} fps · decode {update.AverageDecodeMilliseconds:F0} ms · recognition {update.AverageRecognitionMilliseconds:F0} ms · {FormatPosition(update.Position)}";
+            ProgressText = $"{update.Fraction:P0} · {update.ProcessedFrames:N0} of {update.TotalFrames:N0} frames · total {update.AverageTotalMilliseconds:F0} ms/frame · decode {update.AverageDecodeMilliseconds:F0} ms/frame · recognition {update.AverageRecognitionMilliseconds:F0} ms/frame · {FormatPosition(update.Position)}";
+            ProcessingDiagnostics = update.Diagnostics;
             processingItem.Progress = update.Fraction;
             processingItem.Detail = ProgressText;
         });
@@ -220,7 +292,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
             _result = await _analysis.AnalyzeAsync(
                 sourcePath,
                 displayName,
-                new VideoFrameSampling(sampling.Interval),
+                options,
                 progress,
                 message => MainThread.BeginInvokeOnMainThread(() => StatusMessage = message),
                 _runCancellation.Token);
@@ -343,6 +415,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         _result = null;
         Progress = 0;
         ProgressText = string.Empty;
+        ProcessingDiagnostics = null;
         CurrentPreview = null;
         CurrentFrame = null;
         CurrentReads.Clear();
@@ -450,6 +523,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         var progress = new Progress<VideoAnalysisProgress>(update =>
         {
             Progress = update.Fraction;
+            ProcessingDiagnostics = update.Diagnostics;
             CurrentFrameDetail = $"Adding detection boxes · {update.Fraction:P0} · {update.ProcessedFrames:N0} of {update.TotalFrames:N0} frames";
         });
         try
@@ -457,7 +531,9 @@ internal sealed class AnalyzeViewModel : ViewModelBase
             var enriched = await _analysis.AnalyzeAsync(
                 legacyResult.SourcePath,
                 legacyResult.DisplayName,
-                legacyResult.Sampling,
+                new VideoAnalysisOptions(
+                    legacyResult.Sampling,
+                    IncludeDiagnostics: RecognitionDebugEnabled),
                 progress,
                 message => MainThread.BeginInvokeOnMainThread(() => StatusMessage = message),
                 _runCancellation.Token);

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using DeveMobileLPR.Geometry;
 using DeveMobileLPR.Imaging;
@@ -29,20 +30,28 @@ public sealed class OnnxCctPlateRecognizer : IPlateRecognizer, IDisposable
         };
     }
 
-    public async ValueTask<PlateRead> RecognizeAsync(
+    public async ValueTask<PlateRecognitionResult> RecognizeAsync(
         Yuv420Frame frame,
         BoundingBox plateBounds,
         CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        var queuedAt = Stopwatch.GetTimestamp();
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        var queueMilliseconds = Stopwatch.GetElapsedTime(queuedAt).TotalMilliseconds;
         try
         {
+            var stageStartedAt = Stopwatch.GetTimestamp();
             var expanded = plateBounds.Expand(0.06f, 0.14f, frame.OrientedWidth, frame.OrientedHeight);
             OcrPreprocessor.Fill(frame, expanded, _input);
+            var preprocessingMilliseconds = Stopwatch.GetElapsedTime(stageStartedAt).TotalMilliseconds;
+
+            stageStartedAt = Stopwatch.GetTimestamp();
             using var runOptions = new RunOptions();
             using var outputs = _session.Run(runOptions, _inputs, _session.OutputNames);
+            var inferenceMilliseconds = Stopwatch.GetElapsedTime(stageStartedAt).TotalMilliseconds;
 
+            stageStartedAt = Stopwatch.GetTimestamp();
             OrtValue? plateOutput = null;
             OrtValue? regionOutput = null;
             for (var index = 0; index < _session.OutputNames.Count; index++)
@@ -58,7 +67,15 @@ public sealed class OnnxCctPlateRecognizer : IPlateRecognizer, IDisposable
             }
 
             plateOutput ??= outputs[0];
-            return Decode(plateOutput, regionOutput);
+            var read = Decode(plateOutput, regionOutput);
+            var postprocessingMilliseconds = Stopwatch.GetElapsedTime(stageStartedAt).TotalMilliseconds;
+            return new PlateRecognitionResult(
+                read,
+                new ModelExecutionTiming(
+                    queueMilliseconds,
+                    preprocessingMilliseconds,
+                    inferenceMilliseconds,
+                    postprocessingMilliseconds));
         }
         finally
         {

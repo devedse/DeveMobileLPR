@@ -19,12 +19,23 @@ public sealed record VideoAnalysisProgress(
     TimeSpan Position,
     TimeSpan Elapsed,
     TimeSpan DecodeElapsed = default,
-    TimeSpan RecognitionElapsed = default)
+    TimeSpan RecognitionElapsed = default,
+    RecognitionStreamDiagnostics? Diagnostics = null)
 {
     public double Fraction => TotalFrames == 0 ? 0 : (double)ProcessedFrames / TotalFrames;
-    public double FramesPerSecond => Elapsed.TotalSeconds <= 0 ? 0 : ProcessedFrames / Elapsed.TotalSeconds;
+    public double AverageTotalMilliseconds => ProcessedFrames == 0 ? 0 : Elapsed.TotalMilliseconds / ProcessedFrames;
     public double AverageDecodeMilliseconds => ProcessedFrames == 0 ? 0 : DecodeElapsed.TotalMilliseconds / ProcessedFrames;
     public double AverageRecognitionMilliseconds => ProcessedFrames == 0 ? 0 : RecognitionElapsed.TotalMilliseconds / ProcessedFrames;
+}
+
+public sealed record VideoAnalysisOptions(
+    VideoFrameSampling Sampling,
+    TimeSpan? MaximumDuration = null,
+    bool IncludeDiagnostics = false)
+{
+    public TimeSpan EffectiveDuration(VideoFrameTimeline timeline) => MaximumDuration is { } maximum
+        ? TimeSpan.FromTicks(Math.Min(timeline.Duration.Ticks, maximum.Ticks))
+        : timeline.Duration;
 }
 
 public sealed record AnalyzedVideoFrame(
@@ -36,6 +47,7 @@ public sealed record AnalyzedVideoFrame(
     int SourceHeight = 0)
 {
     public bool HasDetections => Reads.Count > 0 || Confirmations.Count > 0;
+    public RecognitionStreamDiagnostics? Diagnostics { get; init; }
 }
 
 public sealed record AnalyzedPlateRead(
