@@ -19,8 +19,9 @@ internal sealed class AndroidRecognitionPipelineProvider(
         var models = await AndroidModelInstaller.EnsureInstalledAsync(
             context.Assets ?? throw new InvalidOperationException("Application assets are unavailable."),
             files,
+            AndroidDetectorModelFactory.Artifact,
             cancellationToken).ConfigureAwait(false);
-        var rawModel = new AndroidLiteRtYoloV9RawModel(models.Detector, diagnostic);
+        var rawModel = AndroidDetectorModelFactory.Create(models.Detector, recognitionTuning, diagnostic);
         YoloV9RawPlateDetector? detector = null;
         try
         {

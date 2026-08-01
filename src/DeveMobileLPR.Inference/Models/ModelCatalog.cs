@@ -21,4 +21,9 @@ public static class ModelCatalog
         "yolo-v9-s-608-license-plates-raw_float32.tflite",
         "EE20A2F2DAAD51525A449E2A7E388965E4F9DEC5F39CB8D0348C21232FFAA1E2",
         28_561_524);
+
+    public static ModelArtifact AndroidOnnxRawDetector { get; } = new(
+        "yolo-v9-s-608-license-plates-raw.onnx",
+        "8886A067DD514404E99FDF1CFC642827303A4700E3D9FFE829DADC446BB94BCE",
+        28_608_718);
 }

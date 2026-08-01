@@ -8,11 +8,12 @@ internal static class AndroidModelInstaller
     public static async Task<(string Detector, string Ocr)> EnsureInstalledAsync(
         AssetManager assets,
         string filesDirectory,
+        ModelArtifact detectorArtifact,
         CancellationToken cancellationToken)
     {
         var modelDirectory = Path.Combine(filesDirectory, "models");
         Directory.CreateDirectory(modelDirectory);
-        var detector = await CopyVerifiedAsync(assets, ModelCatalog.AndroidLiteRtDetector, modelDirectory, cancellationToken);
+        var detector = await CopyVerifiedAsync(assets, detectorArtifact, modelDirectory, cancellationToken);
         var ocr = await CopyVerifiedAsync(assets, ModelCatalog.Recognizer, modelDirectory, cancellationToken);
         return (detector, ocr);
     }

@@ -84,6 +84,18 @@ That command:
 6. runs unit/integration tests and the real-model contract tests;
 7. publishes the portable RDW-downloader ZIP to `artifacts/rdw-downloader`, an APK to `artifacts/android`, and the self-contained `DeveMobileLPR.exe` to `artifacts/windows/win-x64`.
 
+`Publish-Android.ps1` defaults to the production LiteRT detector. For a controlled
+Android runtime comparison, the same raw detector graph can be packaged for ONNX
+Runtime; both builds use identical preprocessing and shared C# NMS:
+
+```powershell
+./eng/Publish-Android.ps1 -Configuration Release -DetectorBackend LiteRt -OutputDirectory artifacts/android/litert
+./eng/Publish-Android.ps1 -Configuration Release -DetectorBackend OnnxRaw -OutputDirectory artifacts/android/onnx-raw
+```
+
+CI publishes these as separately named LiteRT and ONNX-Raw APK artifacts. The
+production release continues to use LiteRT.
+
 For portable development without Android packaging:
 
 ```powershell

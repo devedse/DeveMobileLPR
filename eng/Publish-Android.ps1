@@ -8,6 +8,9 @@ param(
     [int]$ApplicationVersion,
     [ValidatePattern('^\d+\.\d+\.\d+$')]
     [string]$ApplicationDisplayVersion,
+    [ValidateSet('LiteRt', 'OnnxRaw')]
+    [string]$DetectorBackend = 'LiteRt',
+    [string]$OutputDirectory,
     [string]$Keystore,
     [string]$KeystorePassword,
     [string]$KeyAlias,
@@ -19,7 +22,15 @@ $PSNativeCommandUseErrorActionPreference = $true
 $root = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $project = Join-Path $root 'src\DeveMobileLPR.App\DeveMobileLPR.App.csproj'
 $projectOutput = Join-Path $root "src\DeveMobileLPR.App\bin\$Configuration"
-$output = Join-Path $root 'artifacts\android'
+$output = if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
+    Join-Path $root 'artifacts\android'
+}
+elseif ([System.IO.Path]::IsPathRooted($OutputDirectory)) {
+    [System.IO.Path]::GetFullPath($OutputDirectory)
+}
+else {
+    [System.IO.Path]::GetFullPath((Join-Path $root $OutputDirectory))
+}
 [System.IO.Directory]::CreateDirectory($output) | Out-Null
 Get-ChildItem -LiteralPath $output -Filter '*.apk' -File -ErrorAction SilentlyContinue | Remove-Item -Force
 
@@ -29,7 +40,7 @@ Get-ChildItem -LiteralPath $output -Filter '*.apk' -File -ErrorAction SilentlyCo
 Get-ChildItem -LiteralPath $projectOutput -Filter '*-Signed.apk' -File -Recurse -ErrorAction SilentlyContinue |
     Remove-Item -Force
 
-$arguments = @('publish', $project, '--framework', 'net10.0-android36.0', '--configuration', $Configuration, '--no-restore', '-p:AndroidPackageFormats=apk', "-p:PublishDir=$output\")
+$arguments = @('publish', $project, '--framework', 'net10.0-android36.0', '--configuration', $Configuration, '--no-restore', '-p:AndroidPackageFormats=apk', "-p:PublishDir=$output\", "-p:AndroidDetectorBackend=$DetectorBackend")
 if ($PSBoundParameters.ContainsKey('Version')) {
     $arguments += "-p:Version=$Version"
 }
@@ -117,4 +128,4 @@ if (-not [string]::IsNullOrWhiteSpace($Keystore)) {
     Write-Host "Verified release signing certificate SHA-256: $actualFingerprint"
 }
 
-Write-Host "Published $($signedPackages[0].FullName)"
+Write-Host "Published $DetectorBackend detector APK: $($signedPackages[0].FullName)"

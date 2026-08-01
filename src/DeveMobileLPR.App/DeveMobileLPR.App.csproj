@@ -15,6 +15,8 @@
     <ApplicationVersion>1</ApplicationVersion>
     <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <AndroidDetectorBackend Condition="'$(AndroidDetectorBackend)' == ''">LiteRt</AndroidDetectorBackend>
+    <DefineConstants Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android' and '$(AndroidDetectorBackend)' == 'OnnxRaw'">$(DefineConstants);ANDROID_ONNX_RAW_DETECTOR</DefineConstants>
     <AndroidLinkMode Condition="'$(Configuration)' == 'Release'">SdkOnly</AndroidLinkMode>
     <!-- Profiled Mono AOT currently fails in the .NET 10 Android cross-assembler for both
          universal and arm64 builds. Keep packaging reliable; inference acceleration is
@@ -74,11 +76,22 @@
     <MauiImage Include="Resources\Images\*.svg" />
   </ItemGroup>
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
-    <AndroidAsset Include="..\..\artifacts\models\yolo-v9-s-608-license-plates-raw_float32.tflite" Link="models\yolo-v9-s-608-license-plates-raw_float32.tflite" />
+    <AndroidAsset Include="..\..\artifacts\models\yolo-v9-s-608-license-plates-raw_float32.tflite"
+                  Link="models\yolo-v9-s-608-license-plates-raw_float32.tflite"
+                  Condition="'$(AndroidDetectorBackend)' == 'LiteRt'" />
+    <AndroidAsset Include="..\..\artifacts\models\yolo-v9-s-608-license-plates-raw.onnx"
+                  Link="models\yolo-v9-s-608-license-plates-raw.onnx"
+                  Condition="'$(AndroidDetectorBackend)' == 'OnnxRaw'" />
     <AndroidAsset Include="..\..\artifacts\models\cct_s_v2_global.onnx" Link="models\cct_s_v2_global.onnx" />
   </ItemGroup>
 
-  <Target Name="GenerateAndroidLiteRtDetector"
+  <Target Name="ValidateAndroidDetectorBackend"
+          BeforeTargets="PrepareForBuild"
+          Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <Error Condition="'$(AndroidDetectorBackend)' != 'LiteRt' and '$(AndroidDetectorBackend)' != 'OnnxRaw'"
+           Text="AndroidDetectorBackend must be either LiteRt or OnnxRaw, but was '$(AndroidDetectorBackend)'." />
+  </Target>
+  <Target Name="GenerateAndroidDetectorModels"
           BeforeTargets="PrepareForBuild"
           Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'"
           Inputs="..\..\artifacts\models\yolo-v9-s-608-license-plates-end2end.onnx;..\..\eng\Generate-LiteRt-Models.ps1;..\..\eng\model-tools\prepare_litert_detector.py"
