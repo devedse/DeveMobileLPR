@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
-"""Create and validate the raw-output YOLO detector used by Android inference.
-
-The exported detector is also consumed directly by ONNX Runtime on Android.  The
-small graph rewrite below keeps the model numerically equivalent while avoiding
-two patterns that prevent ONNX Runtime's NNAPI execution provider from taking
-the detector path: an uneven ``Split`` and a ``ReduceMax`` over a singleton
-dimension.
-"""
+"""Create and validate the raw-output YOLO detector used by Android LiteRT."""
 
 from __future__ import annotations
 
@@ -53,20 +46,19 @@ def extract_raw(source: Path, destination: Path) -> None:
         infer_shapes=True,
     )
     extracted = onnx.load(destination)
-    rewrite_for_nnapi(extracted)
+    rewrite_uneven_split(extracted)
     extracted = shape_inference.infer_shapes(extracted)
     onnx.checker.check_model(extracted)
     onnx.save(extracted, destination)
     validate_onnx(destination)
 
 
-def rewrite_for_nnapi(model: onnx.ModelProto) -> None:
+def rewrite_uneven_split(model: onnx.ModelProto) -> None:
     """Replace the detector head's uneven Split with two static Slice nodes.
 
-    NNAPI requires Split to divide its selected axis evenly.  The detector
-    head splits 65 channels into 64 box channels and one objectness channel,
-    which is mathematically valid ONNX but cannot be delegated by NNAPI.  Two
-    Slice nodes express the same operation and are supported by NNAPI.
+    The detector head splits 65 channels into 64 box channels and one
+    objectness channel. Two static Slice nodes preserve that operation in a
+    form handled consistently by the pinned conversion pipeline.
     """
 
     replacements: list[tuple[onnx.NodeProto, list[onnx.NodeProto]]] = []
@@ -83,7 +75,7 @@ def rewrite_for_nnapi(model: onnx.ModelProto) -> None:
         if first_shape != [1, 64, 7581] or second_shape != [1, 1, 7581]:
             continue
 
-        prefix = f"nnapi_split_{len(replacements)}"
+        prefix = f"detector_split_{len(replacements)}"
         initializers = [
             numpy_helper.from_array(np.asarray([0], dtype=np.int64), f"{prefix}_starts_0"),
             numpy_helper.from_array(np.asarray([64], dtype=np.int64), f"{prefix}_ends_0"),
