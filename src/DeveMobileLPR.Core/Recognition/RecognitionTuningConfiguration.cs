@@ -19,7 +19,7 @@ public sealed class RecognitionTuningConfiguration
     public int Detector_MaximumDetectionsPerFrame { get; set; } = 100;
     public int Detector_MaximumOcrAttemptsPerFrame { get; set; } = 6;
     public int Detector_XnnpackThreads { get; set; } = 4;
-    public bool Detector_AndroidAllowNnapiFp16 { get; set; } = true;
+    public bool Detector_AndroidAllowNnapiFp16 { get; set; }
     public int Detector_WebGpuCandidateBenchmarkSamples { get; set; } = 3;
     public int Detector_WebGpuSelectedBenchmarkSamples { get; set; } = 30;
     public int Detector_WebGpuProfileSamples { get; set; } = 3;
