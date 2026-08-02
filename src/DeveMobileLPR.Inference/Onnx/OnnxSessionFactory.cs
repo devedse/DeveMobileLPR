@@ -253,12 +253,13 @@ internal static class OnnxSessionFactory
     private static InferenceSession CreateNnapiSession(string modelPath, bool allowFp16)
     {
         using var options = CreateBaseOptions();
+        options.AddSessionConfigEntry("session.disable_cpu_ep_fallback", "1");
         var flags = NnapiFlags.NNAPI_FLAG_CPU_DISABLED;
         if (allowFp16)
         {
             flags |= NnapiFlags.NNAPI_FLAG_USE_FP16;
         }
-        options.AppendExecutionProvider_Nnapi(flags);
+        NnapiSessionOptionsBridge.AppendExecutionProvider(options, flags);
         return new InferenceSession(modelPath, options);
     }
 
