@@ -19,6 +19,13 @@ internal static class OnnxSessionFactory
             throw new FileNotFoundException("ONNX model was not found.", modelPath);
         }
 
+        var diagnostics = new List<string>();
+        void Report(string message)
+        {
+            diagnostics.Add(message);
+            diagnostic?.Invoke(message);
+        }
+
         if (OperatingSystem.IsWindows()
             && OrtEnv.Instance().GetAvailableProviders().Contains("DmlExecutionProvider", StringComparer.Ordinal))
         {
@@ -27,30 +34,31 @@ internal static class OnnxSessionFactory
                 using var options = CreateBaseOptions();
                 options.EnableMemoryPattern = false;
                 options.AppendExecutionProvider_DML(0);
-                diagnostic?.Invoke("ONNX Runtime provider: DirectML");
-                return new SessionResult(new InferenceSession(modelPath, options), "ONNX Runtime DirectML");
+                Report("ONNX Runtime provider: DirectML");
+                return new SessionResult(new InferenceSession(modelPath, options), "ONNX Runtime DirectML", diagnostics);
             }
             catch (OnnxRuntimeException exception)
             {
-                diagnostic?.Invoke($"DirectML unavailable; using CPU: {exception.Message}");
+                Report($"DirectML unavailable; using CPU: {exception.Message}");
             }
         }
 
         if (OperatingSystem.IsAndroid())
         {
-            return CreateFastestAndroidSession(modelPath, xnnpackThreads, allowNnapiFp16, diagnostic);
+            return CreateFastestAndroidSession(modelPath, xnnpackThreads, allowNnapiFp16, Report, diagnostics);
         }
 
-        diagnostic?.Invoke("ONNX Runtime provider: CPU");
+        Report("ONNX Runtime provider: CPU");
         using var cpuOptions = CreateBaseOptions();
-        return new SessionResult(new InferenceSession(modelPath, cpuOptions), "ONNX Runtime CPU");
+        return new SessionResult(new InferenceSession(modelPath, cpuOptions), "ONNX Runtime CPU", diagnostics);
     }
 
     private static SessionResult CreateFastestAndroidSession(
         string modelPath,
         int xnnpackThreads,
         bool allowNnapiFp16,
-        Action<string>? diagnostic)
+        Action<string> report,
+        IReadOnlyList<string> diagnostics)
     {
         var candidates = new (string Name, Func<InferenceSession> Create)[]
         {
@@ -71,14 +79,14 @@ internal static class OnnxSessionFactory
                 var elapsed = Benchmark(session);
                 if (elapsed is null)
                 {
-                    diagnostic?.Invoke($"ONNX Runtime candidate {candidate.Name}: model input cannot be benchmarked; selecting it without comparison.");
+                    report($"ONNX Runtime candidate {candidate.Name}: model input cannot be benchmarked; selecting it without comparison.");
                     fastest?.Dispose();
                     var selected = session;
                     session = null;
-                    return new SessionResult(selected, $"ONNX Runtime {candidate.Name}");
+                    return new SessionResult(selected, $"ONNX Runtime {candidate.Name}", diagnostics);
                 }
 
-                diagnostic?.Invoke($"ONNX Runtime candidate {candidate.Name}: {elapsed.Value:0.0} ms warm benchmark");
+                report($"ONNX Runtime candidate {candidate.Name}: {elapsed.Value:0.0} ms warm benchmark");
                 if (elapsed.Value < fastestMilliseconds)
                 {
                     fastest?.Dispose();
@@ -90,7 +98,7 @@ internal static class OnnxSessionFactory
             }
             catch (Exception exception)
             {
-                diagnostic?.Invoke($"ONNX Runtime candidate {candidate.Name} unavailable: {exception.GetBaseException().Message}");
+                report($"ONNX Runtime candidate {candidate.Name} unavailable: {exception.GetBaseException().Message}");
             }
             finally
             {
@@ -100,13 +108,13 @@ internal static class OnnxSessionFactory
 
         if (fastest is not null)
         {
-            diagnostic?.Invoke($"ONNX Runtime provider selected: {fastestName} ({fastestMilliseconds:0.0} ms)");
-            return new SessionResult(fastest, $"ONNX Runtime {fastestName}");
+            report($"ONNX Runtime provider selected: {fastestName} ({fastestMilliseconds:0.0} ms)");
+            return new SessionResult(fastest, $"ONNX Runtime {fastestName}", diagnostics);
         }
 
-        diagnostic?.Invoke("Android hardware providers unavailable; using ONNX Runtime CPU.");
+        report("Android hardware providers unavailable; using ONNX Runtime CPU.");
         using var cpuOptions = CreateBaseOptions();
-        return new SessionResult(new InferenceSession(modelPath, cpuOptions), "ONNX Runtime CPU");
+        return new SessionResult(new InferenceSession(modelPath, cpuOptions), "ONNX Runtime CPU", diagnostics);
     }
 
     private static InferenceSession CreateNnapiSession(string modelPath, bool allowFp16)
@@ -191,5 +199,6 @@ internal static class OnnxSessionFactory
 
     internal readonly record struct SessionResult(
         InferenceSession Session,
-        string BackendName);
+        string BackendName,
+        IReadOnlyList<string> Diagnostics);
 }

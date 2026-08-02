@@ -9,7 +9,7 @@ namespace DeveMobileLPR.Inference.Yolo;
 /// Shared detector pipeline for raw YOLOv9 outputs. A platform-specific model
 /// runner supplies fixed box and score tensors; every other step is identical.
 /// </summary>
-public sealed class YoloV9RawPlateDetector : IPlateDetector, IInferenceBackendInfo, IDisposable
+public sealed class YoloV9RawPlateDetector : IPlateDetector, IInferenceBackendInfo, IInferenceBackendDiagnostics, IDisposable
 {
     public const int InputValueCount = 3 * DetectorPreprocessor.InputSize * DetectorPreprocessor.InputSize;
 
@@ -29,6 +29,8 @@ public sealed class YoloV9RawPlateDetector : IPlateDetector, IInferenceBackendIn
     }
 
     public string BackendName => _model.BackendName;
+    public IReadOnlyList<string> BackendDiagnostics =>
+        (_model as IInferenceBackendDiagnostics)?.BackendDiagnostics ?? [];
 
     public async ValueTask<PlateDetectionResult> DetectAsync(
         Yuv420Frame frame,

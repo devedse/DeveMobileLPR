@@ -1,4 +1,5 @@
 using DeveMobileLPR.Inference.Yolo;
+using DeveMobileLPR.Recognition;
 using Microsoft.ML.OnnxRuntime;
 
 namespace DeveMobileLPR.Inference.Onnx;
@@ -7,7 +8,7 @@ namespace DeveMobileLPR.Inference.Onnx;
 /// Runs the pre-NMS YOLO graph through ONNX Runtime. This provides a direct
 /// comparison with LiteRT while reusing identical preprocessing and C# NMS.
 /// </summary>
-public sealed class OnnxYoloV9RawModel : IYoloV9RawModel
+public sealed class OnnxYoloV9RawModel : IYoloV9RawModel, IInferenceBackendDiagnostics
 {
     private static readonly long[] InputShape = [1, 3, 608, 608];
     private const int CandidateCount = 7_581;
@@ -34,6 +35,7 @@ public sealed class OnnxYoloV9RawModel : IYoloV9RawModel
             allowNnapiFp16);
         _session = session.Session;
         BackendName = session.BackendName;
+        BackendDiagnostics = session.Diagnostics;
         try
         {
             ValidateContract(out _boxesOutputName, out _scoresOutputName);
@@ -51,6 +53,7 @@ public sealed class OnnxYoloV9RawModel : IYoloV9RawModel
     }
 
     public string BackendName { get; }
+    public IReadOnlyList<string> BackendDiagnostics { get; }
     public YoloV9InputLayout InputLayout => YoloV9InputLayout.ChannelsFirst;
 
     public YoloV9RawModelOutput Run(float[] input)
