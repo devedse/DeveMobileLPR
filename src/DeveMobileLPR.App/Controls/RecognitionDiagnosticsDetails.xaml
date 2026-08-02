@@ -42,6 +42,13 @@
             </Grid>
         </Border>
 
+        <Border Style="{StaticResource DiagnosticCard}">
+            <VerticalStackLayout Spacing="2">
+                <Label Style="{StaticResource DiagnosticName}" Text="Provider selection" />
+                <Label FontSize="9" LineBreakMode="WordWrap" Text="{Binding Frame.BackendDiagnosticsText}" TextColor="{DynamicResource TextMuted}" />
+            </VerticalStackLayout>
+        </Border>
+
         <Border Style="{StaticResource DiagnosticCard}" Stroke="{DynamicResource Primary}">
             <Grid ColumnDefinitions="1.2*,*" ColumnSpacing="12">
                 <VerticalStackLayout Spacing="1">

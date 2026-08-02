@@ -162,15 +162,12 @@
         <Setter Property="FontSize" Value="25" />
     </Style>
     <Style x:Key="BrandMark" TargetType="Border">
-        <Setter Property="BackgroundColor" Value="{DynamicResource PlateYellow}" />
-        <Setter Property="Padding" Value="11,7" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="HeightRequest" Value="46" />
+        <Setter Property="Padding" Value="0" />
         <Setter Property="StrokeThickness" Value="0" />
         <Setter Property="StrokeShape" Value="RoundRectangle 10" />
-    </Style>
-    <Style x:Key="BrandMarkText" TargetType="Label">
-        <Setter Property="FontAttributes" Value="Bold" />
-        <Setter Property="FontSize" Value="14" />
-        <Setter Property="TextColor" Value="{DynamicResource OnPlate}" />
+        <Setter Property="WidthRequest" Value="46" />
     </Style>
     <Style x:Key="DriveStatusPill" TargetType="Border">
         <Setter Property="BackgroundColor" Value="{DynamicResource DriveStatusSurface}" />

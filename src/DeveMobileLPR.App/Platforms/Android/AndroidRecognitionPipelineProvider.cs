@@ -1,7 +1,8 @@
 using DeveMobileLPR.Application;
 using DeveMobileLPR.App.Infrastructure;
 using DeveMobileLPR.Inference;
-using DeveMobileLPR.Inference.Onnx;
+using DeveMobileLPR.Inference.Cct;
+using DeveMobileLPR.Inference.Models;
 using DeveMobileLPR.Inference.Yolo;
 using DeveMobileLPR.Recognition;
 
@@ -19,23 +20,22 @@ internal sealed class AndroidRecognitionPipelineProvider(
         var models = await AndroidModelInstaller.EnsureInstalledAsync(
             context.Assets ?? throw new InvalidOperationException("Application assets are unavailable."),
             files,
-            AndroidDetectorModelFactory.Artifact,
+            ModelCatalog.AndroidLiteRtDetector,
+            ModelCatalog.AndroidLiteRtRecognizer,
             cancellationToken).ConfigureAwait(false);
-        var rawModel = AndroidDetectorModelFactory.Create(models.Detector, recognitionTuning, diagnostic);
+        var rawModel = new AndroidLiteRtYoloV9RawModel(models.Detector, diagnostic);
         YoloV9RawPlateDetector? detector = null;
+        CctPlateRecognizer? recognizer = null;
         try
         {
             detector = new YoloV9RawPlateDetector(rawModel, recognitionTuning);
-            var recognizer = new OnnxCctPlateRecognizer(
-                models.Ocr,
-                recognitionTuning.Ocr_XnnpackThreads,
-                diagnostic,
-                recognitionTuning.Ocr_AndroidAllowNnapiFp16);
+            recognizer = new CctPlateRecognizer(new AndroidLiteRtCctRawModel(models.Ocr, diagnostic));
             diagnostic?.Invoke($"Detector backend selected: {rawModel.BackendName}");
             return new PlateRecognitionPipeline(detector, recognizer, recognitionTuning);
         }
         catch
         {
+            recognizer?.Dispose();
             if (detector is null)
             {
                 rawModel.Dispose();

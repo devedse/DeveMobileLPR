@@ -12,13 +12,14 @@ $sourceName = 'yolo-v9-s-608-license-plates-end2end.onnx'
 $rawName = 'yolo-v9-s-608-license-plates-raw.onnx'
 $targetName = 'yolo-v9-s-608-license-plates-raw_float32.tflite'
 $expectedSourceHash = '2B878B38D9AA07B6DDC3EA75C4FFCB39869BC5C218E0A14002F60AB2F7B0BE9A'
-$expectedRawHash = '8886A067DD514404E99FDF1CFC642827303A4700E3D9FFE829DADC446BB94BCE'
-$expectedRawLength = 28608718
-$expectedTargetHash = 'EE20A2F2DAAD51525A449E2A7E388965E4F9DEC5F39CB8D0348C21232FFAA1E2'
-$expectedTargetLength = 28561524
+$expectedRawHash = '5BF1E049B48E0EEFBBDD2D0122F2D01184F50B1F8F2EAE74C40EE34C44CE676B'
+$expectedRawLength = 28608869
+$expectedTargetHash = '2D3CF7D206197A0BC719C25422254EFC255B81F9495825D6DBA5A7D770A39433'
+$expectedTargetLength = 28561236
 
 $root = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $modelDirectory = [System.IO.Path]::GetFullPath($ModelDirectory)
+& (Join-Path $PSScriptRoot 'Generate-LiteRt-Ocr.ps1') -ModelDirectory $modelDirectory -Force:$Force
 $tool = Join-Path $root 'eng\model-tools\prepare_litert_detector.py'
 $source = Join-Path $modelDirectory $sourceName
 $rawTarget = Join-Path $modelDirectory $rawName

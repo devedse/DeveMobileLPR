@@ -12,6 +12,7 @@ public sealed class PlateRecognitionPipeline : IFrameRecognitionPipeline, IDispo
     private readonly RecognitionTuningConfiguration _configuration;
     private readonly string _detectorBackend;
     private readonly string _ocrBackend;
+    private readonly IReadOnlyList<string> _backendDiagnostics;
 
     public PlateRecognitionPipeline(
         IPlateDetector detector,
@@ -24,6 +25,10 @@ public sealed class PlateRecognitionPipeline : IFrameRecognitionPipeline, IDispo
         _configuration.Validate();
         _detectorBackend = (detector as IInferenceBackendInfo)?.BackendName ?? detector.GetType().Name;
         _ocrBackend = (recognizer as IInferenceBackendInfo)?.BackendName ?? recognizer.GetType().Name;
+        _backendDiagnostics = [
+            .. (detector as IInferenceBackendDiagnostics)?.BackendDiagnostics ?? [],
+            .. (recognizer as IInferenceBackendDiagnostics)?.BackendDiagnostics ?? []
+        ];
     }
 
     public async ValueTask<FrameRecognition> ProcessAsync(Yuv420Frame frame, CancellationToken cancellationToken)
@@ -88,7 +93,8 @@ public sealed class PlateRecognitionPipeline : IFrameRecognitionPipeline, IDispo
                 Candidates = candidates,
                 CropQualityMilliseconds = cropQualityMilliseconds,
                 DetectorBackend = _detectorBackend,
-                OcrBackend = _ocrBackend
+                OcrBackend = _ocrBackend,
+                BackendDiagnostics = _backendDiagnostics
             }
         };
     }

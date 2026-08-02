@@ -34,4 +34,5 @@
     <Color x:Key="DriveStatusSurface">#D9161A21</Color>
     <Color x:Key="DriveScrimStart">#F20B0D10</Color>
     <Color x:Key="DriveScrimMiddle">#C911151B</Color>
+    <Color x:Key="DriveOverlayShadow">#B3000000</Color>
 </ResourceDictionary>

@@ -36,11 +36,15 @@ public sealed class PlateRecognitionPipelineDiagnosticsTests
         Assert.True(result.Diagnostics.TotalMilliseconds >= result.Diagnostics.CropQualityMilliseconds);
         Assert.Equal("Test detector", result.Diagnostics.DetectorBackend);
         Assert.Equal("Test OCR", result.Diagnostics.OcrBackend);
+        Assert.Equal(
+            ["Detector candidate: unavailable", "OCR candidate: 12.0 ms"],
+            result.Diagnostics.BackendDiagnostics);
     }
 
-    private sealed class FakeDetector : IPlateDetector, IInferenceBackendInfo
+    private sealed class FakeDetector : IPlateDetector, IInferenceBackendInfo, IInferenceBackendDiagnostics
     {
         public string BackendName => "Test detector";
+        public IReadOnlyList<string> BackendDiagnostics => ["Detector candidate: unavailable"];
 
         public ValueTask<PlateDetectionResult> DetectAsync(Yuv420Frame frame, CancellationToken cancellationToken) =>
             ValueTask.FromResult(new PlateDetectionResult(
@@ -51,9 +55,10 @@ public sealed class PlateRecognitionPipelineDiagnosticsTests
                 new ModelExecutionTiming(0, 1, 2, 1)));
     }
 
-    private sealed class EmptyRecognizer : IPlateRecognizer, IInferenceBackendInfo
+    private sealed class EmptyRecognizer : IPlateRecognizer, IInferenceBackendInfo, IInferenceBackendDiagnostics
     {
         public string BackendName => "Test OCR";
+        public IReadOnlyList<string> BackendDiagnostics => ["OCR candidate: 12.0 ms"];
 
         public ValueTask<PlateRecognitionResult> RecognizeAsync(
             Yuv420Frame frame,

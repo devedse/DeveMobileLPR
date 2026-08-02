@@ -19,11 +19,11 @@ public static class ModelCatalog
 
     public static ModelArtifact AndroidLiteRtDetector { get; } = new(
         "yolo-v9-s-608-license-plates-raw_float32.tflite",
-        "EE20A2F2DAAD51525A449E2A7E388965E4F9DEC5F39CB8D0348C21232FFAA1E2",
-        28_561_524);
+        "2D3CF7D206197A0BC719C25422254EFC255B81F9495825D6DBA5A7D770A39433",
+        28_561_236);
 
-    public static ModelArtifact AndroidOnnxRawDetector { get; } = new(
-        "yolo-v9-s-608-license-plates-raw.onnx",
-        "8886A067DD514404E99FDF1CFC642827303A4700E3D9FFE829DADC446BB94BCE",
-        28_608_718);
+    public static ModelArtifact AndroidLiteRtRecognizer { get; } = new(
+        "cct_s_v2_global_float32.tflite",
+        "215049B9D372B7DBB2BA392E85E0E1079681085F66FE92A9884B00CC6681F25C",
+        5_177_440);
 }

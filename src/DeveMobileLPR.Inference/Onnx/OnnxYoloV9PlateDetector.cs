@@ -7,7 +7,7 @@ using Microsoft.ML.OnnxRuntime;
 
 namespace DeveMobileLPR.Inference.Onnx;
 
-public sealed class OnnxYoloV9PlateDetector : IPlateDetector, IInferenceBackendInfo, IDisposable
+public sealed class OnnxYoloV9PlateDetector : IPlateDetector, IInferenceBackendInfo, IInferenceBackendDiagnostics, IDisposable
 {
     private static readonly long[] InputShape = [1, 3, DetectorPreprocessor.InputSize, DetectorPreprocessor.InputSize];
     private readonly InferenceSession _session;
@@ -25,13 +25,10 @@ public sealed class OnnxYoloV9PlateDetector : IPlateDetector, IInferenceBackendI
     {
         _configuration = configuration ?? new RecognitionTuningConfiguration();
         _configuration.Validate();
-        var session = OnnxSessionFactory.Create(
-            modelPath,
-            _configuration.Detector_XnnpackThreads,
-            diagnostic,
-            _configuration.Detector_AndroidAllowNnapiFp16);
+        var session = OnnxSessionFactory.Create(modelPath, diagnostic);
         _session = session.Session;
         BackendName = session.BackendName;
+        BackendDiagnostics = session.Diagnostics;
         ValidateInputContract();
         _inputValue = OrtValue.CreateTensorValueFromMemory(_input, InputShape);
         _inputs = new Dictionary<string, OrtValue>(StringComparer.Ordinal)
@@ -41,6 +38,7 @@ public sealed class OnnxYoloV9PlateDetector : IPlateDetector, IInferenceBackendI
     }
 
     public string BackendName { get; }
+    public IReadOnlyList<string> BackendDiagnostics { get; }
 
     public async ValueTask<PlateDetectionResult> DetectAsync(
         Yuv420Frame frame,

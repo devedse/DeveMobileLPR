@@ -8,8 +8,6 @@ param(
     [int]$ApplicationVersion,
     [ValidatePattern('^\d+\.\d+\.\d+$')]
     [string]$ApplicationDisplayVersion,
-    [ValidateSet('LiteRt', 'OnnxRaw')]
-    [string]$DetectorBackend = 'LiteRt',
     [string]$OutputDirectory,
     [string]$Keystore,
     [string]$KeystorePassword,
@@ -40,7 +38,7 @@ Get-ChildItem -LiteralPath $output -Filter '*.apk' -File -ErrorAction SilentlyCo
 Get-ChildItem -LiteralPath $projectOutput -Filter '*-Signed.apk' -File -Recurse -ErrorAction SilentlyContinue |
     Remove-Item -Force
 
-$arguments = @('publish', $project, '--framework', 'net10.0-android36.0', '--configuration', $Configuration, '--no-restore', '-p:AndroidPackageFormats=apk', "-p:PublishDir=$output\", "-p:AndroidDetectorBackend=$DetectorBackend")
+$arguments = @('publish', $project, '--framework', 'net10.0-android36.0', '--configuration', $Configuration, '--no-restore', '-p:AndroidPackageFormats=apk', "-p:PublishDir=$output\")
 if ($PSBoundParameters.ContainsKey('Version')) {
     $arguments += "-p:Version=$Version"
 }
@@ -128,4 +126,4 @@ if (-not [string]::IsNullOrWhiteSpace($Keystore)) {
     Write-Host "Verified release signing certificate SHA-256: $actualFingerprint"
 }
 
-Write-Host "Published $DetectorBackend detector APK: $($signedPackages[0].FullName)"
+Write-Host "Published Android APK: $($signedPackages[0].FullName)"

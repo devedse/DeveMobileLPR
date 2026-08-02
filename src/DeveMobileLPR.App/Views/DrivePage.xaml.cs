@@ -43,6 +43,14 @@ public partial class DrivePage : ContentPage
         ReadyPanel.Margin = compactLandscape ? new Thickness(26, 4) : Thickness.Zero;
     }
 
+    private void DriveMiddleAreaSizeChanged(object? sender, EventArgs args)
+    {
+        if (DriveMiddleArea.Height > 0)
+        {
+            DiagnosticsPanel.MaximumHeightRequest = DriveMiddleArea.Height;
+        }
+    }
+
     private void ApplyDriveMode(bool isDriving)
     {
         Shell.SetTabBarIsVisible(this, !isDriving);
