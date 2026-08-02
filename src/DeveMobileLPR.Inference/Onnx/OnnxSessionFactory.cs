@@ -169,7 +169,19 @@ internal static class OnnxSessionFactory
             $"ONNX Runtime provider selected: {fastestName} "
             + $"({fastestStatistics.Value.MedianMilliseconds:0.0} ms median)");
         ProfileSelectedProvider(modelPath, fastestProvider, diagnosticsConfiguration, report);
-        return new SessionResult(fastest, $"ONNX Runtime {fastestName}", diagnostics);
+        using var selectedOptions = CreateBaseOptions();
+        fastestProvider.Configure(selectedOptions);
+        InferenceSession liveSession;
+        try
+        {
+            liveSession = new InferenceSession(modelPath, selectedOptions);
+        }
+        finally
+        {
+            fastest.Dispose();
+        }
+
+        return new SessionResult(liveSession, $"ONNX Runtime {fastestName}", diagnostics);
     }
 
     private static SessionResult CreateFastestAndroidSession(
