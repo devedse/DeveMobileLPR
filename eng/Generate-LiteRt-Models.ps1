@@ -19,6 +19,7 @@ $expectedTargetLength = 28561236
 
 $root = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $modelDirectory = [System.IO.Path]::GetFullPath($ModelDirectory)
+& (Join-Path $PSScriptRoot 'Generate-LiteRt-Ocr.ps1') -ModelDirectory $modelDirectory -Force:$Force
 $tool = Join-Path $root 'eng\model-tools\prepare_litert_detector.py'
 $source = Join-Path $modelDirectory $sourceName
 $rawTarget = Join-Path $modelDirectory $rawName

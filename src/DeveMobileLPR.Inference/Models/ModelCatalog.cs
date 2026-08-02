@@ -22,8 +22,8 @@ public static class ModelCatalog
         "2D3CF7D206197A0BC719C25422254EFC255B81F9495825D6DBA5A7D770A39433",
         28_561_236);
 
-    public static ModelArtifact AndroidOnnxRawDetector { get; } = new(
-        "yolo-v9-s-608-license-plates-raw.onnx",
-        "291F31E43FF4DA82C29168960AC12B672F9D57CA04A83594B87F8BAEA108B49F",
-        28_608_857);
+    public static ModelArtifact AndroidLiteRtRecognizer { get; } = new(
+        "cct_s_v2_global_float32.tflite",
+        "215049B9D372B7DBB2BA392E85E0E1079681085F66FE92A9884B00CC6681F25C",
+        5_177_440);
 }

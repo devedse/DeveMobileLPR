@@ -10,7 +10,7 @@ The first implementation targets Android because direct CameraX access gives the
 - Live Windows webcam preview and frame analysis with camera selection and latest-frame backpressure.
 - A full-screen, low-distraction Drive mode with live plate boxes, OCR text, RDW vehicle labels, camera selection, 1×–4× zoom, and a visible road-region guide.
 - Latest-frame-only ingestion with configurable 2, 4, 8, or 12 frame-per-second limits plus an unlimited option. Slow inference drops stale frames instead of consuming more memory.
-- MIT-licensed YOLOv9-S 608 plate detection through Android LiteRT or Windows ONNX Runtime, plus CCT-S V2 global OCR through ONNX Runtime.
+- MIT-licensed YOLOv9-S 608 plate detection and CCT-S V2 global OCR through Android LiteRT or Windows ONNX Runtime.
 - Direct YUV-to-model sampling: there is no full-frame RGB bitmap allocation.
 - Hybrid plate tracking using weighted OCR identity, timestamp-aware motion prediction, geometry gates, and global one-to-one assignment. Complete Dutch plates can confirm from two exceptionally strong exact reads; all other cases retain the conservative three-frame confidence/quality-weighted consensus.
 - Dutch sidecode validation and official three-group formatting for sidecodes 1–14.
@@ -61,7 +61,7 @@ See [docs/architecture.md](docs/architecture.md) for the implementation rational
 - Windows, macOS, or Linux with the SDK selected by `global.json`.
 - The .NET MAUI Android and Windows workloads: `dotnet workload install maui-android maui-windows`.
 - PowerShell 7 (`pwsh`) for the repository scripts.
-- Docker for reproducibly generating the Android LiteRT detector from the pinned ONNX source. `-SkipAndroid` builds do not require it.
+- Docker for reproducibly generating the Android LiteRT detector and OCR models from the pinned ONNX sources. `-SkipAndroid` builds do not require it.
 - Android API 26 or newer on the target phone. A 64-bit phone with at least 4 GB RAM is recommended.
 
 The checked-in SDK feature band is intentionally exact. On this development machine the Android build was also validated with the installed .NET 10.0.110 workload set because the newer Visual Studio workload registration was inconsistent; clean CI installs the workload declared by `global.json`.
@@ -77,24 +77,22 @@ From the repository root:
 That command:
 
 1. downloads and SHA-256-verifies the source detector and OCR model;
-2. extracts the detector's pre-NMS graph and generates a numerically verified LiteRT model in a digest-pinned converter container;
+2. extracts the detector's pre-NMS graph and generates numerically verified detector and OCR LiteRT models in a digest-pinned converter container;
 3. checks that the Android and Windows workloads are already installed without requesting elevation;
 4. restores the locked dependency graph;
 5. builds with warnings as errors;
 6. runs unit/integration tests and the real-model contract tests;
 7. publishes the portable RDW-downloader ZIP to `artifacts/rdw-downloader`, an APK to `artifacts/android`, and the self-contained `DeveMobileLPR.exe` to `artifacts/windows/win-x64`.
 
-`Publish-Android.ps1` defaults to the production LiteRT detector. For a controlled
-Android runtime comparison, the same raw detector graph can be packaged for ONNX
-Runtime; both builds use identical preprocessing and shared C# NMS:
+`Publish-Android.ps1` creates the single production Android APK. It packages the
+LiteRT detector and OCR models and uses explicit GPU execution with LiteRT CPU
+fallback when a model cannot initialize on the GPU:
 
 ```powershell
-./eng/Publish-Android.ps1 -Configuration Release -DetectorBackend LiteRt -OutputDirectory artifacts/android/litert
-./eng/Publish-Android.ps1 -Configuration Release -DetectorBackend OnnxRaw -OutputDirectory artifacts/android/onnx-raw
+./eng/Publish-Android.ps1 -Configuration Release
 ```
 
-CI publishes these as separately named LiteRT and ONNX-Raw APK artifacts. The
-production release continues to use LiteRT.
+CI publishes it as `DeveMobileLPR-Android-<version>`.
 
 For portable development without Android packaging:
 
@@ -128,7 +126,7 @@ one that is closest to two analyzed frames per second from the video's reported
 frame rate. The large video fixture remains outside Git; a missing
 `DEVEMOBILELPR_E2E_VIDEO` causes only this local-fixture test to be skipped.
 
-Model binaries are build inputs and are ignored by Git. Downloaded-model URLs, sizes, and hashes are pinned in `ModelCatalog` and `eng/Download-Models.ps1`. The raw ONNX and LiteRT detector outputs, converter image digest, sizes, and hashes are pinned by `eng/Generate-LiteRt-Models.ps1`; details are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+Model binaries are build inputs and are ignored by Git. Downloaded-model URLs, sizes, and hashes are pinned in `ModelCatalog` and `eng/Download-Models.ps1`. The generated LiteRT detector and OCR outputs, converter image digest, sizes, and hashes are pinned by the LiteRT generation scripts; details are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 ## Build and import the RDW database
 

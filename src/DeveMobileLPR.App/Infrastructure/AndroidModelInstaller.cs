@@ -9,12 +9,13 @@ internal static class AndroidModelInstaller
         AssetManager assets,
         string filesDirectory,
         ModelArtifact detectorArtifact,
+        ModelArtifact ocrArtifact,
         CancellationToken cancellationToken)
     {
         var modelDirectory = Path.Combine(filesDirectory, "models");
         Directory.CreateDirectory(modelDirectory);
         var detector = await CopyVerifiedAsync(assets, detectorArtifact, modelDirectory, cancellationToken);
-        var ocr = await CopyVerifiedAsync(assets, ModelCatalog.Recognizer, modelDirectory, cancellationToken);
+        var ocr = await CopyVerifiedAsync(assets, ocrArtifact, modelDirectory, cancellationToken);
         return (detector, ocr);
     }
 

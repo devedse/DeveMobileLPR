@@ -33,17 +33,18 @@ jobs:
         shell: pwsh
         run: ./eng/Download-Models.ps1
 
-      - name: Generate and verify LiteRT detector
+      - name: Generate and verify LiteRT models
         shell: pwsh
         run: ./eng/Generate-LiteRt-Models.ps1
 
-      - name: Upload generated LiteRT detector
+      - name: Upload generated LiteRT models
         uses: actions/upload-artifact@v7
         with:
-          name: litert-detector-${{ github.sha }}
+          name: litert-models-${{ github.sha }}
           path: |
             artifacts/models/yolo-v9-s-608-license-plates-raw.onnx
             artifacts/models/yolo-v9-s-608-license-plates-raw_float32.tflite
+            artifacts/models/cct_s_v2_global_float32.tflite
           if-no-files-found: error
           retention-days: 1
 
@@ -77,13 +78,13 @@ jobs:
         shell: pwsh
         run: ./eng/Download-Models.ps1
 
-      - name: Download generated LiteRT detector
+      - name: Download generated LiteRT models
         uses: actions/download-artifact@v8
         with:
-          name: litert-detector-${{ github.sha }}
+          name: litert-models-${{ github.sha }}
           path: artifacts/models
 
-      - name: Verify generated LiteRT detector
+      - name: Verify generated LiteRT models
         shell: pwsh
         run: ./eng/Generate-LiteRt-Models.ps1
 
@@ -129,47 +130,25 @@ jobs:
             [System.IO.File]::WriteAllBytes((Join-Path $env:RUNNER_TEMP 'release.keystore'), [Convert]::FromBase64String($env:KEYSTORE_BASE64))
           }
 
-      - name: Package debug-signed Android comparison APKs
+      - name: Package debug-signed Android APK
         if: steps.signing.outputs.configured != 'true'
         shell: pwsh
-        run: |
-          ./eng/Publish-Android.ps1 -Configuration Release -Version $env:BUILD_VERSION -ApplicationVersion $env:BUILD_NUMBER -ApplicationDisplayVersion $env:BUILD_VERSION -DetectorBackend LiteRt -OutputDirectory artifacts/android/litert
-          ./eng/Publish-Android.ps1 -Configuration Release -Version $env:BUILD_VERSION -ApplicationVersion $env:BUILD_NUMBER -ApplicationDisplayVersion $env:BUILD_VERSION -DetectorBackend OnnxRaw -OutputDirectory artifacts/android/onnx-raw
-          ./eng/Publish-Android.ps1 -Configuration Release -Version $env:BUILD_VERSION -ApplicationVersion $env:BUILD_NUMBER -ApplicationDisplayVersion $env:BUILD_VERSION -DetectorBackend WebGpu -OutputDirectory artifacts/android/webgpu
+        run: ./eng/Publish-Android.ps1 -Configuration Release -Version $env:BUILD_VERSION -ApplicationVersion $env:BUILD_NUMBER -ApplicationDisplayVersion $env:BUILD_VERSION
 
-      - name: Package release-signed Android comparison APKs
+      - name: Package release-signed Android APK
         if: steps.signing.outputs.configured == 'true'
         shell: pwsh
         env:
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          ./eng/Publish-Android.ps1 -Configuration Release -Version $env:BUILD_VERSION -ApplicationVersion $env:BUILD_NUMBER -ApplicationDisplayVersion $env:BUILD_VERSION -DetectorBackend LiteRt -OutputDirectory artifacts/android/litert -Keystore "$env:RUNNER_TEMP\release.keystore" -KeystorePassword $env:KEYSTORE_PASSWORD -KeyAlias $env:KEY_ALIAS -KeyPassword $env:KEY_PASSWORD
-          ./eng/Publish-Android.ps1 -Configuration Release -Version $env:BUILD_VERSION -ApplicationVersion $env:BUILD_NUMBER -ApplicationDisplayVersion $env:BUILD_VERSION -DetectorBackend OnnxRaw -OutputDirectory artifacts/android/onnx-raw -Keystore "$env:RUNNER_TEMP\release.keystore" -KeystorePassword $env:KEYSTORE_PASSWORD -KeyAlias $env:KEY_ALIAS -KeyPassword $env:KEY_PASSWORD
-          ./eng/Publish-Android.ps1 -Configuration Release -Version $env:BUILD_VERSION -ApplicationVersion $env:BUILD_NUMBER -ApplicationDisplayVersion $env:BUILD_VERSION -DetectorBackend WebGpu -OutputDirectory artifacts/android/webgpu -Keystore "$env:RUNNER_TEMP\release.keystore" -KeystorePassword $env:KEYSTORE_PASSWORD -KeyAlias $env:KEY_ALIAS -KeyPassword $env:KEY_PASSWORD
+        run: ./eng/Publish-Android.ps1 -Configuration Release -Version $env:BUILD_VERSION -ApplicationVersion $env:BUILD_NUMBER -ApplicationDisplayVersion $env:BUILD_VERSION -Keystore "$env:RUNNER_TEMP\release.keystore" -KeystorePassword $env:KEYSTORE_PASSWORD -KeyAlias $env:KEY_ALIAS -KeyPassword $env:KEY_PASSWORD
 
-      - name: Upload LiteRT APK on every build
+      - name: Upload Android APK on every build
         uses: actions/upload-artifact@v7
         with:
-          name: DeveMobileLPR-LiteRT-${{ env.BUILD_VERSION }}
-          path: artifacts/android/litert/*.apk
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Upload raw ONNX APK on every build
-        uses: actions/upload-artifact@v7
-        with:
-          name: DeveMobileLPR-ONNX-Raw-${{ env.BUILD_VERSION }}
-          path: artifacts/android/onnx-raw/*.apk
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Upload WebGPU APK on every build
-        uses: actions/upload-artifact@v7
-        with:
-          name: DeveMobileLPR-WebGPU-${{ env.BUILD_VERSION }}
-          path: artifacts/android/webgpu/*.apk
+          name: DeveMobileLPR-Android-${{ env.BUILD_VERSION }}
+          path: artifacts/android/*.apk
           if-no-files-found: error
           retention-days: 14
 
@@ -208,7 +187,7 @@ jobs:
       - name: Download signed APK
         uses: actions/download-artifact@v8
         with:
-          name: DeveMobileLPR-LiteRT-1.0.${{ needs.generate_version_number.outputs.build_number }}
+          name: DeveMobileLPR-Android-1.0.${{ needs.generate_version_number.outputs.build_number }}
           path: artifacts/android
 
       - name: Download RDW downloader

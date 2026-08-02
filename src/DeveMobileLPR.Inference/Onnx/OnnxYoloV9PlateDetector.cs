@@ -25,11 +25,7 @@ public sealed class OnnxYoloV9PlateDetector : IPlateDetector, IInferenceBackendI
     {
         _configuration = configuration ?? new RecognitionTuningConfiguration();
         _configuration.Validate();
-        var session = OnnxSessionFactory.Create(
-            modelPath,
-            _configuration.Detector_XnnpackThreads,
-            diagnostic,
-            _configuration.Detector_AndroidAllowNnapiFp16);
+        var session = OnnxSessionFactory.Create(modelPath, diagnostic);
         _session = session.Session;
         BackendName = session.BackendName;
         BackendDiagnostics = session.Diagnostics;

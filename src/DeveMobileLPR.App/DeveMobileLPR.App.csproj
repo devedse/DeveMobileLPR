@@ -15,13 +15,10 @@
     <ApplicationVersion>1</ApplicationVersion>
     <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
-    <AndroidDetectorBackend Condition="'$(AndroidDetectorBackend)' == ''">LiteRt</AndroidDetectorBackend>
-    <DefineConstants Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android' and '$(AndroidDetectorBackend)' == 'OnnxRaw'">$(DefineConstants);ANDROID_ONNX_RAW_DETECTOR</DefineConstants>
-    <DefineConstants Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android' and '$(AndroidDetectorBackend)' == 'WebGpu'">$(DefineConstants);ANDROID_WEBGPU_DETECTOR</DefineConstants>
     <AndroidLinkMode Condition="'$(Configuration)' == 'Release'">SdkOnly</AndroidLinkMode>
     <!-- Profiled Mono AOT currently fails in the .NET 10 Android cross-assembler for both
          universal and arm64 builds. Keep packaging reliable; inference acceleration is
-         provided by ONNX Runtime's native execution providers instead. -->
+          provided by LiteRT's native GPU/CPU accelerators instead. -->
     <RunAOTCompilation>false</RunAOTCompilation>
     <MauiEnableXamlCBindingWithSourceCompilation>true</MauiEnableXamlCBindingWithSourceCompilation>
     <AllowUnsafeBlocks Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">true</AllowUnsafeBlocks>
@@ -51,7 +48,6 @@
     <PackageReference Include="Microsoft.Maui.Essentials" />
   </ItemGroup>
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
-    <PackageReference Include="Microsoft.ML.OnnxRuntime" />
     <PackageReference Include="Xamarin.Google.AI.Edge.LiteRT" />
     <!-- CameraX 1.6.1 uses the current AndroidX generation. Pin its KTX companions so
          MAUI's older transitive minimums cannot produce mixed, incompatible pairs. -->
@@ -78,25 +74,16 @@
   </ItemGroup>
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
     <AndroidAsset Include="..\..\artifacts\models\yolo-v9-s-608-license-plates-raw_float32.tflite"
-                  Link="models\yolo-v9-s-608-license-plates-raw_float32.tflite"
-                  Condition="'$(AndroidDetectorBackend)' == 'LiteRt'" />
-    <AndroidAsset Include="..\..\artifacts\models\yolo-v9-s-608-license-plates-raw.onnx"
-                  Link="models\yolo-v9-s-608-license-plates-raw.onnx"
-                  Condition="'$(AndroidDetectorBackend)' == 'OnnxRaw' or '$(AndroidDetectorBackend)' == 'WebGpu'" />
-    <AndroidAsset Include="..\..\artifacts\models\cct_s_v2_global.onnx" Link="models\cct_s_v2_global.onnx" />
+        Link="models\yolo-v9-s-608-license-plates-raw_float32.tflite" />
+    <AndroidAsset Include="..\..\artifacts\models\cct_s_v2_global_float32.tflite"
+        Link="models\cct_s_v2_global_float32.tflite" />
   </ItemGroup>
 
-  <Target Name="ValidateAndroidDetectorBackend"
-          BeforeTargets="PrepareForBuild"
-          Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
-    <Error Condition="'$(AndroidDetectorBackend)' != 'LiteRt' and '$(AndroidDetectorBackend)' != 'OnnxRaw' and '$(AndroidDetectorBackend)' != 'WebGpu'"
-           Text="AndroidDetectorBackend must be either LiteRt, OnnxRaw, or WebGpu, but was '$(AndroidDetectorBackend)'." />
-  </Target>
   <Target Name="GenerateAndroidDetectorModels"
           BeforeTargets="PrepareForBuild"
           Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'"
-          Inputs="..\..\artifacts\models\yolo-v9-s-608-license-plates-end2end.onnx;..\..\eng\Generate-LiteRt-Models.ps1;..\..\eng\model-tools\prepare_litert_detector.py"
-          Outputs="..\..\artifacts\models\yolo-v9-s-608-license-plates-raw.onnx;..\..\artifacts\models\yolo-v9-s-608-license-plates-raw_float32.tflite">
+      Inputs="..\..\artifacts\models\yolo-v9-s-608-license-plates-end2end.onnx;..\..\artifacts\models\cct_s_v2_global.onnx;..\..\eng\Generate-LiteRt-Models.ps1;..\..\eng\Generate-LiteRt-Ocr.ps1;..\..\eng\model-tools\prepare_litert_detector.py;..\..\eng\model-tools\validate_litert_ocr.py"
+      Outputs="..\..\artifacts\models\yolo-v9-s-608-license-plates-raw.onnx;..\..\artifacts\models\yolo-v9-s-608-license-plates-raw_float32.tflite;..\..\artifacts\models\cct_s_v2_global_float32.tflite">
     <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildProjectDirectory)\..\..\eng\Generate-LiteRt-Models.ps1&quot;" />
   </Target>
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">

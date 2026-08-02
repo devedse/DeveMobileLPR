@@ -32,7 +32,7 @@ jobs:
         shell: pwsh
         run: ./eng/Download-Models.ps1
 
-      - name: Generate and verify LiteRT detector
+      - name: Generate and verify LiteRT models
         shell: pwsh
         run: ./eng/Generate-LiteRt-Models.ps1
 

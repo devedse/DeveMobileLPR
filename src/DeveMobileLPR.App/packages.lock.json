@@ -27,15 +27,6 @@
           "Xamarin.Google.Crypto.Tink.Android": "1.18.0.1"
         }
       },
-      "Microsoft.ML.OnnxRuntime": {
-        "type": "Direct",
-        "requested": "[1.24.4, )",
-        "resolved": "1.24.4",
-        "contentHash": "895huFBVrZkZEGjlsxBSZD3p6D32Cdz6q8DM9UcUps2YKFYdFR8TefaTggFBUTYlvcSyfNTpmOOU/ZkeL69izw==",
-        "dependencies": {
-          "Microsoft.ML.OnnxRuntime.Managed": "1.24.4"
-        }
-      },
       "Microsoft.NET.ILLink.Tasks": {
         "type": "Direct",
         "requested": "[10.0.10, )",
@@ -1939,15 +1930,6 @@
       }
     },
     "net10.0-android36.0/android-arm64": {
-      "Microsoft.ML.OnnxRuntime": {
-        "type": "Direct",
-        "requested": "[1.24.4, )",
-        "resolved": "1.24.4",
-        "contentHash": "895huFBVrZkZEGjlsxBSZD3p6D32Cdz6q8DM9UcUps2YKFYdFR8TefaTggFBUTYlvcSyfNTpmOOU/ZkeL69izw==",
-        "dependencies": {
-          "Microsoft.ML.OnnxRuntime.Managed": "1.24.4"
-        }
-      },
       "SourceGear.sqlite3": {
         "type": "Transitive",
         "resolved": "3.53.3",
@@ -1955,15 +1937,6 @@
       }
     },
     "net10.0-android36.0/android-x64": {
-      "Microsoft.ML.OnnxRuntime": {
-        "type": "Direct",
-        "requested": "[1.24.4, )",
-        "resolved": "1.24.4",
-        "contentHash": "895huFBVrZkZEGjlsxBSZD3p6D32Cdz6q8DM9UcUps2YKFYdFR8TefaTggFBUTYlvcSyfNTpmOOU/ZkeL69izw==",
-        "dependencies": {
-          "Microsoft.ML.OnnxRuntime.Managed": "1.24.4"
-        }
-      },
       "SourceGear.sqlite3": {
         "type": "Transitive",
         "resolved": "3.53.3",
@@ -1971,15 +1944,6 @@
       }
     },
     "net10.0-android36.0/win-x64": {
-      "Microsoft.ML.OnnxRuntime": {
-        "type": "Direct",
-        "requested": "[1.24.4, )",
-        "resolved": "1.24.4",
-        "contentHash": "895huFBVrZkZEGjlsxBSZD3p6D32Cdz6q8DM9UcUps2YKFYdFR8TefaTggFBUTYlvcSyfNTpmOOU/ZkeL69izw==",
-        "dependencies": {
-          "Microsoft.ML.OnnxRuntime.Managed": "1.24.4"
-        }
-      },
       "SourceGear.sqlite3": {
         "type": "Transitive",
         "resolved": "3.53.3",

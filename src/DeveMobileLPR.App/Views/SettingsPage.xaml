@@ -81,7 +81,7 @@
                 <Border Style="{StaticResource Card}">
                     <VerticalStackLayout Style="{StaticResource CardContent}">
                         <Label Style="{StaticResource SectionTitle}" Text="Recognition engine" />
-                        <Label Style="{StaticResource SecondaryText}" Text="YOLOv9 plate detector · CCT-S V2 OCR · CameraX high-resolution analysis · ONNX Runtime · temporal consensus" />
+                        <Label Style="{StaticResource SecondaryText}" Text="YOLOv9 plate detector · CCT-S V2 OCR · CameraX high-resolution analysis · LiteRT / ONNX Runtime · temporal consensus" />
                         <BoxView Style="{StaticResource DividerLine}" />
                         <Label Style="{StaticResource SettingTitle}" Text="Maximum recognition rate" />
                         <Picker
@@ -91,7 +91,7 @@
                         <Label Style="{StaticResource SettingDescription}" Text="{Binding RecognitionFrameRateDetail}" />
                         <BoxView Style="{StaticResource DividerLine}" />
                         <controls:SettingsToggleRow
-                            Description="Shows track IDs, associations, and per-stage millisecond timings in Drive and Analyze. The WebGPU comparison build also performs an extended startup benchmark and temporary per-operation profile."
+                            Description="Shows track IDs, associations, selected model backends, and per-stage millisecond timings in Drive and Analyze."
                             IsToggled="{Binding RecognitionDebugEnabled}"
                             Title="Recognition diagnostics" />
                     </VerticalStackLayout>
