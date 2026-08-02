@@ -22,8 +22,18 @@ internal static class AndroidWebGpuExecutionProvider
                 .ToArray();
             if (devices.Length == 0)
             {
-                diagnostic?.Invoke("ONNX Runtime WebGPU provider is not present in the Android runtime.");
-                return null;
+                // The official Android AAR can contain WebGPU as a statically
+                // linked provider. In that build there is no plugin EpDevice to
+                // enumerate, but the generic provider API still activates it.
+                diagnostic?.Invoke("ONNX Runtime WebGPU EpDevice was not enumerated; trying the built-in Android provider.");
+                return new OnnxExecutionProviderConfiguration(
+                    "WebGPU (built-in)",
+                    options => options.AppendExecutionProvider(
+                        "WebGPU",
+                        new Dictionary<string, string>(StringComparer.Ordinal)
+                        {
+                            ["preferredLayout"] = "NCHW"
+                        }));
             }
 
             diagnostic?.Invoke($"ONNX Runtime WebGPU provider exposes {devices.Length} device(s); Vulkan backend will be used when available.");
