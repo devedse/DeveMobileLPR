@@ -221,8 +221,9 @@ internal sealed class SettingsViewModel : ViewModelBase
                     Value("Minimum detector confidence", Percentage(tuning.Detector_ConfidenceThreshold), "Lower-scoring plate boxes are ignored."),
                     Value("Road region (L / T / R / B)", $"{Percentage(road.Left)} / {Percentage(road.Top)} / {Percentage(road.Right)} / {Percentage(road.Bottom)}", "Normalized part of the source image sent to the detector."),
                     Value("Minimum detected plate", $"{tuning.Detector_MinimumPlateWidthPixels:0.#} × {tuning.Detector_MinimumPlateHeightPixels:0.#} px", "Smaller detector boxes are discarded."),
-                    Value("Maximum OCR attempts", $"{tuning.Detector_MaximumOcrAttemptsPerFrame} / frame", "Highest-confidence boxes are read first."),
-                    Value("XNNPACK threads", tuning.Detector_XnnpackThreads.ToString(), "CPU worker count selected when the ONNX detector session is created.")
+                    Value("Duplicate-box overlap", Percentage(tuning.Detector_NonMaximumSuppressionIntersectionOverUnionThreshold), "A lower-confidence box is removed when it overlaps a stronger box by more than this IoU."),
+                    Value("Maximum detections", $"{tuning.Detector_MaximumDetectionsPerFrame} / frame", "Safety limit applied after duplicate boxes are removed."),
+                    Value("Maximum OCR attempts", $"{tuning.Detector_MaximumOcrAttemptsPerFrame} / frame", "Highest-confidence boxes are read first.")
                 ]),
             new(
                 "Crop quality",

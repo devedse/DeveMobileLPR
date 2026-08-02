@@ -14,8 +14,10 @@ public sealed class RecognitionTuningConfiguration
     public NormalizedRegion Detector_RoadRegion { get; set; } = new(0.03f, 0.18f, 0.97f, 0.94f);
     public float Detector_MinimumPlateWidthPixels { get; set; } = 12f;
     public float Detector_MinimumPlateHeightPixels { get; set; } = 5f;
+    // These match the constants embedded in the original end-to-end ONNX model.
+    public float Detector_NonMaximumSuppressionIntersectionOverUnionThreshold { get; set; } = 0.45f;
+    public int Detector_MaximumDetectionsPerFrame { get; set; } = 100;
     public int Detector_MaximumOcrAttemptsPerFrame { get; set; } = 6;
-    public int Detector_XnnpackThreads { get; set; } = 4;
 
     // Crop quality estimator
     public float CropQuality_MinimumCropWidthPixels { get; set; } = 8f;
@@ -78,8 +80,11 @@ public sealed class RecognitionTuningConfiguration
         ValidateRegion(Detector_RoadRegion);
         ValidatePositive(Detector_MinimumPlateWidthPixels, nameof(Detector_MinimumPlateWidthPixels));
         ValidatePositive(Detector_MinimumPlateHeightPixels, nameof(Detector_MinimumPlateHeightPixels));
+        ValidateProbability(
+            Detector_NonMaximumSuppressionIntersectionOverUnionThreshold,
+            nameof(Detector_NonMaximumSuppressionIntersectionOverUnionThreshold));
+        ValidatePositive(Detector_MaximumDetectionsPerFrame, nameof(Detector_MaximumDetectionsPerFrame));
         ValidatePositive(Detector_MaximumOcrAttemptsPerFrame, nameof(Detector_MaximumOcrAttemptsPerFrame));
-        ValidatePositive(Detector_XnnpackThreads, nameof(Detector_XnnpackThreads));
 
         ValidatePositive(CropQuality_MinimumCropWidthPixels, nameof(CropQuality_MinimumCropWidthPixels));
         ValidatePositive(CropQuality_MinimumCropHeightPixels, nameof(CropQuality_MinimumCropHeightPixels));

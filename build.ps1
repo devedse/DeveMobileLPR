@@ -9,6 +9,9 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 $root = $PSScriptRoot
 & (Join-Path $root 'eng\Download-Models.ps1')
+if (-not $SkipAndroid) {
+    & (Join-Path $root 'eng\Generate-LiteRt-Models.ps1')
+}
 $testProjects = @(
     (Join-Path $root 'tests\DeveMobileLPR.Core.Tests\DeveMobileLPR.Core.Tests.csproj'),
     (Join-Path $root 'tests\DeveMobileLPR.Inference.Tests\DeveMobileLPR.Inference.Tests.csproj'),
@@ -48,7 +51,8 @@ else {
 foreach ($project in $testProjects) {
     dotnet test $project --configuration $Configuration --no-build --filter 'Category!=Model' --collect 'XPlat Code Coverage' --results-directory (Join-Path $root 'artifacts\test-results')
 }
-dotnet test (Join-Path $root 'tests\DeveMobileLPR.Inference.Tests\DeveMobileLPR.Inference.Tests.csproj') --configuration $Configuration --no-build --filter 'Category=Model'
+$modelFilter = if ($SkipAndroid) { 'Category=Model&GeneratedModel!=true' } else { 'Category=Model' }
+dotnet test (Join-Path $root 'tests\DeveMobileLPR.Inference.Tests\DeveMobileLPR.Inference.Tests.csproj') --configuration $Configuration --no-build --filter $modelFilter
 
 & (Join-Path $root 'eng\Publish-RdwDownloader.ps1') -Configuration $Configuration
 & (Join-Path $root 'eng\Publish-Windows.ps1') -Configuration $Configuration

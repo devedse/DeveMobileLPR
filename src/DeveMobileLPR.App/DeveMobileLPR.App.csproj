@@ -16,6 +16,9 @@
     <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
     <AndroidLinkMode Condition="'$(Configuration)' == 'Release'">SdkOnly</AndroidLinkMode>
+    <!-- Profiled Mono AOT currently fails in the .NET 10 Android cross-assembler for both
+         universal and arm64 builds. Keep packaging reliable; inference acceleration is
+          provided by LiteRT's native GPU/CPU accelerators instead. -->
     <RunAOTCompilation>false</RunAOTCompilation>
     <MauiEnableXamlCBindingWithSourceCompilation>true</MauiEnableXamlCBindingWithSourceCompilation>
     <AllowUnsafeBlocks Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">true</AllowUnsafeBlocks>
@@ -45,7 +48,7 @@
     <PackageReference Include="Microsoft.Maui.Essentials" />
   </ItemGroup>
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
-    <PackageReference Include="Microsoft.ML.OnnxRuntime" />
+    <PackageReference Include="Xamarin.Google.AI.Edge.LiteRT" />
     <!-- CameraX 1.6.1 uses the current AndroidX generation. Pin its KTX companions so
          MAUI's older transitive minimums cannot produce mixed, incompatible pairs. -->
     <PackageReference Include="Xamarin.AndroidX.Activity.Ktx" />
@@ -65,14 +68,25 @@
     <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" />
   </ItemGroup>
   <ItemGroup>
-    <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#0B0D10" />
-    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#0B0D10" BaseSize="256,256" />
+    <MauiIcon Include="Resources\AppIcon\appicon.png" BaseSize="256,256" />
+    <MauiSplashScreen Include="Resources\Splash\splash.png" Color="#0B0D10" BaseSize="256,256" />
+    <MauiImage Include="Resources\Images\brand_logo.png" />
     <MauiImage Include="Resources\Images\*.svg" />
   </ItemGroup>
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
-    <AndroidAsset Include="..\..\artifacts\models\yolo-v9-s-608-license-plates-end2end.onnx" Link="models\yolo-v9-s-608-license-plates-end2end.onnx" />
-    <AndroidAsset Include="..\..\artifacts\models\cct_s_v2_global.onnx" Link="models\cct_s_v2_global.onnx" />
+    <AndroidAsset Include="..\..\artifacts\models\yolo-v9-s-608-license-plates-raw_float32.tflite"
+        Link="models\yolo-v9-s-608-license-plates-raw_float32.tflite" />
+    <AndroidAsset Include="..\..\artifacts\models\cct_s_v2_global_float32.tflite"
+        Link="models\cct_s_v2_global_float32.tflite" />
   </ItemGroup>
+
+  <Target Name="GenerateAndroidDetectorModels"
+          BeforeTargets="PrepareForBuild"
+          Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'"
+      Inputs="..\..\artifacts\models\yolo-v9-s-608-license-plates-end2end.onnx;..\..\artifacts\models\cct_s_v2_global.onnx;..\..\eng\Generate-LiteRt-Models.ps1;..\..\eng\Generate-LiteRt-Ocr.ps1;..\..\eng\model-tools\prepare_litert_detector.py;..\..\eng\model-tools\validate_litert_ocr.py"
+      Outputs="..\..\artifacts\models\yolo-v9-s-608-license-plates-raw.onnx;..\..\artifacts\models\yolo-v9-s-608-license-plates-raw_float32.tflite;..\..\artifacts\models\cct_s_v2_global_float32.tflite">
+    <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildProjectDirectory)\..\..\eng\Generate-LiteRt-Models.ps1&quot;" />
+  </Target>
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
     <Content Include="..\..\artifacts\models\yolo-v9-s-608-license-plates-end2end.onnx" Link="models\yolo-v9-s-608-license-plates-end2end.onnx" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\artifacts\models\cct_s_v2_global.onnx" Link="models\cct_s_v2_global.onnx" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

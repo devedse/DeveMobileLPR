@@ -1,0 +1,22 @@
+# Keep repository text deterministic across Windows and Linux.
+* text=auto eol=lf
+
+# Native Windows command scripts conventionally use CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary artifacts must never be line-ending normalized.
+*.apk binary
+*.dll binary
+*.exe binary
+*.gif binary
+*.ico binary
+*.jpeg binary
+*.jpg binary
+*.keystore binary
+*.onnx binary
+*.pdb binary
+*.png binary
+*.tflite binary
+*.webp binary
+*.zip binary

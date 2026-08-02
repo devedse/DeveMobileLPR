@@ -8,6 +8,7 @@ param(
     [int]$ApplicationVersion,
     [ValidatePattern('^\d+\.\d+\.\d+$')]
     [string]$ApplicationDisplayVersion,
+    [string]$OutputDirectory,
     [string]$Keystore,
     [string]$KeystorePassword,
     [string]$KeyAlias,
@@ -19,7 +20,15 @@ $PSNativeCommandUseErrorActionPreference = $true
 $root = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $project = Join-Path $root 'src\DeveMobileLPR.App\DeveMobileLPR.App.csproj'
 $projectOutput = Join-Path $root "src\DeveMobileLPR.App\bin\$Configuration"
-$output = Join-Path $root 'artifacts\android'
+$output = if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
+    Join-Path $root 'artifacts\android'
+}
+elseif ([System.IO.Path]::IsPathRooted($OutputDirectory)) {
+    [System.IO.Path]::GetFullPath($OutputDirectory)
+}
+else {
+    [System.IO.Path]::GetFullPath((Join-Path $root $OutputDirectory))
+}
 [System.IO.Directory]::CreateDirectory($output) | Out-Null
 Get-ChildItem -LiteralPath $output -Filter '*.apk' -File -ErrorAction SilentlyContinue | Remove-Item -Force
 
@@ -117,4 +126,4 @@ if (-not [string]::IsNullOrWhiteSpace($Keystore)) {
     Write-Host "Verified release signing certificate SHA-256: $actualFingerprint"
 }
 
-Write-Host "Published $($signedPackages[0].FullName)"
+Write-Host "Published Android APK: $($signedPackages[0].FullName)"

@@ -22,8 +22,34 @@ jobs:
         with:
           token: ${{ secrets.github_token }}
 
+  generate_litert_model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Download and verify source model
+        shell: pwsh
+        run: ./eng/Download-Models.ps1
+
+      - name: Generate and verify LiteRT models
+        shell: pwsh
+        run: ./eng/Generate-LiteRt-Models.ps1
+
+      - name: Upload generated LiteRT models
+        uses: actions/upload-artifact@v7
+        with:
+          name: litert-models-${{ github.sha }}
+          path: |
+            artifacts/models/yolo-v9-s-608-license-plates-raw.onnx
+            artifacts/models/yolo-v9-s-608-license-plates-raw_float32.tflite
+            artifacts/models/cct_s_v2_global_float32.tflite
+          if-no-files-found: error
+          retention-days: 1
+
   build:
-    needs: generate_version_number
+    needs: [generate_version_number, generate_litert_model]
     runs-on: windows-latest
     timeout-minutes: 45
     outputs:
@@ -51,6 +77,16 @@ jobs:
       - name: Download and verify model assets
         shell: pwsh
         run: ./eng/Download-Models.ps1
+
+      - name: Download generated LiteRT models
+        uses: actions/download-artifact@v8
+        with:
+          name: litert-models-${{ github.sha }}
+          path: artifacts/models
+
+      - name: Verify generated LiteRT models
+        shell: pwsh
+        run: ./eng/Generate-LiteRt-Models.ps1
 
       - name: Restore dependencies
         shell: pwsh
@@ -94,12 +130,12 @@ jobs:
             [System.IO.File]::WriteAllBytes((Join-Path $env:RUNNER_TEMP 'release.keystore'), [Convert]::FromBase64String($env:KEYSTORE_BASE64))
           }
 
-      - name: Package debug-signed APK
+      - name: Package debug-signed Android APK
         if: steps.signing.outputs.configured != 'true'
         shell: pwsh
         run: ./eng/Publish-Android.ps1 -Configuration Release -Version $env:BUILD_VERSION -ApplicationVersion $env:BUILD_NUMBER -ApplicationDisplayVersion $env:BUILD_VERSION
 
-      - name: Package release-signed APK
+      - name: Package release-signed Android APK
         if: steps.signing.outputs.configured == 'true'
         shell: pwsh
         env:
@@ -108,10 +144,10 @@ jobs:
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./eng/Publish-Android.ps1 -Configuration Release -Version $env:BUILD_VERSION -ApplicationVersion $env:BUILD_NUMBER -ApplicationDisplayVersion $env:BUILD_VERSION -Keystore "$env:RUNNER_TEMP\release.keystore" -KeystorePassword $env:KEYSTORE_PASSWORD -KeyAlias $env:KEY_ALIAS -KeyPassword $env:KEY_PASSWORD
 
-      - name: Upload APK on every build
+      - name: Upload Android APK on every build
         uses: actions/upload-artifact@v7
         with:
-          name: DeveMobileLPR-${{ env.BUILD_VERSION }}
+          name: DeveMobileLPR-Android-${{ env.BUILD_VERSION }}
           path: artifacts/android/*.apk
           if-no-files-found: error
           retention-days: 14
@@ -151,7 +187,7 @@ jobs:
       - name: Download signed APK
         uses: actions/download-artifact@v8
         with:
-          name: DeveMobileLPR-1.0.${{ needs.generate_version_number.outputs.build_number }}
+          name: DeveMobileLPR-Android-1.0.${{ needs.generate_version_number.outputs.build_number }}
           path: artifacts/android
 
       - name: Download RDW downloader

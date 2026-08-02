@@ -22,7 +22,10 @@
         <Grid RowDefinitions="Auto,*,Auto" Style="{StaticResource DrivePageGrid}">
             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
                 <Border Style="{StaticResource BrandMark}">
-                    <Label Style="{StaticResource BrandMarkText}" Text="DM" />
+                    <Image
+                        Aspect="AspectFill"
+                        SemanticProperties.Description="DeveMobileLPR logo"
+                        Source="brand_logo.png" />
                 </Border>
                 <Grid Grid.Column="1" ColumnDefinitions="Auto,*" ColumnSpacing="14">
                     <VerticalStackLayout Spacing="0" VerticalOptions="Center">
@@ -146,15 +149,16 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="1" IsVisible="{Binding ShowDriveControls}">
+            <Grid x:Name="DriveMiddleArea" Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12" IsVisible="{Binding ShowDriveControls}" SizeChanged="DriveMiddleAreaSizeChanged">
                 <controls:DriveDiagnosticsPanel
+                    x:Name="DiagnosticsPanel"
                     AutomationId="drive_processing_diagnostics"
                     BindingContext="{Binding Diagnostics}"
                     HorizontalOptions="Start"
                     IsVisible="{Binding ShowRecognitionDebug}"
                     MaximumWidthRequest="900"
                     VerticalOptions="End" />
-                <Border HorizontalOptions="End" Style="{StaticResource DriveControlCard}" VerticalOptions="Start">
+                <Border Grid.Column="1" HorizontalOptions="End" Style="{StaticResource DriveControlCard}" VerticalOptions="Start">
                     <HorizontalStackLayout Spacing="14">
                         <Picker ItemsSource="{Binding CameraChoices}" SelectedItem="{Binding SelectedCamera}" Title="Camera" WidthRequest="205" />
                         <VerticalStackLayout Spacing="0" WidthRequest="180">
@@ -172,7 +176,11 @@
                     IsEnabled="{Binding IsDriving}"
                     Style="{StaticResource DangerButton}"
                     Text="■  Stop &amp; save"
-                    WidthRequest="160" />
+                    WidthRequest="160">
+                    <Button.Shadow>
+                        <Shadow Brush="{DynamicResource DriveOverlayShadow}" Offset="0,2" Opacity="1" Radius="8" />
+                    </Button.Shadow>
+                </Button>
 
                 <Border Grid.Column="1" Style="{StaticResource DriveMetricCard}">
                     <VerticalStackLayout Spacing="0"><Label Style="{StaticResource DriveMetricValue}" Text="{Binding Duration}" /><Label Style="{StaticResource DriveCaption}" Text="Drive" /></VerticalStackLayout>

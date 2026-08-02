@@ -84,7 +84,7 @@ If Android and Windows need the same behavior, define one shared contract/implem
 - OCR: CCT-S V2, uint8 RGB NHWC `[1,64,128,3]`, ten character slots.
 - OCR alphabet: `0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_`.
 - Model URLs, sizes, and SHA-256 values are pinned in both `eng/Download-Models.ps1` and `ModelCatalog`; update both and extend model-contract tests together.
-- XNNPACK may be attempted, but CPU inference remains a working fallback.
+- Android LiteRT attempts GPU first and retains an explicit LiteRT CPU fallback. Windows ONNX Runtime attempts DirectML before CPU.
 - The bundled detector detects license plates, not whole vehicles. Do not label plate bounds as vehicle bounds.
 
 ## UI implementation standard

@@ -1,5 +1,6 @@
 using DeveMobileLPR.Geometry;
 using DeveMobileLPR.Imaging;
+using System.Text.Json.Serialization;
 
 namespace DeveMobileLPR.Recognition;
 
@@ -75,6 +76,11 @@ public sealed record RecognitionFrameDiagnostics(
 
     public IReadOnlyList<PlateCandidateDiagnostics> Candidates { get; init; } = [];
     public double CropQualityMilliseconds { get; init; }
+    public string DetectorBackend { get; init; } = "Unknown";
+    public string OcrBackend { get; init; } = "Unknown";
+    public IReadOnlyList<string> BackendDiagnostics { get; init; } = [];
+    [JsonIgnore]
+    public string BackendDiagnosticsText => string.Join(Environment.NewLine, BackendDiagnostics);
 }
 
 public sealed record FrameRecognition(
@@ -254,6 +260,16 @@ public interface IPlateDetector
     ValueTask<PlateDetectionResult> DetectAsync(
         Yuv420Frame frame,
         CancellationToken cancellationToken);
+}
+
+public interface IInferenceBackendInfo
+{
+    string BackendName { get; }
+}
+
+public interface IInferenceBackendDiagnostics
+{
+    IReadOnlyList<string> BackendDiagnostics { get; }
 }
 
 public interface IPlateRecognizer
