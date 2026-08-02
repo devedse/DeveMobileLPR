@@ -56,17 +56,18 @@ internal readonly ref struct YuvImageSampler
         var wx = Math.Clamp(x - x0, 0, 1);
         var wy = Math.Clamp(y - y0, 0, 1);
 
-        GetRgb(x0, y0, out var r00, out var g00, out var b00);
-        GetRgb(x1, y0, out var r10, out var g10, out var b10);
-        GetRgb(x0, y1, out var r01, out var g01, out var b01);
-        GetRgb(x1, y1, out var r11, out var g11, out var b11);
+        GetYuv(x0, y0, out var y00, out var u00, out var v00);
+        GetYuv(x1, y0, out var y10, out var u10, out var v10);
+        GetYuv(x0, y1, out var y01, out var u01, out var v01);
+        GetYuv(x1, y1, out var y11, out var u11, out var v11);
 
-        red = Interpolate(r00, r10, r01, r11, wx, wy);
-        green = Interpolate(g00, g10, g01, g11, wx, wy);
-        blue = Interpolate(b00, b10, b01, b11, wx, wy);
+        var interpolatedY = Interpolate(y00, y10, y01, y11, wx, wy);
+        var interpolatedU = Interpolate(u00, u10, u01, u11, wx, wy);
+        var interpolatedV = Interpolate(v00, v10, v01, v11, wx, wy);
+        Yuv420Frame.ConvertYuvToRgb(interpolatedY, interpolatedU, interpolatedV, out red, out green, out blue);
     }
 
-    private void GetRgb(int orientedX, int orientedY, out byte red, out byte green, out byte blue)
+    private void GetYuv(int orientedX, int orientedY, out byte y, out byte u, out byte v)
     {
         var (rawX, rawY) = _rotationDegrees switch
         {
@@ -81,10 +82,9 @@ internal readonly ref struct YuvImageSampler
         var yIndex = rawY * _yRowStride + rawX * _yPixelStride;
         var uIndex = chromaY * _uRowStride + chromaX * _uPixelStride;
         var vIndex = chromaY * _vRowStride + chromaX * _vPixelStride;
-        var y = yIndex < _yPlane.Length ? _yPlane[yIndex] : (byte)16;
-        var u = uIndex < _uPlane.Length ? _uPlane[uIndex] : (byte)128;
-        var v = vIndex < _vPlane.Length ? _vPlane[vIndex] : (byte)128;
-        Yuv420Frame.ConvertYuvToRgb(y, u, v, out red, out green, out blue);
+        y = yIndex < _yPlane.Length ? _yPlane[yIndex] : (byte)16;
+        u = uIndex < _uPlane.Length ? _uPlane[uIndex] : (byte)128;
+        v = vIndex < _vPlane.Length ? _vPlane[vIndex] : (byte)128;
     }
 
     private static byte Interpolate(byte topLeft, byte topRight, byte bottomLeft, byte bottomRight, float x, float y)
