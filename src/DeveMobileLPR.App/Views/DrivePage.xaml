@@ -146,7 +146,7 @@
                 </Grid>
             </Border>
 
-            <Grid x:Name="DriveMiddleArea" Grid.Row="1" IsVisible="{Binding ShowDriveControls}" SizeChanged="DriveMiddleAreaSizeChanged">
+            <Grid x:Name="DriveMiddleArea" Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12" IsVisible="{Binding ShowDriveControls}" SizeChanged="DriveMiddleAreaSizeChanged">
                 <controls:DriveDiagnosticsPanel
                     x:Name="DiagnosticsPanel"
                     AutomationId="drive_processing_diagnostics"
@@ -155,7 +155,7 @@
                     IsVisible="{Binding ShowRecognitionDebug}"
                     MaximumWidthRequest="900"
                     VerticalOptions="End" />
-                <Border HorizontalOptions="End" Style="{StaticResource DriveControlCard}" VerticalOptions="Start">
+                <Border Grid.Column="1" HorizontalOptions="End" Style="{StaticResource DriveControlCard}" VerticalOptions="Start">
                     <HorizontalStackLayout Spacing="14">
                         <Picker ItemsSource="{Binding CameraChoices}" SelectedItem="{Binding SelectedCamera}" Title="Camera" WidthRequest="205" />
                         <VerticalStackLayout Spacing="0" WidthRequest="180">

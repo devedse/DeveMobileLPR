@@ -49,15 +49,6 @@ public partial class DrivePage : ContentPage
         {
             DiagnosticsPanel.MaximumHeightRequest = DriveMiddleArea.Height;
         }
-
-        var cameraControls = DriveMiddleArea.Children.OfType<Border>().SingleOrDefault();
-        if (DriveMiddleArea.Width > 0 && cameraControls?.Width > 0)
-        {
-            const double gap = 12;
-            DiagnosticsPanel.MaximumWidthRequest = Math.Max(
-                0,
-                Math.Min(900, DriveMiddleArea.Width - cameraControls.Width - gap));
-        }
     }
 
     private void ApplyDriveMode(bool isDriving)
