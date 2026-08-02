@@ -226,6 +226,10 @@ internal sealed class SettingsViewModel : ViewModelBase
                     Value("Maximum OCR attempts", $"{tuning.Detector_MaximumOcrAttemptsPerFrame} / frame", "Highest-confidence boxes are read first."),
                     Value("ONNX detector XNNPACK threads", tuning.Detector_XnnpackThreads.ToString(), "Used by the ONNX comparison backend; the Android LiteRT detector selects GPU or CPU explicitly."),
                     Value("ONNX detector NNAPI precision", tuning.Detector_AndroidAllowNnapiFp16 ? "FP16 allowed" : "FP32 only", "Used by the ONNX comparison backend; it does not change the LiteRT model precision."),
+                    Value("WebGPU candidate samples", tuning.Detector_WebGpuCandidateBenchmarkSamples.ToString(), "Warm runs used to compare layout and graph-capture candidates while diagnostics are enabled."),
+                    Value("WebGPU selected samples", tuning.Detector_WebGpuSelectedBenchmarkSamples.ToString(), "Additional warm runs used to report a stable median and slowest detector time for the selected candidate."),
+                    Value("WebGPU profile samples", tuning.Detector_WebGpuProfileSamples.ToString(), "Runs in a separate profiling session, keeping profiler overhead out of the selected performance measurement."),
+                    Value("WebGPU profiled operations", tuning.Detector_WebGpuProfileTopOperationCount.ToString(), "Number of highest-cost ONNX operation types summarized from the temporary profile trace."),
                     Value("OCR XNNPACK threads", tuning.Ocr_XnnpackThreads.ToString(), "CPU worker count benchmarked against NNAPI when the OCR session is created."),
                     Value("OCR NNAPI precision", tuning.Ocr_AndroidAllowNnapiFp16 ? "FP16 allowed" : "FP32 only", "FP32 is retained by default to protect character probabilities.")
                 ]),

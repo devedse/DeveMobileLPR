@@ -12,7 +12,8 @@ internal static class OnnxSessionFactory
         int xnnpackThreads,
         Action<string>? diagnostic,
         bool allowNnapiFp16 = false,
-        OnnxExecutionProviderConfiguration? preferredAndroidProvider = null)
+        IReadOnlyList<OnnxExecutionProviderConfiguration>? preferredAndroidProviders = null,
+        OnnxSessionDiagnosticsConfiguration? diagnosticsConfiguration = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(modelPath);
         if (!File.Exists(modelPath))
@@ -46,11 +47,12 @@ internal static class OnnxSessionFactory
 
         if (OperatingSystem.IsAndroid())
         {
-            if (preferredAndroidProvider is not null)
+            if (preferredAndroidProviders is { Count: > 0 })
             {
                 var preferred = TryCreatePreferredAndroidSession(
                     modelPath,
-                    preferredAndroidProvider,
+                    preferredAndroidProviders,
+                    diagnosticsConfiguration,
                     Report,
                     diagnostics);
                 if (preferred is not null)
@@ -69,37 +71,105 @@ internal static class OnnxSessionFactory
 
     private static SessionResult? TryCreatePreferredAndroidSession(
         string modelPath,
-        OnnxExecutionProviderConfiguration provider,
+        IReadOnlyList<OnnxExecutionProviderConfiguration> providers,
+        OnnxSessionDiagnosticsConfiguration? diagnosticsConfiguration,
         Action<string> report,
         IReadOnlyList<string> diagnostics)
     {
-        InferenceSession? session = null;
-        try
-        {
-            using var options = CreateBaseOptions();
-            provider.Configure(options);
-            session = new InferenceSession(modelPath, options);
-            var elapsed = Benchmark(session);
-            if (elapsed is null)
-            {
-                report($"ONNX Runtime candidate {provider.BackendName}: model input cannot be benchmarked; selecting it without comparison.");
-                var selected = session;
-                session = null;
-                return new SessionResult(selected, $"ONNX Runtime {provider.BackendName}", diagnostics);
-            }
+        InferenceSession? fastest = null;
+        string? fastestName = null;
+        OnnxExecutionProviderConfiguration? fastestProvider = null;
+        BenchmarkStatistics? fastestStatistics = null;
+        var candidateSampleCount = diagnosticsConfiguration?.CandidateBenchmarkSamples ?? 2;
 
-            report($"ONNX Runtime candidate {provider.BackendName}: {elapsed.Value:0.0} ms warm benchmark");
-            report($"ONNX Runtime provider selected: {provider.BackendName} ({elapsed.Value:0.0} ms)");
-            var selectedSession = session;
-            session = null;
-            return new SessionResult(selectedSession, $"ONNX Runtime {provider.BackendName}", diagnostics);
-        }
-        catch (Exception exception)
+        foreach (var provider in providers)
         {
-            session?.Dispose();
-            report($"ONNX Runtime candidate {provider.BackendName} unavailable: {exception.GetBaseException().Message}");
+            InferenceSession? session = null;
+            try
+            {
+                report(
+                    $"ONNX Runtime benchmarking {provider.BackendName}: "
+                    + $"1 warm-up + {candidateSampleCount} measured runs");
+                using var options = CreateBaseOptions();
+                provider.Configure(options);
+                session = new InferenceSession(modelPath, options);
+                var statistics = Benchmark(session, candidateSampleCount);
+                if (statistics is null)
+                {
+                    report($"ONNX Runtime candidate {provider.BackendName}: model input cannot be benchmarked; selecting it without comparison.");
+                    fastest?.Dispose();
+                    var selected = session;
+                    session = null;
+                    return new SessionResult(selected, $"ONNX Runtime {provider.BackendName}", diagnostics);
+                }
+
+                report(
+                    $"ONNX Runtime candidate {provider.BackendName}: median {statistics.Value.MedianMilliseconds:0.0} ms, "
+                    + $"slowest {statistics.Value.SlowestMilliseconds:0.0} ms across {candidateSampleCount} warm runs");
+
+                if (fastestStatistics is null
+                    || statistics.Value.MedianMilliseconds < fastestStatistics.Value.MedianMilliseconds)
+                {
+                    if (fastest is not null)
+                    {
+                        fastest.Dispose();
+                    }
+
+                    fastest = session;
+                    fastestName = provider.BackendName;
+                    fastestProvider = provider;
+                    fastestStatistics = statistics;
+                    session = null;
+                }
+            }
+            catch (Exception exception)
+            {
+                report($"ONNX Runtime candidate {provider.BackendName} unavailable: {exception.GetBaseException().Message}");
+            }
+            finally
+            {
+                session?.Dispose();
+            }
+        }
+
+        if (fastest is null
+            || fastestName is null
+            || fastestProvider is null
+            || fastestStatistics is null)
+        {
             return null;
         }
+
+        if (diagnosticsConfiguration is not null)
+        {
+            try
+            {
+                report(
+                    $"ONNX Runtime measuring selected {fastestName}: "
+                    + $"1 warm-up + {diagnosticsConfiguration.SelectedBenchmarkSamples} measured runs");
+                var selectedStatistics = Benchmark(
+                    fastest,
+                    diagnosticsConfiguration.SelectedBenchmarkSamples);
+                if (selectedStatistics is not null)
+                {
+                    fastestStatistics = selectedStatistics;
+                    report(
+                        $"ONNX Runtime selected steady benchmark: median {selectedStatistics.Value.MedianMilliseconds:0.0} ms, "
+                        + $"slowest {selectedStatistics.Value.SlowestMilliseconds:0.0} ms across "
+                        + $"{diagnosticsConfiguration.SelectedBenchmarkSamples} warm runs");
+                }
+            }
+            catch (Exception exception)
+            {
+                report($"ONNX Runtime steady benchmark failed: {exception.GetBaseException().Message}");
+            }
+        }
+
+        report(
+            $"ONNX Runtime provider selected: {fastestName} "
+            + $"({fastestStatistics.Value.MedianMilliseconds:0.0} ms median)");
+        ProfileSelectedProvider(modelPath, fastestProvider, diagnosticsConfiguration, report);
+        return new SessionResult(fastest, $"ONNX Runtime {fastestName}", diagnostics);
     }
 
     private static SessionResult CreateFastestAndroidSession(
@@ -125,8 +195,8 @@ internal static class OnnxSessionFactory
             try
             {
                 session = candidate.Create();
-                var elapsed = Benchmark(session);
-                if (elapsed is null)
+                var statistics = Benchmark(session, sampleCount: 2);
+                if (statistics is null)
                 {
                     report($"ONNX Runtime candidate {candidate.Name}: model input cannot be benchmarked; selecting it without comparison.");
                     fastest?.Dispose();
@@ -135,13 +205,15 @@ internal static class OnnxSessionFactory
                     return new SessionResult(selected, $"ONNX Runtime {candidate.Name}", diagnostics);
                 }
 
-                report($"ONNX Runtime candidate {candidate.Name}: {elapsed.Value:0.0} ms warm benchmark");
-                if (elapsed.Value < fastestMilliseconds)
+                report(
+                    $"ONNX Runtime candidate {candidate.Name}: median {statistics.Value.MedianMilliseconds:0.0} ms, "
+                    + $"slowest {statistics.Value.SlowestMilliseconds:0.0} ms across 2 warm runs");
+                if (statistics.Value.MedianMilliseconds < fastestMilliseconds)
                 {
                     fastest?.Dispose();
                     fastest = session;
                     fastestName = candidate.Name;
-                    fastestMilliseconds = elapsed.Value;
+                    fastestMilliseconds = statistics.Value.MedianMilliseconds;
                     session = null;
                 }
             }
@@ -189,8 +261,15 @@ internal static class OnnxSessionFactory
         return new InferenceSession(modelPath, options);
     }
 
-    private static double? Benchmark(InferenceSession session)
+    private static BenchmarkStatistics? Benchmark(
+        InferenceSession session,
+        int sampleCount)
     {
+        if (sampleCount <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sampleCount));
+        }
+
         var metadata = session.InputMetadata.Single().Value;
         if (!metadata.IsTensor || metadata.Dimensions.Any(static dimension => dimension <= 0))
         {
@@ -201,16 +280,20 @@ internal static class OnnxSessionFactory
         var elementCount = checked(metadata.Dimensions.Aggregate(1, static (count, dimension) => count * dimension));
         return metadata.ElementDataType switch
         {
-            TensorElementType.Float => Benchmark(session, new float[elementCount], shape),
-            TensorElementType.UInt8 => Benchmark(session, new byte[elementCount], shape),
-            TensorElementType.Int8 => Benchmark(session, new sbyte[elementCount], shape),
-            TensorElementType.Int32 => Benchmark(session, new int[elementCount], shape),
-            TensorElementType.Int64 => Benchmark(session, new long[elementCount], shape),
-            _ => (double?)null
+            TensorElementType.Float => Benchmark(session, new float[elementCount], shape, sampleCount),
+            TensorElementType.UInt8 => Benchmark(session, new byte[elementCount], shape, sampleCount),
+            TensorElementType.Int8 => Benchmark(session, new sbyte[elementCount], shape, sampleCount),
+            TensorElementType.Int32 => Benchmark(session, new int[elementCount], shape, sampleCount),
+            TensorElementType.Int64 => Benchmark(session, new long[elementCount], shape, sampleCount),
+            _ => (BenchmarkStatistics?)null
         };
     }
 
-    private static double Benchmark<T>(InferenceSession session, T[] input, long[] shape)
+    private static BenchmarkStatistics Benchmark<T>(
+        InferenceSession session,
+        T[] input,
+        long[] shape,
+        int sampleCount)
         where T : unmanaged
     {
         using var inputValue = OrtValue.CreateTensorValueFromMemory(input, shape);
@@ -220,13 +303,23 @@ internal static class OnnxSessionFactory
         };
         using var runOptions = new RunOptions();
 
-        // The first execution finishes provider compilation and cache setup. Measuring two
-        // subsequent runs avoids permanently choosing a provider based on one cold launch.
+        // The first execution finishes provider compilation, graph capture, and cache setup.
+        // It is deliberately excluded from the warm distribution.
         RunOnce(session, runOptions, inputs);
-        var startedAt = Stopwatch.GetTimestamp();
-        RunOnce(session, runOptions, inputs);
-        RunOnce(session, runOptions, inputs);
-        return Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds / 2;
+        var samples = new double[sampleCount];
+        for (var index = 0; index < samples.Length; index++)
+        {
+            var startedAt = Stopwatch.GetTimestamp();
+            RunOnce(session, runOptions, inputs);
+            samples[index] = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
+        }
+
+        Array.Sort(samples);
+        var middle = samples.Length / 2;
+        var median = samples.Length % 2 == 0
+            ? (samples[middle - 1] + samples[middle]) / 2
+            : samples[middle];
+        return new BenchmarkStatistics(median, samples[^1]);
     }
 
     private static void RunOnce(
@@ -235,6 +328,85 @@ internal static class OnnxSessionFactory
         IReadOnlyDictionary<string, OrtValue> inputs)
     {
         using var outputs = session.Run(runOptions, inputs, session.OutputNames);
+    }
+
+    private static void ProfileSelectedProvider(
+        string modelPath,
+        OnnxExecutionProviderConfiguration provider,
+        OnnxSessionDiagnosticsConfiguration? configuration,
+        Action<string> report)
+    {
+        if (configuration is null)
+        {
+            return;
+        }
+
+        string? profilePath = null;
+        try
+        {
+            PrepareProfileDirectory(configuration.ProfileDirectory);
+            report(
+                $"ONNX Runtime profiling {provider.BackendName}: "
+                + $"1 warm-up + {configuration.ProfileSamples} instrumented runs");
+            using var options = CreateBaseOptions();
+            options.ProfileOutputPathPrefix = Path.Combine(
+                configuration.ProfileDirectory,
+                $"onnx-webgpu-{Guid.NewGuid():N}");
+            options.EnableProfiling = true;
+            provider.Configure(options);
+            using var session = new InferenceSession(modelPath, options);
+            var statistics = Benchmark(session, configuration.ProfileSamples);
+            profilePath = session.EndProfiling();
+
+            if (statistics is not null)
+            {
+                report(
+                    $"ONNX Runtime profiling pass: median {statistics.Value.MedianMilliseconds:0.0} ms across "
+                    + $"{configuration.ProfileSamples} instrumented warm runs; excluded from provider selection");
+            }
+
+            foreach (var summary in OnnxProfileSummary.ReadAndDelete(
+                         profilePath,
+                         configuration.ProfileSamples + 1,
+                         configuration.ProfileTopOperationCount))
+            {
+                report(summary);
+            }
+
+            profilePath = null;
+        }
+        catch (Exception exception)
+        {
+            report($"ONNX profile unavailable: {exception.GetBaseException().Message}");
+        }
+        finally
+        {
+            OnnxProfileSummary.Delete(profilePath);
+            DeleteProfileFiles(configuration.ProfileDirectory);
+        }
+    }
+
+    private static void PrepareProfileDirectory(string directory)
+    {
+        Directory.CreateDirectory(directory);
+        DeleteProfileFiles(directory);
+    }
+
+    private static void DeleteProfileFiles(string directory)
+    {
+        try
+        {
+            foreach (var staleProfile in Directory.EnumerateFiles(directory, "onnx-*.json"))
+            {
+                OnnxProfileSummary.Delete(staleProfile);
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
     }
 
     private static SessionOptions CreateBaseOptions() => new()
@@ -250,4 +422,8 @@ internal static class OnnxSessionFactory
         InferenceSession Session,
         string BackendName,
         IReadOnlyList<string> Diagnostics);
+
+    private readonly record struct BenchmarkStatistics(
+        double MedianMilliseconds,
+        double SlowestMilliseconds);
 }

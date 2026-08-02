@@ -21,6 +21,10 @@ public sealed class RecognitionTuningConfigurationTests
         Assert.Equal(6, configuration.Detector_MaximumOcrAttemptsPerFrame);
         Assert.Equal(4, configuration.Detector_XnnpackThreads);
         Assert.True(configuration.Detector_AndroidAllowNnapiFp16);
+        Assert.Equal(3, configuration.Detector_WebGpuCandidateBenchmarkSamples);
+        Assert.Equal(30, configuration.Detector_WebGpuSelectedBenchmarkSamples);
+        Assert.Equal(3, configuration.Detector_WebGpuProfileSamples);
+        Assert.Equal(6, configuration.Detector_WebGpuProfileTopOperationCount);
         Assert.Equal(2, configuration.Ocr_XnnpackThreads);
         Assert.False(configuration.Ocr_AndroidAllowNnapiFp16);
 

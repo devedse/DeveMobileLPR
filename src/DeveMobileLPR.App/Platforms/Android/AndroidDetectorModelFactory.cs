@@ -17,15 +17,26 @@ internal static class AndroidDetectorModelFactory
     public static IYoloV9RawModel Create(
         string modelPath,
         RecognitionTuningConfiguration configuration,
-        Action<string>? diagnostic) =>
+        Action<string>? diagnostic,
+        bool detailedDiagnostics,
+        string diagnosticsDirectory) =>
         new OnnxYoloV9RawModel(
             modelPath,
             configuration.Detector_XnnpackThreads,
             diagnostic,
             configuration.Detector_AndroidAllowNnapiFp16,
 #if ANDROID_WEBGPU_DETECTOR
-            AndroidWebGpuExecutionProvider.Create());
+            AndroidWebGpuExecutionProvider.CreateCandidates(detailedDiagnostics),
+            detailedDiagnostics
+                ? new OnnxSessionDiagnosticsConfiguration(
+                    configuration.Detector_WebGpuCandidateBenchmarkSamples,
+                    configuration.Detector_WebGpuSelectedBenchmarkSamples,
+                    configuration.Detector_WebGpuProfileSamples,
+                    diagnosticsDirectory,
+                    configuration.Detector_WebGpuProfileTopOperationCount)
+                : null);
 #else
+            null,
             null);
 #endif
 #else
@@ -34,7 +45,9 @@ internal static class AndroidDetectorModelFactory
     public static IYoloV9RawModel Create(
         string modelPath,
         RecognitionTuningConfiguration configuration,
-        Action<string>? diagnostic) =>
+        Action<string>? diagnostic,
+        bool detailedDiagnostics,
+        string diagnosticsDirectory) =>
         new AndroidLiteRtYoloV9RawModel(modelPath, diagnostic);
 #endif
 }

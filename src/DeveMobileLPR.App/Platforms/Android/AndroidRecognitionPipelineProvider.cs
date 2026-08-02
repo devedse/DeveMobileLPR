@@ -8,7 +8,8 @@ using DeveMobileLPR.Recognition;
 namespace DeveMobileLPR.App.Services;
 
 internal sealed class AndroidRecognitionPipelineProvider(
-    RecognitionTuningConfiguration recognitionTuning) : IRecognitionPipelineProvider
+    RecognitionTuningConfiguration recognitionTuning,
+    IDriveSettings settings) : IRecognitionPipelineProvider
 {
     public async Task<IFrameRecognitionPipeline> CreateAsync(
         Action<string>? diagnostic,
@@ -21,7 +22,12 @@ internal sealed class AndroidRecognitionPipelineProvider(
             files,
             AndroidDetectorModelFactory.Artifact,
             cancellationToken).ConfigureAwait(false);
-        var rawModel = AndroidDetectorModelFactory.Create(models.Detector, recognitionTuning, diagnostic);
+        var rawModel = AndroidDetectorModelFactory.Create(
+            models.Detector,
+            recognitionTuning,
+            diagnostic,
+            settings.RecognitionDebugEnabled,
+            FileSystem.CacheDirectory);
         YoloV9RawPlateDetector? detector = null;
         try
         {

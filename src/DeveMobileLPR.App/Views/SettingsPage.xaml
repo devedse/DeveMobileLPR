@@ -91,7 +91,7 @@
                         <Label Style="{StaticResource SettingDescription}" Text="{Binding RecognitionFrameRateDetail}" />
                         <BoxView Style="{StaticResource DividerLine}" />
                         <controls:SettingsToggleRow
-                            Description="Shows track IDs, associations, and per-stage millisecond timings in Drive and Analyze. Saved debug analyses also retain these diagnostics."
+                            Description="Shows track IDs, associations, and per-stage millisecond timings in Drive and Analyze. The WebGPU comparison build also performs an extended startup benchmark and temporary per-operation profile."
                             IsToggled="{Binding RecognitionDebugEnabled}"
                             Title="Recognition diagnostics" />
                     </VerticalStackLayout>

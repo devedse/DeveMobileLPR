@@ -8,9 +8,28 @@ namespace DeveMobileLPR.App.Services;
 /// </summary>
 internal static class AndroidWebGpuExecutionProvider
 {
-    public static OnnxExecutionProviderConfiguration Create() =>
+    public static IReadOnlyList<OnnxExecutionProviderConfiguration> CreateCandidates(
+        bool compareConfigurations)
+    {
+        if (!compareConfigurations)
+        {
+            return [Create("NCHW", enableGraphCapture: true)];
+        }
+
+        return
+        [
+            Create("NCHW", enableGraphCapture: false),
+            Create("NCHW", enableGraphCapture: true),
+            Create("NHWC", enableGraphCapture: false),
+            Create("NHWC", enableGraphCapture: true)
+        ];
+    }
+
+    private static OnnxExecutionProviderConfiguration Create(
+        string preferredLayout,
+        bool enableGraphCapture) =>
         new(
-            "WebGPU (Vulkan, accelerator-only)",
+            $"WebGPU Vulkan {preferredLayout}{(enableGraphCapture ? " + capture" : string.Empty)}",
             options =>
             {
                 // A WebGPU comparison build must not silently execute unsupported
@@ -20,8 +39,9 @@ internal static class AndroidWebGpuExecutionProvider
                     "WebGPU",
                     new Dictionary<string, string>(StringComparer.Ordinal)
                     {
-                        ["preferredLayout"] = "NCHW",
-                        ["powerPreference"] = "high-performance"
+                        ["preferredLayout"] = preferredLayout,
+                        ["powerPreference"] = "high-performance",
+                        ["enableGraphCapture"] = enableGraphCapture ? "1" : "0"
                     });
             });
 }

@@ -25,32 +25,34 @@
     </ContentView.Resources>
 
     <Border Padding="12" Style="{StaticResource DriveControlCard}">
-        <VerticalStackLayout Spacing="8">
-            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                <BoxView BackgroundColor="{DynamicResource Primary}" CornerRadius="2" HeightRequest="14" VerticalOptions="Center" WidthRequest="4" />
-                <VerticalStackLayout Grid.Column="1" Spacing="0">
-                    <Label FontAttributes="Bold" FontSize="12" Text="Processing diagnostics" />
-                    <Label FontSize="9" Text="Latest completed frame · all values are independently measured" TextColor="{DynamicResource TextMuted}" />
-                </VerticalStackLayout>
-            </Grid>
+        <ScrollView Orientation="Vertical" VerticalScrollBarVisibility="Always">
+            <VerticalStackLayout Padding="0,0,4,0" Spacing="8">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                    <BoxView BackgroundColor="{DynamicResource Primary}" CornerRadius="2" HeightRequest="14" VerticalOptions="Center" WidthRequest="4" />
+                    <VerticalStackLayout Grid.Column="1" Spacing="0">
+                        <Label FontAttributes="Bold" FontSize="12" Text="Processing diagnostics" />
+                        <Label FontSize="9" Text="Latest completed frame · all values are independently measured" TextColor="{DynamicResource TextMuted}" />
+                    </VerticalStackLayout>
+                </Grid>
 
-            <Grid ColumnDefinitions="*,*" ColumnSpacing="7">
-                <Border Style="{StaticResource SectionCard}" Stroke="{DynamicResource DiagnosticsDecodeAccent}">
-                    <VerticalStackLayout Spacing="1">
-                        <Label Style="{StaticResource SectionTitle}" Text="{Binding Source.Label}" TextColor="{DynamicResource DiagnosticsDecodeAccent}" />
-                        <Label Style="{StaticResource SectionValue}" Text="{Binding Source.IntervalMilliseconds, Converter={StaticResource Milliseconds}}" />
-                        <Label FontSize="9" Text="Time between source frames" TextColor="{DynamicResource TextMuted}" />
-                    </VerticalStackLayout>
-                </Border>
-                <Border Grid.Column="1" Style="{StaticResource SectionCard}" Stroke="{DynamicResource DiagnosticsPreviewAccent}">
-                    <VerticalStackLayout Spacing="1">
-                        <Label Style="{StaticResource SectionTitle}" Text="{Binding Preview.Label}" TextColor="{DynamicResource DiagnosticsPreviewAccent}" />
-                        <Label Style="{StaticResource SectionValue}" Text="{Binding Preview.IntervalMilliseconds, Converter={StaticResource Milliseconds}}" />
-                        <Label FontSize="9" Text="Time between presented frames" TextColor="{DynamicResource TextMuted}" />
-                    </VerticalStackLayout>
-                </Border>
-            </Grid>
-            <controls:RecognitionDiagnosticsDetails BindingContext="{Binding Recognition}" />
-        </VerticalStackLayout>
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="7">
+                    <Border Style="{StaticResource SectionCard}" Stroke="{DynamicResource DiagnosticsDecodeAccent}">
+                        <VerticalStackLayout Spacing="1">
+                            <Label Style="{StaticResource SectionTitle}" Text="{Binding Source.Label}" TextColor="{DynamicResource DiagnosticsDecodeAccent}" />
+                            <Label Style="{StaticResource SectionValue}" Text="{Binding Source.IntervalMilliseconds, Converter={StaticResource Milliseconds}}" />
+                            <Label FontSize="9" Text="Time between source frames" TextColor="{DynamicResource TextMuted}" />
+                        </VerticalStackLayout>
+                    </Border>
+                    <Border Grid.Column="1" Style="{StaticResource SectionCard}" Stroke="{DynamicResource DiagnosticsPreviewAccent}">
+                        <VerticalStackLayout Spacing="1">
+                            <Label Style="{StaticResource SectionTitle}" Text="{Binding Preview.Label}" TextColor="{DynamicResource DiagnosticsPreviewAccent}" />
+                            <Label Style="{StaticResource SectionValue}" Text="{Binding Preview.IntervalMilliseconds, Converter={StaticResource Milliseconds}}" />
+                            <Label FontSize="9" Text="Time between presented frames" TextColor="{DynamicResource TextMuted}" />
+                        </VerticalStackLayout>
+                    </Border>
+                </Grid>
+                <controls:RecognitionDiagnosticsDetails BindingContext="{Binding Recognition}" />
+            </VerticalStackLayout>
+        </ScrollView>
     </Border>
 </ContentView>
