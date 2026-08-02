@@ -13,15 +13,13 @@ internal static class AndroidWebGpuExecutionProvider
     {
         if (!compareConfigurations)
         {
-            return [Create("NCHW", enableGraphCapture: true)];
+            return [Create("NCHW", enableGraphCapture: false)];
         }
 
         return
         [
             Create("NCHW", enableGraphCapture: false),
-            Create("NCHW", enableGraphCapture: true),
-            Create("NHWC", enableGraphCapture: false),
-            Create("NHWC", enableGraphCapture: true)
+            Create("NHWC", enableGraphCapture: false)
         ];
     }
 
