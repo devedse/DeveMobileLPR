@@ -24,6 +24,20 @@ internal static class DetectorPreprocessor
     public const int InputSize = 608;
     private const float PaddingValue = 114f / 255f;
 
+    // Exact per-byte values of value / 255f so the hot loop avoids three float divisions per pixel.
+    private static readonly float[] ByteToUnit = CreateByteToUnit();
+
+    private static float[] CreateByteToUnit()
+    {
+        var table = new float[256];
+        for (var value = 0; value < table.Length; value++)
+        {
+            table[value] = value / 255f;
+        }
+
+        return table;
+    }
+
     public static LetterboxTransform Fill(
         Yuv420Frame frame,
         BoundingBox source,
@@ -62,38 +76,71 @@ internal static class DetectorPreprocessor
 
         var left = (int)MathF.Round(paddingX - 0.1f);
         var top = (int)MathF.Round(paddingY - 0.1f);
+        var maxX = frame.OrientedWidth - 1;
+        var maxY = frame.OrientedHeight - 1;
+
+        // Horizontal sample geometry is identical on every row; compute the visible columns once.
+        Span<int> columnOutputX = stackalloc int[InputSize];
+        Span<int> columnX0 = stackalloc int[InputSize];
+        Span<int> columnX1 = stackalloc int[InputSize];
+        Span<float> columnWeightX = stackalloc float[InputSize];
+        var columnCount = 0;
+        for (var targetX = 0; targetX < resizedWidth; targetX++)
+        {
+            var outputX = targetX + left;
+            if ((uint)outputX >= InputSize)
+            {
+                continue;
+            }
+
+            var sourceX = source.Left + (targetX + 0.5f) / scale - 0.5f;
+            var x0 = Math.Clamp((int)MathF.Floor(sourceX), 0, maxX);
+            columnOutputX[columnCount] = outputX;
+            columnX0[columnCount] = x0;
+            columnX1[columnCount] = Math.Min(x0 + 1, maxX);
+            columnWeightX[columnCount] = Math.Clamp(sourceX - x0, 0, 1);
+            columnCount++;
+        }
+
+        var byteToUnit = ByteToUnit;
         for (var targetY = 0; targetY < resizedHeight; targetY++)
         {
-            var sourceY = source.Top + (targetY + 0.5f) / scale - 0.5f;
             var outputY = targetY + top;
             if ((uint)outputY >= InputSize)
             {
                 continue;
             }
 
-            for (var targetX = 0; targetX < resizedWidth; targetX++)
+            var sourceY = source.Top + (targetY + 0.5f) / scale - 0.5f;
+            var y0 = Math.Clamp((int)MathF.Floor(sourceY), 0, maxY);
+            var y1 = Math.Min(y0 + 1, maxY);
+            var weightY = Math.Clamp(sourceY - y0, 0, 1);
+            var rowOffset = outputY * InputSize;
+            for (var column = 0; column < columnCount; column++)
             {
-                var sourceX = source.Left + (targetX + 0.5f) / scale - 0.5f;
-                var outputX = targetX + left;
-                if ((uint)outputX >= InputSize)
-                {
-                    continue;
-                }
-
-                sampler.SampleBilinear(sourceX, sourceY, out var red, out var green, out var blue);
-                var pixelOffset = outputY * InputSize + outputX;
+                sampler.SampleBilinear(
+                    columnX0[column],
+                    columnX1[column],
+                    y0,
+                    y1,
+                    columnWeightX[column],
+                    weightY,
+                    out var red,
+                    out var green,
+                    out var blue);
+                var pixelOffset = rowOffset + columnOutputX[column];
                 if (layout == YoloV9InputLayout.ChannelsFirst)
                 {
-                    tensor[pixelOffset] = red / 255f;
-                    tensor[planeSize + pixelOffset] = green / 255f;
-                    tensor[2 * planeSize + pixelOffset] = blue / 255f;
+                    tensor[pixelOffset] = byteToUnit[red];
+                    tensor[planeSize + pixelOffset] = byteToUnit[green];
+                    tensor[2 * planeSize + pixelOffset] = byteToUnit[blue];
                 }
                 else
                 {
                     var interleavedOffset = pixelOffset * 3;
-                    tensor[interleavedOffset] = red / 255f;
-                    tensor[interleavedOffset + 1] = green / 255f;
-                    tensor[interleavedOffset + 2] = blue / 255f;
+                    tensor[interleavedOffset] = byteToUnit[red];
+                    tensor[interleavedOffset + 1] = byteToUnit[green];
+                    tensor[interleavedOffset + 2] = byteToUnit[blue];
                 }
             }
         }

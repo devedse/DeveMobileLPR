@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using DeveMobileLPR.Imaging;
 
 namespace DeveMobileLPR.Inference.Preprocessing;
@@ -56,6 +57,22 @@ internal readonly ref struct YuvImageSampler
         var wx = Math.Clamp(x - x0, 0, 1);
         var wy = Math.Clamp(y - y0, 0, 1);
 
+        SampleBilinear(x0, x1, y0, y1, wx, wy, out red, out green, out blue);
+    }
+
+    /// <summary>Bilinear sample with caller-precomputed clamped coordinates and weights.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void SampleBilinear(
+        int x0,
+        int x1,
+        int y0,
+        int y1,
+        float wx,
+        float wy,
+        out byte red,
+        out byte green,
+        out byte blue)
+    {
         GetRgb(x0, y0, out var r00, out var g00, out var b00);
         GetRgb(x1, y0, out var r10, out var g10, out var b10);
         GetRgb(x0, y1, out var r01, out var g01, out var b01);
@@ -66,6 +83,7 @@ internal readonly ref struct YuvImageSampler
         blue = Interpolate(b00, b10, b01, b11, wx, wy);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void GetRgb(int orientedX, int orientedY, out byte red, out byte green, out byte blue)
     {
         var (rawX, rawY) = _rotationDegrees switch
@@ -87,6 +105,7 @@ internal readonly ref struct YuvImageSampler
         Yuv420Frame.ConvertYuvToRgb(y, u, v, out red, out green, out blue);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static byte Interpolate(byte topLeft, byte topRight, byte bottomLeft, byte bottomRight, float x, float y)
     {
         var top = topLeft + (topRight - topLeft) * x;
