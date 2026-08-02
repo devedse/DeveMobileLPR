@@ -11,7 +11,7 @@ public sealed class YuvImageSamplerTests
     [InlineData(90)]
     [InlineData(180)]
     [InlineData(270)]
-    public void SampleBilinear_MatchesYuvFirstReference(int rotationDegrees)
+    public void SampleBilinear_MatchesRgbFirstReference(int rotationDegrees)
     {
         foreach (var paddedPlanes in new[] { false, true })
         {
@@ -21,33 +21,12 @@ public sealed class YuvImageSamplerTests
             foreach (var (x, y) in SamplePoints(frame))
             {
                 sampler.SampleBilinear(x, y, out var actualRed, out var actualGreen, out var actualBlue);
-                SampleYuvFirstReference(frame, x, y, out var expectedRed, out var expectedGreen, out var expectedBlue);
+                SampleRgbFirstReference(frame, x, y, out var expectedRed, out var expectedGreen, out var expectedBlue);
 
                 Assert.Equal(expectedRed, actualRed);
                 Assert.Equal(expectedGreen, actualGreen);
                 Assert.Equal(expectedBlue, actualBlue);
             }
-        }
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(90)]
-    [InlineData(180)]
-    [InlineData(270)]
-    public void SampleBilinear_RemainsCloseToRgbFirstReference(int rotationDegrees)
-    {
-        using var frame = CreateFrame(rotationDegrees, paddedPlanes: true);
-        var sampler = new YuvImageSampler(frame);
-
-        foreach (var (x, y) in SamplePoints(frame))
-        {
-            sampler.SampleBilinear(x, y, out var actualRed, out var actualGreen, out var actualBlue);
-            SampleRgbFirstReference(frame, x, y, out var expectedRed, out var expectedGreen, out var expectedBlue);
-
-            Assert.InRange(Math.Abs(expectedRed - actualRed), 0, 4);
-            Assert.InRange(Math.Abs(expectedGreen - actualGreen), 0, 4);
-            Assert.InRange(Math.Abs(expectedBlue - actualBlue), 0, 4);
         }
     }
 
@@ -115,26 +94,6 @@ public sealed class YuvImageSamplerTests
         (frame.OrientedWidth - 1f, frame.OrientedHeight - 1f)
     ];
 
-    private static void SampleYuvFirstReference(
-        Yuv420Frame frame,
-        float x,
-        float y,
-        out byte red,
-        out byte green,
-        out byte blue)
-    {
-        GetSampleCoordinates(frame, x, y, out var x0, out var y0, out var x1, out var y1, out var wx, out var wy);
-        GetYuv(frame, x0, y0, out var y00, out var u00, out var v00);
-        GetYuv(frame, x1, y0, out var y10, out var u10, out var v10);
-        GetYuv(frame, x0, y1, out var y01, out var u01, out var v01);
-        GetYuv(frame, x1, y1, out var y11, out var u11, out var v11);
-
-        var interpolatedY = Interpolate(y00, y10, y01, y11, wx, wy);
-        var interpolatedU = Interpolate(u00, u10, u01, u11, wx, wy);
-        var interpolatedV = Interpolate(v00, v10, v01, v11, wx, wy);
-        Yuv420Frame.ConvertYuvToRgb(interpolatedY, interpolatedU, interpolatedV, out red, out green, out blue);
-    }
-
     private static void SampleRgbFirstReference(
         Yuv420Frame frame,
         float x,
@@ -172,23 +131,6 @@ public sealed class YuvImageSamplerTests
         y1 = Math.Min(y0 + 1, frame.OrientedHeight - 1);
         wx = Math.Clamp(x - x0, 0, 1);
         wy = Math.Clamp(y - y0, 0, 1);
-    }
-
-    private static void GetYuv(Yuv420Frame frame, int orientedX, int orientedY, out byte y, out byte u, out byte v)
-    {
-        var (rawX, rawY) = frame.RotationDegrees switch
-        {
-            0 => (orientedX, orientedY),
-            90 => (orientedY, frame.Height - 1 - orientedX),
-            180 => (frame.Width - 1 - orientedX, frame.Height - 1 - orientedY),
-            270 => (frame.Width - 1 - orientedY, orientedX),
-            _ => throw new InvalidOperationException()
-        };
-        var chromaX = rawX / 2;
-        var chromaY = rawY / 2;
-        y = frame.YPlane.Span[rawY * frame.YRowStride + rawX * frame.YPixelStride];
-        u = frame.UPlane.Span[chromaY * frame.URowStride + chromaX * frame.UPixelStride];
-        v = frame.VPlane.Span[chromaY * frame.VRowStride + chromaX * frame.VPixelStride];
     }
 
     private static byte Interpolate(byte topLeft, byte topRight, byte bottomLeft, byte bottomRight, float x, float y)
