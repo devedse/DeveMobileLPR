@@ -52,7 +52,7 @@ public sealed class OnnxYoloV9PlateDetector : IPlateDetector, IInferenceBackendI
         {
             var stageStartedAt = Stopwatch.GetTimestamp();
             var source = _configuration.Detector_RoadRegion.ToPixels(frame.OrientedWidth, frame.OrientedHeight);
-            var transform = DetectorPreprocessor.Fill(frame, source, _input);
+            var preprocessing = DetectorPreprocessor.FillMeasured(frame, source, _input);
             var preprocessingMilliseconds = Stopwatch.GetElapsedTime(stageStartedAt).TotalMilliseconds;
 
             stageStartedAt = Stopwatch.GetTimestamp();
@@ -84,7 +84,7 @@ public sealed class OnnxYoloV9PlateDetector : IPlateDetector, IInferenceBackendI
                     values[offset + 2],
                     values[offset + 3],
                     values[offset + 4]);
-                var sourceBounds = transform.ToSource(modelBounds, frame.OrientedWidth, frame.OrientedHeight);
+                var sourceBounds = preprocessing.Transform.ToSource(modelBounds, frame.OrientedWidth, frame.OrientedHeight);
                 if (!sourceBounds.IsEmpty
                     && sourceBounds.Width >= _configuration.Detector_MinimumPlateWidthPixels
                     && sourceBounds.Height >= _configuration.Detector_MinimumPlateHeightPixels)
@@ -100,7 +100,10 @@ public sealed class OnnxYoloV9PlateDetector : IPlateDetector, IInferenceBackendI
                     queueMilliseconds,
                     preprocessingMilliseconds,
                     inferenceMilliseconds,
-                    postprocessingMilliseconds));
+                    postprocessingMilliseconds))
+                {
+                    Preparation = preprocessing.Timing
+                };
         }
         finally
         {

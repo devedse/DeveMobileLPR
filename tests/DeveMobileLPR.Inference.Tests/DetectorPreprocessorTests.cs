@@ -29,6 +29,21 @@ public sealed class DetectorPreprocessorTests
         }
     }
 
+    [Fact]
+    public void FillMeasured_ReportsPreparationStages()
+    {
+        using var frame = CreateFrame();
+        var tensor = new float[YoloV9RawPlateDetector.InputValueCount];
+        var source = new BoundingBox(0, 0, frame.Width, frame.Height);
+
+        var result = DetectorPreprocessor.FillMeasured(frame, source, tensor);
+
+        Assert.True(result.Timing.SetupMilliseconds >= 0);
+        Assert.True(result.Timing.TensorFillMilliseconds >= 0);
+        Assert.True(result.Timing.ResampleMilliseconds > 0);
+        Assert.True(result.Timing.TotalMilliseconds > 0);
+    }
+
     private static Yuv420Frame CreateFrame()
     {
         const int width = 2;

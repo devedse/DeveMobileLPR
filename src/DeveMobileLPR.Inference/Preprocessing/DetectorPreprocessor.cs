@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using DeveMobileLPR.Geometry;
 using DeveMobileLPR.Imaging;
 using DeveMobileLPR.Inference.Yolo;
+using DeveMobileLPR.Recognition;
 
 namespace DeveMobileLPR.Inference.Preprocessing;
 
@@ -13,12 +15,23 @@ internal readonly record struct LetterboxTransform(BoundingBox Source, float Sca
         Source.Top + (modelBounds.Bottom - PaddingY) / Scale).Clamp(frameWidth, frameHeight);
 }
 
+internal readonly record struct DetectorPreprocessingResult(
+    LetterboxTransform Transform,
+    DetectorPreparationTiming Timing);
+
 internal static class DetectorPreprocessor
 {
     public const int InputSize = 608;
     private const float PaddingValue = 114f / 255f;
 
     public static LetterboxTransform Fill(
+        Yuv420Frame frame,
+        BoundingBox source,
+        Span<float> tensor,
+        YoloV9InputLayout layout = YoloV9InputLayout.ChannelsFirst) =>
+        FillMeasured(frame, source, tensor, layout).Transform;
+
+    public static DetectorPreprocessingResult FillMeasured(
         Yuv420Frame frame,
         BoundingBox source,
         Span<float> tensor,
@@ -30,13 +43,20 @@ internal static class DetectorPreprocessor
             throw new ArgumentException($"Detector tensor requires {required} values.", nameof(tensor));
         }
 
+        var stageStartedAt = Stopwatch.GetTimestamp();
         source = source.Clamp(frame.OrientedWidth, frame.OrientedHeight);
         var scale = Math.Min(InputSize / source.Width, InputSize / source.Height);
         var resizedWidth = (int)MathF.Round(source.Width * scale);
         var resizedHeight = (int)MathF.Round(source.Height * scale);
         var paddingX = (InputSize - resizedWidth) / 2f;
         var paddingY = (InputSize - resizedHeight) / 2f;
+        var setupMilliseconds = Stopwatch.GetElapsedTime(stageStartedAt).TotalMilliseconds;
+
+        stageStartedAt = Stopwatch.GetTimestamp();
         tensor[..required].Fill(PaddingValue);
+        var tensorFillMilliseconds = Stopwatch.GetElapsedTime(stageStartedAt).TotalMilliseconds;
+
+        stageStartedAt = Stopwatch.GetTimestamp();
         var planeSize = InputSize * InputSize;
         var sampler = new YuvImageSampler(frame);
 
@@ -78,6 +98,12 @@ internal static class DetectorPreprocessor
             }
         }
 
-        return new LetterboxTransform(source, scale, paddingX, paddingY);
+        var resampleMilliseconds = Stopwatch.GetElapsedTime(stageStartedAt).TotalMilliseconds;
+        return new DetectorPreprocessingResult(
+            new LetterboxTransform(source, scale, paddingX, paddingY),
+            new DetectorPreparationTiming(
+                setupMilliseconds,
+                tensorFillMilliseconds,
+                resampleMilliseconds));
     }
 }
