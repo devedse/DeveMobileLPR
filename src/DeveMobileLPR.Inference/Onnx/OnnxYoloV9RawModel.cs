@@ -26,13 +26,15 @@ public sealed class OnnxYoloV9RawModel : IYoloV9RawModel, IInferenceBackendDiagn
         string modelPath,
         int xnnpackThreads = 4,
         Action<string>? diagnostic = null,
-        bool allowNnapiFp16 = false)
+        bool allowNnapiFp16 = false,
+        OnnxExecutionProviderConfiguration? preferredAndroidProvider = null)
     {
         var session = OnnxSessionFactory.Create(
             modelPath,
             xnnpackThreads,
             diagnostic,
-            allowNnapiFp16);
+            allowNnapiFp16,
+            preferredAndroidProvider);
         _session = session.Session;
         BackendName = session.BackendName;
         BackendDiagnostics = session.Diagnostics;

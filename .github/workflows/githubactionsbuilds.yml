@@ -135,6 +135,7 @@ jobs:
         run: |
           ./eng/Publish-Android.ps1 -Configuration Release -Version $env:BUILD_VERSION -ApplicationVersion $env:BUILD_NUMBER -ApplicationDisplayVersion $env:BUILD_VERSION -DetectorBackend LiteRt -OutputDirectory artifacts/android/litert
           ./eng/Publish-Android.ps1 -Configuration Release -Version $env:BUILD_VERSION -ApplicationVersion $env:BUILD_NUMBER -ApplicationDisplayVersion $env:BUILD_VERSION -DetectorBackend OnnxRaw -OutputDirectory artifacts/android/onnx-raw
+          ./eng/Publish-Android.ps1 -Configuration Release -Version $env:BUILD_VERSION -ApplicationVersion $env:BUILD_NUMBER -ApplicationDisplayVersion $env:BUILD_VERSION -DetectorBackend WebGpu -OutputDirectory artifacts/android/webgpu
 
       - name: Package release-signed Android comparison APKs
         if: steps.signing.outputs.configured == 'true'
@@ -146,6 +147,7 @@ jobs:
         run: |
           ./eng/Publish-Android.ps1 -Configuration Release -Version $env:BUILD_VERSION -ApplicationVersion $env:BUILD_NUMBER -ApplicationDisplayVersion $env:BUILD_VERSION -DetectorBackend LiteRt -OutputDirectory artifacts/android/litert -Keystore "$env:RUNNER_TEMP\release.keystore" -KeystorePassword $env:KEYSTORE_PASSWORD -KeyAlias $env:KEY_ALIAS -KeyPassword $env:KEY_PASSWORD
           ./eng/Publish-Android.ps1 -Configuration Release -Version $env:BUILD_VERSION -ApplicationVersion $env:BUILD_NUMBER -ApplicationDisplayVersion $env:BUILD_VERSION -DetectorBackend OnnxRaw -OutputDirectory artifacts/android/onnx-raw -Keystore "$env:RUNNER_TEMP\release.keystore" -KeystorePassword $env:KEYSTORE_PASSWORD -KeyAlias $env:KEY_ALIAS -KeyPassword $env:KEY_PASSWORD
+          ./eng/Publish-Android.ps1 -Configuration Release -Version $env:BUILD_VERSION -ApplicationVersion $env:BUILD_NUMBER -ApplicationDisplayVersion $env:BUILD_VERSION -DetectorBackend WebGpu -OutputDirectory artifacts/android/webgpu -Keystore "$env:RUNNER_TEMP\release.keystore" -KeystorePassword $env:KEYSTORE_PASSWORD -KeyAlias $env:KEY_ALIAS -KeyPassword $env:KEY_PASSWORD
 
       - name: Upload LiteRT APK on every build
         uses: actions/upload-artifact@v7
@@ -160,6 +162,14 @@ jobs:
         with:
           name: DeveMobileLPR-ONNX-Raw-${{ env.BUILD_VERSION }}
           path: artifacts/android/onnx-raw/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload WebGPU APK on every build
+        uses: actions/upload-artifact@v7
+        with:
+          name: DeveMobileLPR-WebGPU-${{ env.BUILD_VERSION }}
+          path: artifacts/android/webgpu/*.apk
           if-no-files-found: error
           retention-days: 14
 

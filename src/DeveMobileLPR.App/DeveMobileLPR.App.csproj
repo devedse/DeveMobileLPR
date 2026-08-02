@@ -17,10 +17,11 @@
     <AndroidPackageFormat>apk</AndroidPackageFormat>
     <AndroidDetectorBackend Condition="'$(AndroidDetectorBackend)' == ''">LiteRt</AndroidDetectorBackend>
     <DefineConstants Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android' and '$(AndroidDetectorBackend)' == 'OnnxRaw'">$(DefineConstants);ANDROID_ONNX_RAW_DETECTOR</DefineConstants>
+    <DefineConstants Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android' and '$(AndroidDetectorBackend)' == 'WebGpu'">$(DefineConstants);ANDROID_WEBGPU_DETECTOR</DefineConstants>
     <AndroidLinkMode Condition="'$(Configuration)' == 'Release'">SdkOnly</AndroidLinkMode>
     <!-- Profiled Mono AOT currently fails in the .NET 10 Android cross-assembler for both
          universal and arm64 builds. Keep packaging reliable; inference acceleration is
-         provided by ONNX Runtime's native NNAPI/XNNPACK execution providers instead. -->
+         provided by ONNX Runtime's native execution providers instead. -->
     <RunAOTCompilation>false</RunAOTCompilation>
     <MauiEnableXamlCBindingWithSourceCompilation>true</MauiEnableXamlCBindingWithSourceCompilation>
     <AllowUnsafeBlocks Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">true</AllowUnsafeBlocks>
@@ -81,15 +82,15 @@
                   Condition="'$(AndroidDetectorBackend)' == 'LiteRt'" />
     <AndroidAsset Include="..\..\artifacts\models\yolo-v9-s-608-license-plates-raw.onnx"
                   Link="models\yolo-v9-s-608-license-plates-raw.onnx"
-                  Condition="'$(AndroidDetectorBackend)' == 'OnnxRaw'" />
+                  Condition="'$(AndroidDetectorBackend)' == 'OnnxRaw' or '$(AndroidDetectorBackend)' == 'WebGpu'" />
     <AndroidAsset Include="..\..\artifacts\models\cct_s_v2_global.onnx" Link="models\cct_s_v2_global.onnx" />
   </ItemGroup>
 
   <Target Name="ValidateAndroidDetectorBackend"
           BeforeTargets="PrepareForBuild"
           Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
-    <Error Condition="'$(AndroidDetectorBackend)' != 'LiteRt' and '$(AndroidDetectorBackend)' != 'OnnxRaw'"
-           Text="AndroidDetectorBackend must be either LiteRt or OnnxRaw, but was '$(AndroidDetectorBackend)'." />
+    <Error Condition="'$(AndroidDetectorBackend)' != 'LiteRt' and '$(AndroidDetectorBackend)' != 'OnnxRaw' and '$(AndroidDetectorBackend)' != 'WebGpu'"
+           Text="AndroidDetectorBackend must be either LiteRt, OnnxRaw, or WebGpu, but was '$(AndroidDetectorBackend)'." />
   </Target>
   <Target Name="GenerateAndroidDetectorModels"
           BeforeTargets="PrepareForBuild"

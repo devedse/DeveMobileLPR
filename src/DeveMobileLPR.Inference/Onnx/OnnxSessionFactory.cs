@@ -11,7 +11,8 @@ internal static class OnnxSessionFactory
         string modelPath,
         int xnnpackThreads,
         Action<string>? diagnostic,
-        bool allowNnapiFp16 = false)
+        bool allowNnapiFp16 = false,
+        OnnxExecutionProviderConfiguration? preferredAndroidProvider = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(modelPath);
         if (!File.Exists(modelPath))
@@ -45,12 +46,60 @@ internal static class OnnxSessionFactory
 
         if (OperatingSystem.IsAndroid())
         {
+            if (preferredAndroidProvider is not null)
+            {
+                var preferred = TryCreatePreferredAndroidSession(
+                    modelPath,
+                    preferredAndroidProvider,
+                    Report,
+                    diagnostics);
+                if (preferred is not null)
+                {
+                    return preferred.Value;
+                }
+            }
+
             return CreateFastestAndroidSession(modelPath, xnnpackThreads, allowNnapiFp16, Report, diagnostics);
         }
 
         Report("ONNX Runtime provider: CPU");
         using var cpuOptions = CreateBaseOptions();
         return new SessionResult(new InferenceSession(modelPath, cpuOptions), "ONNX Runtime CPU", diagnostics);
+    }
+
+    private static SessionResult? TryCreatePreferredAndroidSession(
+        string modelPath,
+        OnnxExecutionProviderConfiguration provider,
+        Action<string> report,
+        IReadOnlyList<string> diagnostics)
+    {
+        InferenceSession? session = null;
+        try
+        {
+            using var options = CreateBaseOptions();
+            provider.Configure(options);
+            session = new InferenceSession(modelPath, options);
+            var elapsed = Benchmark(session);
+            if (elapsed is null)
+            {
+                report($"ONNX Runtime candidate {provider.BackendName}: model input cannot be benchmarked; selecting it without comparison.");
+                var selected = session;
+                session = null;
+                return new SessionResult(selected, $"ONNX Runtime {provider.BackendName}", diagnostics);
+            }
+
+            report($"ONNX Runtime candidate {provider.BackendName}: {elapsed.Value:0.0} ms warm benchmark");
+            report($"ONNX Runtime provider selected: {provider.BackendName} ({elapsed.Value:0.0} ms)");
+            var selectedSession = session;
+            session = null;
+            return new SessionResult(selectedSession, $"ONNX Runtime {provider.BackendName}", diagnostics);
+        }
+        catch (Exception exception)
+        {
+            session?.Dispose();
+            report($"ONNX Runtime candidate {provider.BackendName} unavailable: {exception.GetBaseException().Message}");
+            return null;
+        }
     }
 
     private static SessionResult CreateFastestAndroidSession(

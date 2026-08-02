@@ -11,7 +11,7 @@ namespace DeveMobileLPR.App.Services;
 /// </summary>
 internal static class AndroidDetectorModelFactory
 {
-#if ANDROID_ONNX_RAW_DETECTOR
+#if ANDROID_WEBGPU_DETECTOR || ANDROID_ONNX_RAW_DETECTOR
     public static ModelArtifact Artifact => ModelCatalog.AndroidOnnxRawDetector;
 
     public static IYoloV9RawModel Create(
@@ -22,7 +22,12 @@ internal static class AndroidDetectorModelFactory
             modelPath,
             configuration.Detector_XnnpackThreads,
             diagnostic,
-            configuration.Detector_AndroidAllowNnapiFp16);
+            configuration.Detector_AndroidAllowNnapiFp16,
+#if ANDROID_WEBGPU_DETECTOR
+            AndroidWebGpuExecutionProvider.TryCreate(diagnostic));
+#else
+            null);
+#endif
 #else
     public static ModelArtifact Artifact => ModelCatalog.AndroidLiteRtDetector;
 

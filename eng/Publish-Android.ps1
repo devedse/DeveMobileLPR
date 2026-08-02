@@ -8,7 +8,7 @@ param(
     [int]$ApplicationVersion,
     [ValidatePattern('^\d+\.\d+\.\d+$')]
     [string]$ApplicationDisplayVersion,
-    [ValidateSet('LiteRt', 'OnnxRaw')]
+    [ValidateSet('LiteRt', 'OnnxRaw', 'WebGpu')]
     [string]$DetectorBackend = 'LiteRt',
     [string]$OutputDirectory,
     [string]$Keystore,
