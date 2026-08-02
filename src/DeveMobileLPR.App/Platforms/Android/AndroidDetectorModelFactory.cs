@@ -24,7 +24,7 @@ internal static class AndroidDetectorModelFactory
             diagnostic,
             configuration.Detector_AndroidAllowNnapiFp16,
 #if ANDROID_WEBGPU_DETECTOR
-            AndroidWebGpuExecutionProvider.TryCreate(diagnostic));
+            AndroidWebGpuExecutionProvider.Create());
 #else
             null);
 #endif

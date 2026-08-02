@@ -1,58 +1,27 @@
 using DeveMobileLPR.Inference.Onnx;
-using Microsoft.ML.OnnxRuntime;
 
 namespace DeveMobileLPR.App.Services;
 
 /// <summary>
-/// Selects ONNX Runtime's native WebGPU provider on Android. The Android ONNX
-/// Runtime AAR uses Dawn with Vulkan, so this is vendor-neutral across Android
-/// GPU vendors.
+/// Selects the statically linked WebGPU provider in ONNX Runtime's Android AAR.
+/// Dawn uses Vulkan on Android, so this remains vendor-neutral across GPUs.
 /// </summary>
 internal static class AndroidWebGpuExecutionProvider
 {
-    private const string ProviderName = "WebGpuExecutionProvider";
-
-    public static OnnxExecutionProviderConfiguration? TryCreate(Action<string>? diagnostic)
-    {
-        try
-        {
-            var environment = OrtEnv.Instance();
-            var devices = environment.GetEpDevices()
-                .Where(device => string.Equals(device.EpName, ProviderName, StringComparison.OrdinalIgnoreCase))
-                .ToArray();
-            if (devices.Length == 0)
+    public static OnnxExecutionProviderConfiguration Create() =>
+        new(
+            "WebGPU (Vulkan, accelerator-only)",
+            options =>
             {
-                // The official Android AAR can contain WebGPU as a statically
-                // linked provider. In that build there is no plugin EpDevice to
-                // enumerate, but the generic provider API still activates it.
-                diagnostic?.Invoke("ONNX Runtime WebGPU EpDevice was not enumerated; trying the built-in Android provider.");
-                return new OnnxExecutionProviderConfiguration(
-                    "WebGPU (built-in)",
-                    options => options.AppendExecutionProvider(
-                        "WebGPU",
-                        new Dictionary<string, string>(StringComparer.Ordinal)
-                        {
-                            ["preferredLayout"] = "NCHW"
-                        }));
-            }
-
-            diagnostic?.Invoke($"ONNX Runtime WebGPU provider exposes {devices.Length} device(s); Vulkan backend will be used when available.");
-            return new OnnxExecutionProviderConfiguration(
-                "WebGPU",
-                options => options.AppendExecutionProvider(
-                    environment,
-                    devices,
+                // A WebGPU comparison build must not silently execute unsupported
+                // detector nodes on the CPU while presenting itself as GPU-backed.
+                options.AddSessionConfigEntry("session.disable_cpu_ep_fallback", "1");
+                options.AppendExecutionProvider(
+                    "WebGPU",
                     new Dictionary<string, string>(StringComparer.Ordinal)
                     {
-                        // The raw YOLO graph is channels-first and is not a candidate
-                        // for an implicit layout conversion.
-                        ["preferredLayout"] = "NCHW"
-                    }));
-        }
-        catch (Exception exception)
-        {
-            diagnostic?.Invoke($"ONNX Runtime WebGPU provider unavailable: {exception.GetBaseException().Message}");
-            return null;
-        }
-    }
+                        ["preferredLayout"] = "NCHW",
+                        ["powerPreference"] = "high-performance"
+                    });
+            });
 }
