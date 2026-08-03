@@ -34,12 +34,17 @@ internal sealed record TripVehicleCardViewModel(
     decimal? CatalogPrice,
     DateTimeOffset FirstSeenAt,
     int EarlierSightingCount,
-    GeoPoint? Location)
+    GeoPoint? Location,
+    string? SnapshotPath)
 {
     public bool HasLocation => Location is not null;
+    public bool HasSnapshot => SnapshotPath is not null;
 }
 
-internal sealed class TripDetailViewModel(ISightingRepository repository, long tripId) : ViewModelBase
+internal sealed class TripDetailViewModel(
+    ISightingRepository repository,
+    IContextualSnapshotStore snapshotStore,
+    long tripId) : ViewModelBase
 {
     internal const string SortByTime = "Time seen";
     internal const string SortByValue = "Highest value";
@@ -110,7 +115,7 @@ internal sealed class TripDetailViewModel(ISightingRepository repository, long t
         }
     }
 
-    private static TripVehicleCardViewModel CreateVehicle(TripVehicleSummary vehicle)
+    private TripVehicleCardViewModel CreateVehicle(TripVehicleSummary vehicle)
     {
         var vehicleName = string.Join(' ', new[] { vehicle.Vehicle?.Make, vehicle.Vehicle?.Model }.Where(value => !string.IsNullOrWhiteSpace(value)));
         var metadata = string.Join(" · ", new[] { vehicle.Vehicle?.RegistrationYear?.ToString(), vehicle.Vehicle?.FuelDescription, vehicle.Vehicle?.BodyType }.Where(value => !string.IsNullOrWhiteSpace(value)));
@@ -133,7 +138,8 @@ internal sealed class TripDetailViewModel(ISightingRepository repository, long t
             vehicle.Vehicle?.CatalogPrice,
             vehicle.FirstSeenAt,
             vehicle.EarlierSightingCount,
-            vehicle.LastLocation);
+            vehicle.LastLocation,
+            snapshotStore.ResolvePath(vehicle.SnapshotReference));
     }
 
     private void ApplySort()

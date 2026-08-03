@@ -185,10 +185,12 @@ public sealed class SqliteSightingRepositoryTests : IAsyncLifetime
     {
         var now = DateTimeOffset.UtcNow;
         var firstTrip = await _repository.StartTripAsync(now, null, CancellationToken.None);
-        await _repository.AddOrMergeAsync(Confirmed("AB1234", now, 3), null, null, firstTrip.Id, CancellationToken.None);
+        var firstSighting = await _repository.AddOrMergeAsync(Confirmed("AB1234", now, 3), null, null, firstTrip.Id, CancellationToken.None);
+        await _repository.SetSnapshotReferenceAsync(firstSighting.Id, "vehicle-snapshots/first.jpg", CancellationToken.None);
         await _repository.EndTripAsync(firstTrip.Id, now.AddMinutes(1), null, CancellationToken.None);
         var secondTrip = await _repository.StartTripAsync(now.AddHours(1), null, CancellationToken.None);
-        await _repository.AddOrMergeAsync(Confirmed("AB1234", now.AddHours(1), 3), null, null, secondTrip.Id, CancellationToken.None);
+        var secondSighting = await _repository.AddOrMergeAsync(Confirmed("AB1234", now.AddHours(1), 3), null, null, secondTrip.Id, CancellationToken.None);
+        await _repository.SetSnapshotReferenceAsync(secondSighting.Id, "vehicle-snapshots/latest.jpg", CancellationToken.None);
         await _repository.EndTripAsync(secondTrip.Id, now.AddHours(1).AddMinutes(1), null, CancellationToken.None);
 
         var vehicle = Assert.Single(await _repository.GetVehicleHistoryAsync(
@@ -196,6 +198,7 @@ public sealed class SqliteSightingRepositoryTests : IAsyncLifetime
             CancellationToken.None));
         Assert.Equal(2, vehicle.SightingCount);
         Assert.Equal(2, vehicle.TripCount);
+        Assert.Equal("vehicle-snapshots/latest.jpg", vehicle.SnapshotReference);
 
         await _repository.DeleteHistoryAsync(CancellationToken.None);
         Assert.Empty(await _repository.GetTripsAsync(0, 100, CancellationToken.None));
@@ -275,8 +278,10 @@ public sealed class SqliteSightingRepositoryTests : IAsyncLifetime
 
         var currentTrip = await _repository.StartTripAsync(now.AddHours(1), null, CancellationToken.None);
         var vehicle = new VehicleRecord("AB1234", "Audi", "A6", 85_000m, 2024, "Benzine", "sedan");
-        await _repository.AddOrMergeAsync(Confirmed("AB1234", now.AddHours(1).AddMinutes(1), 3), new GeoPoint(52.2, 5.2, 3), vehicle, currentTrip.Id, CancellationToken.None);
-        await _repository.AddOrMergeAsync(Confirmed("AB1234", now.AddHours(1).AddMinutes(10), 4), new GeoPoint(52.3, 5.3, 2), vehicle, currentTrip.Id, CancellationToken.None);
+        var firstCurrentSighting = await _repository.AddOrMergeAsync(Confirmed("AB1234", now.AddHours(1).AddMinutes(1), 3), new GeoPoint(52.2, 5.2, 3), vehicle, currentTrip.Id, CancellationToken.None);
+        await _repository.SetSnapshotReferenceAsync(firstCurrentSighting.Id, "vehicle-snapshots/trip-first.jpg", CancellationToken.None);
+        var latestCurrentSighting = await _repository.AddOrMergeAsync(Confirmed("AB1234", now.AddHours(1).AddMinutes(10), 4), new GeoPoint(52.3, 5.3, 2), vehicle, currentTrip.Id, CancellationToken.None);
+        await _repository.SetSnapshotReferenceAsync(latestCurrentSighting.Id, "vehicle-snapshots/trip-latest.jpg", CancellationToken.None);
 
         var summary = Assert.Single(await _repository.GetVehiclesForTripAsync(currentTrip.Id, CancellationToken.None));
 
@@ -286,6 +291,7 @@ public sealed class SqliteSightingRepositoryTests : IAsyncLifetime
         Assert.Equal(7, summary.ObservationCount);
         Assert.Equal(85_000m, summary.Vehicle?.CatalogPrice);
         Assert.Equal(52.3, summary.LastLocation?.Latitude);
+        Assert.Equal("vehicle-snapshots/trip-latest.jpg", summary.SnapshotReference);
     }
 
     [Fact]

@@ -235,7 +235,8 @@ public sealed record VehicleHistorySummary(
     int SightingCount,
     int TripCount,
     VehicleRecord? Vehicle,
-    GeoPoint? LastLocation);
+    GeoPoint? LastLocation,
+    string? SnapshotReference);
 
 public enum VehicleHistorySort
 {
@@ -261,7 +262,8 @@ public sealed record TripVehicleSummary(
     int SightingCount,
     int EarlierSightingCount,
     VehicleRecord? Vehicle,
-    GeoPoint? LastLocation);
+    GeoPoint? LastLocation,
+    string? SnapshotReference);
 
 public sealed record HistoryStatistics(
     int TripCount,

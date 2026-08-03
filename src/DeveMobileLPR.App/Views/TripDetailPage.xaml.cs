@@ -16,7 +16,7 @@ public partial class TripDetailPage : ContentPage
         InitializeComponent();
         _repository = history.Coordinator.Repository;
         _snapshotStore = history.Coordinator.SnapshotStore;
-        BindingContext = _viewModel = new TripDetailViewModel(_repository, tripId);
+        BindingContext = _viewModel = new TripDetailViewModel(_repository, _snapshotStore, tripId);
     }
 
     protected override async void OnAppearing()

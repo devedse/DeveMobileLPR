@@ -297,7 +297,16 @@ public sealed class SqliteSightingRepository : ISightingRepository
                       AND latest.latitude IS NOT NULL
                     ORDER BY latest.last_seen_at DESC
                     LIMIT 1
-                ) AS accuracy
+                                ) AS accuracy,
+                                (
+                                        SELECT snapshot_reference
+                                        FROM sightings latest
+                                        WHERE latest.trip_id = @trip_id
+                                            AND latest.normalized_plate = s.normalized_plate
+                                            AND latest.snapshot_reference IS NOT NULL
+                                        ORDER BY latest.last_seen_at DESC, latest.id DESC
+                                        LIMIT 1
+                                ) AS snapshot_reference
             FROM sightings s
             WHERE s.trip_id = @trip_id
             GROUP BY s.normalized_plate
@@ -329,7 +338,8 @@ public sealed class SqliteSightingRepository : ISightingRepository
                 reader.GetInt32(6),
                 reader.GetInt32(7),
                 vehicle,
-                ReadLocation(reader, 14, 15, 16)));
+                ReadLocation(reader, 14, 15, 16),
+                GetNullableString(reader, 17)));
         }
 
         return results;
@@ -378,7 +388,8 @@ public sealed class SqliteSightingRepository : ISightingRepository
                 MAX(body_type) AS body_type,
                 (SELECT latitude FROM sightings latest WHERE latest.normalized_plate = sightings.normalized_plate AND latitude IS NOT NULL ORDER BY last_seen_at DESC LIMIT 1) AS latitude,
                 (SELECT longitude FROM sightings latest WHERE latest.normalized_plate = sightings.normalized_plate AND longitude IS NOT NULL ORDER BY last_seen_at DESC LIMIT 1) AS longitude,
-                (SELECT location_accuracy_meters FROM sightings latest WHERE latest.normalized_plate = sightings.normalized_plate AND latitude IS NOT NULL ORDER BY last_seen_at DESC LIMIT 1) AS accuracy
+                (SELECT location_accuracy_meters FROM sightings latest WHERE latest.normalized_plate = sightings.normalized_plate AND latitude IS NOT NULL ORDER BY last_seen_at DESC LIMIT 1) AS accuracy,
+                (SELECT snapshot_reference FROM sightings latest WHERE latest.normalized_plate = sightings.normalized_plate AND snapshot_reference IS NOT NULL ORDER BY last_seen_at DESC, id DESC LIMIT 1) AS snapshot_reference
             FROM sightings
             WHERE @search IS NULL OR normalized_plate LIKE '%' || @search || '%' OR make LIKE '%' || @raw_search || '%' OR model LIKE '%' || @raw_search || '%'
             GROUP BY normalized_plate
@@ -416,7 +427,8 @@ public sealed class SqliteSightingRepository : ISightingRepository
                 reader.GetInt32(4),
                 reader.GetInt32(5),
                 vehicle,
-                location));
+                location,
+                GetNullableString(reader, 15)));
         }
 
         return results;
