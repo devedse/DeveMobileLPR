@@ -64,15 +64,19 @@ public sealed class PlateTrackManager
             }
 
             track.Add(observation, _configuration.Tracking_MaximumObservationsPerTrack);
-            if (!track.Confirmed && _consensus.Resolve(track.Observations) is { } result)
+            if (_consensus.Resolve(track.Observations) is { } result
+                && track.ShouldPublish(result))
             {
-                track.Confirmed = true;
+                track.Publish(result);
                 confirmations.Add(new ConfirmedPlate(
                     track.Id,
                     track.FirstSeenAt,
                     track.LastSeenAt,
                     track.LastBounds,
-                    result));
+                    result)
+                {
+                    Revision = track.Revision
+                });
             }
         }
 
@@ -346,19 +350,78 @@ public sealed class PlateTrackManager
         public DateTimeOffset FirstSeenAt { get; } = firstSeenAt;
         public DateTimeOffset LastSeenAt { get; private set; } = firstSeenAt;
         public BoundingBox LastBounds { get; private set; } = initialBounds;
-        public bool Confirmed { get; set; }
+        public ConsensusResult? ConfirmedConsensus { get; private set; }
+        public int Revision { get; private set; }
+        public int TotalObservationCount { get; private set; }
         public List<PlateObservation> Observations { get; } = [];
         public string StableText => PlateEvidence.StableText(Observations, configuration);
+        private PublishedEvidence? LastPublishedEvidence { get; set; }
+
+        public bool ShouldPublish(ConsensusResult result)
+        {
+            if (ConfirmedConsensus is null)
+            {
+                return true;
+            }
+
+            if (string.Equals(result.NormalizedPlate, ConfirmedConsensus.NormalizedPlate, StringComparison.Ordinal)
+                || PlateText.EditDistance(result.NormalizedPlate, ConfirmedConsensus.NormalizedPlate)
+                    > configuration.Consensus_MaximumSupportingEditDistance)
+            {
+                return false;
+            }
+
+            var published = LastPublishedEvidence
+                ?? throw new InvalidOperationException("Published consensus is missing its evidence snapshot.");
+            var candidate = ExactEvidence(result.NormalizedPlate);
+            var confirmed = ExactEvidence(ConfirmedConsensus.NormalizedPlate);
+            var minimumGain = configuration.ConfirmationCorrection_MinimumAdditionalObservations;
+            return TotalObservationCount >= published.TotalObservationCount + minimumGain
+                && candidate.ObservationCount >= published.ExactObservationCount + minimumGain
+                && candidate.ObservationCount > confirmed.ObservationCount
+                && candidate.Weight > published.Weight
+                && candidate.Weight > confirmed.Weight
+                && result.Confidence >= configuration.ConfirmationCorrection_MinimumConfidence;
+        }
+
+        public void Publish(ConsensusResult result)
+        {
+            if (ConfirmedConsensus is not null)
+            {
+                Revision++;
+            }
+
+            ConfirmedConsensus = result;
+            var evidence = ExactEvidence(result.NormalizedPlate);
+            LastPublishedEvidence = new PublishedEvidence(
+                TotalObservationCount,
+                evidence.ObservationCount,
+                evidence.Weight);
+        }
 
         public void Add(PlateObservation observation, int maximumObservations)
         {
             LastSeenAt = observation.CapturedAt;
             LastBounds = observation.Detection.Bounds;
+            TotalObservationCount++;
             Observations.Add(observation);
             if (Observations.Count > maximumObservations)
             {
                 Observations.RemoveRange(0, Observations.Count - maximumObservations);
             }
+        }
+
+        private ExactTextEvidence ExactEvidence(string normalizedPlate)
+        {
+            var reads = Observations
+                .Where(observation => string.Equals(
+                    PlateText.Normalize(observation.Read.Text),
+                    normalizedPlate,
+                    StringComparison.Ordinal))
+                .ToArray();
+            return new ExactTextEvidence(
+                reads.Select(static observation => observation.FrameSequence).Distinct().Count(),
+                reads.Sum(observation => PlateEvidence.Weight(observation, configuration)));
         }
 
         public BoundingBox Predict(
@@ -419,12 +482,18 @@ public sealed class PlateTrackManager
                 LastSeenAt,
                 LastBounds,
                 Observations.Count,
-                Confirmed,
+                ConfirmedConsensus is not null,
                 latest.FrameSequence,
                 latest.Read.Text,
                 latest.Detection.Confidence,
                 latest.Read.Confidence,
                 latest.Quality);
         }
+
+        private readonly record struct ExactTextEvidence(int ObservationCount, float Weight);
+        private readonly record struct PublishedEvidence(
+            int TotalObservationCount,
+            int ExactObservationCount,
+            float Weight);
     }
 }

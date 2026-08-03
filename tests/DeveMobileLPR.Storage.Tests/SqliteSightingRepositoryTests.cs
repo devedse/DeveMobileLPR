@@ -49,6 +49,41 @@ public sealed class SqliteSightingRepositoryTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ReviseAsync_ReplacesTheOriginalSightingWithoutCreatingADuplicate()
+    {
+        var time = DateTimeOffset.UtcNow;
+        var location = new GeoPoint(52.1, 5.1, 4);
+        var wrongVehicle = new VehicleRecord("AB1234", "Wrong", "Vehicle", 10_000m, 2020, null, null);
+        var original = await _repository.AddOrMergeAsync(
+            Confirmed("AB1234", time, 2),
+            location,
+            wrongVehicle,
+            null,
+            CancellationToken.None);
+        original = await _repository.SetSnapshotReferenceAsync(
+            original.Id,
+            $"vehicle-snapshots/{original.Id}.jpg",
+            CancellationToken.None);
+        var correction = Confirmed("AB1235", time.AddSeconds(2), 8) with { Revision = 1 };
+
+        var revised = await _repository.ReviseAsync(
+            original.Id,
+            correction,
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(original.Id, revised.Id);
+        Assert.Equal("AB1235", revised.NormalizedPlate);
+        Assert.Equal("AB-12-35", revised.DisplayPlate);
+        Assert.Equal(8, revised.ObservationCount);
+        Assert.Equal(location, revised.Location);
+        Assert.Null(revised.Vehicle);
+        Assert.Equal(original.SnapshotReference, revised.SnapshotReference);
+        Assert.Empty(await _repository.FindByPlateAsync("AB1234", CancellationToken.None));
+        Assert.Single(await _repository.GetAllSightingsAsync(CancellationToken.None));
+    }
+
+    [Fact]
     public async Task SetSnapshotReferenceAsync_PersistsRelativeReference()
     {
         var sighting = await _repository.AddOrMergeAsync(

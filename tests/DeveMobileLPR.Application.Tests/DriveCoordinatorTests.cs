@@ -50,6 +50,48 @@ public sealed class DriveCoordinatorTests
     }
 
     [Fact]
+    public async Task StrongerCorrectionReplacesVehicleImageForSameSighting()
+    {
+        var repository = new FakeRepository();
+        var pipeline = new CorrectingPipeline();
+        var vehicleImageStore = new TestVehicleImageStore();
+        var input = new TestVideoInput();
+        var device = new TestDeviceExperience();
+        await using var coordinator = new DriveCoordinator(
+            repository,
+            vehicleImageStore,
+            new TestSettings { SaveVehicleImages = true },
+            new TestVehicleDataStatus(),
+            new RecognitionTuningConfiguration { StrongPair_Enabled = false },
+            new TestPipelineProvider(pipeline),
+            new TestVehicleLookup(),
+            new TestLocationTracker(),
+            device,
+            new ImmediateDispatcher());
+        coordinator.AttachCamera(input);
+        await input.Initialized.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await coordinator.InitializeAsync();
+        await coordinator.StartDriveAsync();
+
+        for (var sequence = 1; sequence <= 13; sequence++)
+        {
+            Assert.True(coordinator.SubmitFrame(CreateFrame(sequence)));
+            await pipeline.FrameProcessed.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+
+        var revised = await repository.SightingRevised.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await repository.SecondSnapshotReferenceSet.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal("AA12BG", revised.NormalizedPlate);
+        Assert.Equal(1, repository.ReviseCount);
+        Assert.Equal(2, vehicleImageStore.SaveCount);
+        Assert.Equal([1L, 1L], vehicleImageStore.SavedSightingIds);
+        Assert.True(vehicleImageStore.SavedFrameSequences[1] > vehicleImageStore.SavedFrameSequences[0]);
+        Assert.Equal(2, repository.SetSnapshotReferenceCount);
+        Assert.Equal(1, device.NotificationCount);
+    }
+
+    [Fact]
     public async Task SharedCoordinatorOwnsInitializationAndDriveLifecycleThroughPorts()
     {
         var repository = new FakeRepository();
@@ -246,6 +288,30 @@ public sealed class DriveCoordinatorTests
         }
     }
 
+    private sealed class CorrectingPipeline : IFrameRecognitionPipeline
+    {
+        public SemaphoreSlim FrameProcessed { get; } = new(0);
+
+        public ValueTask<FrameRecognition> ProcessAsync(Yuv420Frame frame, CancellationToken cancellationToken)
+        {
+            var text = frame.Sequence <= 3 ? "AA12BE" : "AA12BG";
+            var bounds = new BoundingBox(1, 1, 5, 3);
+            var observation = new PlateObservation(
+                frame.Sequence,
+                frame.CapturedAt,
+                new PlateDetection(bounds, 0.95f),
+                new PlateRead(text, 0.95f, [], null, null),
+                0.95f);
+            FrameProcessed.Release();
+            return ValueTask.FromResult(new FrameRecognition(frame.Sequence, frame.CapturedAt, [observation])
+            {
+                SourceWidth = frame.OrientedWidth,
+                SourceHeight = frame.OrientedHeight,
+                RotationDegrees = frame.RotationDegrees
+            });
+        }
+    }
+
     private sealed class TestLocationTracker : IDriveLocationTracker
     {
         public GeoPoint? Latest => null;
@@ -258,8 +324,9 @@ public sealed class DriveCoordinatorTests
     private sealed class TestDeviceExperience : IDeviceExperience
     {
         public bool KeepScreenOn { get; private set; }
+        public int NotificationCount { get; private set; }
         public void SetKeepScreenOn(bool enabled) => KeepScreenOn = enabled;
-        public void NotifyPlateConfirmed() { }
+        public void NotifyPlateConfirmed() => NotificationCount++;
     }
 
     private sealed class ImmediateDispatcher : IApplicationDispatcher
@@ -271,16 +338,17 @@ public sealed class DriveCoordinatorTests
     private sealed class TestVehicleImageStore : IVehicleImageStore
     {
         public int SaveCount { get; private set; }
-        public Task<string> SaveAsync(long sightingId, Yuv420Frame frame, BoundingBox plateBounds, CancellationToken cancellationToken) =>
-            Task.FromResult(SavedReference(sightingId));
-        public string? ResolvePath(string? reference) => null;
-        public Task DeleteAllAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-        private string SavedReference(long sightingId)
+        public List<long> SavedSightingIds { get; } = [];
+        public List<long> SavedFrameSequences { get; } = [];
+        public Task<string> SaveAsync(long sightingId, Yuv420Frame frame, BoundingBox plateBounds, CancellationToken cancellationToken)
         {
             SaveCount++;
-            return $"vehicle-snapshots/{sightingId}.jpg";
+            SavedSightingIds.Add(sightingId);
+            SavedFrameSequences.Add(frame.Sequence);
+            return Task.FromResult($"vehicle-snapshots/{sightingId}.jpg");
         }
+        public string? ResolvePath(string? reference) => null;
+        public Task DeleteAllAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class TestVehicleLookup : IVehicleLookup
@@ -291,11 +359,15 @@ public sealed class DriveCoordinatorTests
 
     private sealed class FakeRepository : ISightingRepository
     {
+        private Sighting? _currentSighting;
         public TaskCompletionSource<Sighting> SightingAdded { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<Sighting> SightingRevised { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource SnapshotReferenceSet { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource SecondSnapshotReferenceSet { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int InitializeCount { get; private set; }
         public int StartTripCount { get; private set; }
         public int EndTripCount { get; private set; }
+        public int ReviseCount { get; private set; }
         public int SetSnapshotReferenceCount { get; private set; }
         public Task InitializeAsync(CancellationToken cancellationToken) { InitializeCount++; return Task.CompletedTask; }
         public Task<TripSummary> StartTripAsync(DateTimeOffset startedAt, GeoPoint? location, CancellationToken cancellationToken)
@@ -319,14 +391,41 @@ public sealed class DriveCoordinatorTests
             {
                 TripId = tripId
             };
+            _currentSighting = sighting;
             SightingAdded.TrySetResult(sighting);
             return Task.FromResult(sighting);
         }
+        public Task<Sighting> ReviseAsync(long sightingId, ConfirmedPlate plate, VehicleRecord? vehicle, CancellationToken cancellationToken)
+        {
+            var current = _currentSighting ?? throw new InvalidOperationException("No sighting exists to revise.");
+            Assert.Equal(current.Id, sightingId);
+            var revised = current with
+            {
+                NormalizedPlate = plate.Consensus.NormalizedPlate,
+                DisplayPlate = plate.Consensus.DisplayPlate,
+                Region = plate.Consensus.Region,
+                LastSeenAt = plate.LastSeenAt,
+                Confidence = plate.Consensus.Confidence,
+                ObservationCount = plate.Consensus.ObservationCount,
+                Vehicle = vehicle
+            };
+            _currentSighting = revised;
+            ReviseCount++;
+            SightingRevised.TrySetResult(revised);
+            return Task.FromResult(revised);
+        }
         public Task<Sighting> SetSnapshotReferenceAsync(long sightingId, string snapshotReference, CancellationToken cancellationToken)
         {
+            var current = _currentSighting ?? throw new InvalidOperationException("No sighting exists to update.");
+            Assert.Equal(current.Id, sightingId);
             SetSnapshotReferenceCount++;
+            _currentSighting = current with { SnapshotReference = snapshotReference };
             SnapshotReferenceSet.TrySetResult();
-            return Task.FromResult(SightingAdded.Task.GetAwaiter().GetResult() with { SnapshotReference = snapshotReference });
+            if (SetSnapshotReferenceCount == 2)
+            {
+                SecondSnapshotReferenceSet.TrySetResult();
+            }
+            return Task.FromResult(_currentSighting);
         }
         public Task<IReadOnlyList<TripSummary>> GetTripsAsync(int offset, int limit, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<TripSummary>>([]);
         public Task<TripSummary?> GetTripAsync(long tripId, CancellationToken cancellationToken) => Task.FromResult<TripSummary?>(null);

@@ -56,6 +56,28 @@ public sealed class VehicleImageStoreTests : IDisposable
         Assert.Equal([255, 255, 255], PixelAt(encoder.Pixels, encoder.Width, 25, 27));
     }
 
+    [Fact]
+    public async Task SaveReplacesExistingImageForSameSighting()
+    {
+        var encoder = new RecordingEncoder();
+        var store = new VehicleImageStore(_rootDirectory, encoder);
+        using var frame = CreateWhiteFrame(6, 4);
+
+        var firstReference = await store.SaveAsync(
+            44,
+            frame,
+            new BoundingBox(2, 1, 4, 3),
+            CancellationToken.None);
+        var secondReference = await store.SaveAsync(
+            44,
+            frame,
+            new BoundingBox(1, 1, 3, 3),
+            CancellationToken.None);
+
+        Assert.Equal(firstReference, secondReference);
+        Assert.Equal([2], await File.ReadAllBytesAsync(store.ResolvePath(secondReference)!));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_rootDirectory))
@@ -99,6 +121,7 @@ public sealed class VehicleImageStoreTests : IDisposable
         public byte[] Pixels { get; private set; } = [];
         public int Width { get; private set; }
         public int Height { get; private set; }
+        public int EncodeCount { get; private set; }
 
         public async Task EncodeJpegAsync(
             ReadOnlyMemory<byte> rgbPixels,
@@ -110,7 +133,8 @@ public sealed class VehicleImageStoreTests : IDisposable
             Pixels = rgbPixels.ToArray();
             Width = width;
             Height = height;
-            await File.WriteAllBytesAsync(destinationPath, [1], cancellationToken);
+            EncodeCount++;
+            await File.WriteAllBytesAsync(destinationPath, [(byte)EncodeCount], cancellationToken);
         }
     }
 

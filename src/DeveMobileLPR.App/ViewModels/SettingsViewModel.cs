@@ -316,6 +316,13 @@ internal sealed class SettingsViewModel : ViewModelBase
                     Value("Character probability", Percentage(tuning.StrongPair_MinimumCharacterProbability), "Minimum probability for every selected character."),
                     Value("Character margin", Percentage(tuning.StrongPair_MinimumCharacterMargin), "Minimum lead of each character over its next-best alternative."),
                     Value("Dutch format check", Enabled(tuning.StrongPair_RequirePlausibleDutchFormat), "Requires a plausible Dutch registration layout.")
+                ]),
+            new(
+                "Confirmation correction",
+                "Allows a live track to replace an early wrong plate only when later evidence is materially stronger.",
+                [
+                    Value("Additional observations", tuning.ConfirmationCorrection_MinimumAdditionalObservations.ToString(), "Minimum supporting-frame gain over the previous confirmation."),
+                    Value("Minimum confidence", Percentage(tuning.ConfirmationCorrection_MinimumConfidence), "Minimum confidence required for the replacement consensus.")
                 ])
         ];
     }

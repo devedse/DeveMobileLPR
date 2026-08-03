@@ -123,6 +123,53 @@ public sealed class SqliteSightingRepository : ISightingRepository
         return await GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<Sighting> ReviseAsync(
+        long sightingId,
+        ConfirmedPlate plate,
+        VehicleRecord? vehicle,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(plate);
+        await using var connection = _connections.Create();
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE sightings SET
+                normalized_plate = @normalized_plate,
+                display_plate = @display_plate,
+                region = @region,
+                last_seen_at = @last_seen_at,
+                confidence = @confidence,
+                observation_count = @observation_count,
+                make = @make,
+                model = @model,
+                catalog_price = @catalog_price,
+                registration_year = @registration_year,
+                fuel_description = @fuel,
+                body_type = @body_type
+            WHERE id = @id;
+            """;
+        command.Parameters.AddWithValue("@id", sightingId);
+        command.Parameters.AddWithValue("@normalized_plate", plate.Consensus.NormalizedPlate);
+        command.Parameters.AddWithValue("@display_plate", plate.Consensus.DisplayPlate);
+        command.Parameters.AddWithValue("@region", DbValue(plate.Consensus.Region));
+        command.Parameters.AddWithValue("@last_seen_at", Timestamp(plate.LastSeenAt));
+        command.Parameters.AddWithValue("@confidence", plate.Consensus.Confidence);
+        command.Parameters.AddWithValue("@observation_count", plate.Consensus.ObservationCount);
+        command.Parameters.AddWithValue("@make", DbValue(vehicle?.Make));
+        command.Parameters.AddWithValue("@model", DbValue(vehicle?.Model));
+        command.Parameters.AddWithValue("@catalog_price", DbValue(vehicle?.CatalogPrice));
+        command.Parameters.AddWithValue("@registration_year", DbValue(vehicle?.RegistrationYear));
+        command.Parameters.AddWithValue("@fuel", DbValue(vehicle?.FuelDescription));
+        command.Parameters.AddWithValue("@body_type", DbValue(vehicle?.BodyType));
+        if (await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) != 1)
+        {
+            throw new KeyNotFoundException($"Sighting {sightingId} does not exist.");
+        }
+
+        return await GetByIdAsync(sightingId, cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<Sighting> SetSnapshotReferenceAsync(
         long sightingId,
         string snapshotReference,
