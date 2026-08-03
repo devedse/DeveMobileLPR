@@ -64,15 +64,19 @@ public sealed class PlateTrackManager
             }
 
             track.Add(observation, _configuration.Tracking_MaximumObservationsPerTrack);
-            if (!track.Confirmed && _consensus.Resolve(track.Observations) is { } result)
+            if (_consensus.Resolve(track.Observations) is { } result
+                && track.ShouldPublish(result))
             {
-                track.Confirmed = true;
+                track.Publish(result);
                 confirmations.Add(new ConfirmedPlate(
                     track.Id,
                     track.FirstSeenAt,
                     track.LastSeenAt,
                     track.LastBounds,
-                    result));
+                    result)
+                {
+                    Revision = track.Revision
+                });
             }
         }
 
@@ -346,9 +350,30 @@ public sealed class PlateTrackManager
         public DateTimeOffset FirstSeenAt { get; } = firstSeenAt;
         public DateTimeOffset LastSeenAt { get; private set; } = firstSeenAt;
         public BoundingBox LastBounds { get; private set; } = initialBounds;
-        public bool Confirmed { get; set; }
+        public ConsensusResult? ConfirmedConsensus { get; private set; }
+        public int Revision { get; private set; }
         public List<PlateObservation> Observations { get; } = [];
         public string StableText => PlateEvidence.StableText(Observations, configuration);
+
+        public bool ShouldPublish(ConsensusResult result) =>
+            ConfirmedConsensus is null
+            || (!string.Equals(
+                    result.NormalizedPlate,
+                    ConfirmedConsensus.NormalizedPlate,
+                    StringComparison.Ordinal)
+                && result.ObservationCount >= ConfirmedConsensus.ObservationCount
+                    + configuration.ConfirmationCorrection_MinimumAdditionalObservations
+                && result.Confidence >= configuration.ConfirmationCorrection_MinimumConfidence);
+
+        public void Publish(ConsensusResult result)
+        {
+            if (ConfirmedConsensus is not null)
+            {
+                Revision++;
+            }
+
+            ConfirmedConsensus = result;
+        }
 
         public void Add(PlateObservation observation, int maximumObservations)
         {
@@ -419,7 +444,7 @@ public sealed class PlateTrackManager
                 LastSeenAt,
                 LastBounds,
                 Observations.Count,
-                Confirmed,
+                ConfirmedConsensus is not null,
                 latest.FrameSequence,
                 latest.Read.Text,
                 latest.Detection.Confidence,

@@ -25,6 +25,38 @@ public sealed class PlateTrackManagerTests
     }
 
     [Fact]
+    public void Update_RevisesEarlyConfirmationWhenLaterConsensusHasStrongerSupport()
+    {
+        var manager = new PlateTrackManager();
+        var start = DateTimeOffset.UnixEpoch;
+
+        Assert.Empty(manager.Update(Frame(1, start, Observation(1, "AB1234", 100, start))));
+        var initial = Assert.Single(manager.Update(Frame(
+            2,
+            start.AddMilliseconds(200),
+            Observation(2, "AB1234", 102, start.AddMilliseconds(200)))));
+
+        var laterConfirmations = new List<ConfirmedPlate>();
+        for (var sequence = 3; sequence <= 10; sequence++)
+        {
+            var capturedAt = start.AddMilliseconds(sequence * 200);
+            laterConfirmations.AddRange(manager.Update(Frame(
+                sequence,
+                capturedAt,
+                Observation(sequence, "AB1235", 100 + sequence, capturedAt))));
+        }
+
+        var correction = Assert.Single(laterConfirmations);
+        Assert.Equal(initial.TrackId, correction.TrackId);
+        Assert.Equal(0, initial.Revision);
+        Assert.Equal(1, correction.Revision);
+        Assert.Equal("AB1234", initial.Consensus.NormalizedPlate);
+        Assert.Equal("AB1235", correction.Consensus.NormalizedPlate);
+        Assert.True(correction.Consensus.ObservationCount >= initial.Consensus.ObservationCount + 2);
+        Assert.True(correction.Consensus.Confidence >= 0.85f);
+    }
+
+    [Fact]
     public void Update_ExpiresAStaleTrackInsteadOfCombiningSeparateEncounters()
     {
         var manager = new PlateTrackManager();

@@ -20,6 +20,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
     private readonly object _stateGate = new();
     private readonly DrivePerformanceMonitor _performance = new();
     private readonly HashSet<string> _uniqueVehicles = new(StringComparer.Ordinal);
+    private readonly Dictionary<long, Sighting> _sessionSightings = [];
     private readonly List<Sighting> _recentSightings = [];
     private RecognitionSession? _recognition;
     private IDriveVideoInput? _camera;
@@ -224,6 +225,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
                 _startedAt = now;
                 _diagnostics = DriveDiagnosticsSnapshot.Empty;
                 _uniqueVehicles.Clear();
+                _sessionSightings.Clear();
                 _recentSightings.Clear();
                 _mostExpensive = null;
                 _overlays = [];
@@ -586,10 +588,12 @@ public sealed class DriveCoordinator : IAsyncDisposable
     {
         var sighting = result.Sighting;
         var vehicle = sighting.Vehicle;
+        var confirmationLabel = result.Confirmation.Revision > 0 ? "Corrected" : "Confirmed";
         var detail = vehicle is null
-            ? "Confirmed · no RDW details"
+            ? $"{confirmationLabel} · no RDW details"
             : string.Join(" · ", new[]
             {
+                confirmationLabel,
                 string.Join(' ', new[] { vehicle.Make, vehicle.Model }.Where(value => !string.IsNullOrWhiteSpace(value))),
                 CompactPrice(vehicle.CatalogPrice),
                 vehicle.BodyType
@@ -597,14 +601,16 @@ public sealed class DriveCoordinator : IAsyncDisposable
 
         lock (_stateGate)
         {
-            _uniqueVehicles.Add(sighting.NormalizedPlate);
+            _sessionSightings[sighting.Id] = sighting;
+            _uniqueVehicles.Clear();
+            _uniqueVehicles.UnionWith(_sessionSightings.Values.Select(static item => item.NormalizedPlate));
             _recentSightings.RemoveAll(item => item.Id == sighting.Id);
             _recentSightings.Insert(0, sighting);
             if (_recentSightings.Count > 5) _recentSightings.RemoveRange(5, _recentSightings.Count - 5);
-            if (vehicle?.CatalogPrice is not null && (_mostExpensive?.Vehicle?.CatalogPrice is null || vehicle.CatalogPrice > _mostExpensive.Vehicle.CatalogPrice))
-            {
-                _mostExpensive = sighting;
-            }
+            _mostExpensive = _sessionSightings.Values
+                .Where(static item => item.Vehicle?.CatalogPrice is not null)
+                .OrderByDescending(static item => item.Vehicle!.CatalogPrice)
+                .FirstOrDefault();
             var source = _overlays.FirstOrDefault();
             _confirmedOverlay = new DriveOverlay(
                 result.Confirmation.LastBounds,
@@ -617,7 +623,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
             _confirmedOverlayUntil = DateTimeOffset.UtcNow.AddSeconds(3);
         }
 
-        if (_settings.ConfirmationHaptic)
+        if (result.Confirmation.Revision == 0 && _settings.ConfirmationHaptic)
         {
             _deviceExperience.NotifyPlateConfirmed();
         }

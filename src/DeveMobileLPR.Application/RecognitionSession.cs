@@ -20,6 +20,7 @@ internal sealed class RecognitionSession : IAsyncDisposable
     private readonly Func<GeoPoint?> _location;
     private readonly Func<long?> _tripId;
     private readonly LatestFrameSlot _frames = new();
+    private readonly Dictionary<Guid, long> _sightingIdsByTrack = [];
     private readonly CancellationTokenSource _cancellation = new();
     private readonly Task _worker;
     private int _resetRequested;
@@ -67,6 +68,7 @@ internal sealed class RecognitionSession : IAsyncDisposable
                 if (Interlocked.Exchange(ref _resetRequested, 0) != 0)
                 {
                     _processor.Reset();
+                    _sightingIdsByTrack.Clear();
                 }
 
                 var result = await _processor.ProcessAsync(frame, _cancellation.Token).ConfigureAwait(false);
@@ -83,12 +85,27 @@ internal sealed class RecognitionSession : IAsyncDisposable
                     var vehicle = await _vehicleLookup.FindAsync(
                         confirmation.Consensus.NormalizedPlate,
                         _cancellation.Token).ConfigureAwait(false);
-                    var sighting = await _repository.AddOrMergeAsync(
-                        confirmation,
-                        _location(),
-                        vehicle,
-                        _tripId(),
-                        _cancellation.Token).ConfigureAwait(false);
+                    Sighting sighting;
+                    if (confirmation.Revision > 0
+                        && _sightingIdsByTrack.TryGetValue(confirmation.TrackId, out var sightingId))
+                    {
+                        sighting = await _repository.ReviseAsync(
+                            sightingId,
+                            confirmation,
+                            vehicle,
+                            _cancellation.Token).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        sighting = await _repository.AddOrMergeAsync(
+                            confirmation,
+                            _location(),
+                            vehicle,
+                            _tripId(),
+                            _cancellation.Token).ConfigureAwait(false);
+                    }
+
+                    _sightingIdsByTrack[confirmation.TrackId] = sighting.Id;
                     PlateConfirmed?.Invoke(this, new RecognitionConfirmation(sighting, confirmation));
                 }
             }

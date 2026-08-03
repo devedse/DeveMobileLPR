@@ -69,6 +69,8 @@ public sealed class RecognitionTuningConfigurationTests
         Assert.Equal(0.90f, configuration.StrongPair_MinimumCharacterProbability);
         Assert.Equal(0.50f, configuration.StrongPair_MinimumCharacterMargin);
         Assert.True(configuration.StrongPair_RequirePlausibleDutchFormat);
+        Assert.Equal(2, configuration.ConfirmationCorrection_MinimumAdditionalObservations);
+        Assert.Equal(0.85f, configuration.ConfirmationCorrection_MinimumConfidence);
     }
 
     [Fact]

@@ -74,6 +74,10 @@ public sealed class RecognitionTuningConfiguration
     public float StrongPair_MinimumCharacterMargin { get; set; } = 0.50f;
     public bool StrongPair_RequirePlausibleDutchFormat { get; set; } = true;
 
+    // Corrections after an early confirmation
+    public int ConfirmationCorrection_MinimumAdditionalObservations { get; set; } = 2;
+    public float ConfirmationCorrection_MinimumConfidence { get; set; } = 0.85f;
+
     public void Validate()
     {
         ValidateProbability(Detector_ConfidenceThreshold, nameof(Detector_ConfidenceThreshold));
@@ -150,6 +154,8 @@ public sealed class RecognitionTuningConfiguration
         ValidateProbability(StrongPair_MinimumEvidenceWeight, nameof(StrongPair_MinimumEvidenceWeight));
         ValidateProbability(StrongPair_MinimumCharacterProbability, nameof(StrongPair_MinimumCharacterProbability));
         ValidateProbability(StrongPair_MinimumCharacterMargin, nameof(StrongPair_MinimumCharacterMargin));
+        ValidatePositive(ConfirmationCorrection_MinimumAdditionalObservations, nameof(ConfirmationCorrection_MinimumAdditionalObservations));
+        ValidateProbability(ConfirmationCorrection_MinimumConfidence, nameof(ConfirmationCorrection_MinimumConfidence));
     }
 
     private static void ValidateRegion(NormalizedRegion region)

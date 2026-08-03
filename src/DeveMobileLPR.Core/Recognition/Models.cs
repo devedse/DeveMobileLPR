@@ -177,7 +177,10 @@ public sealed record ConfirmedPlate(
     DateTimeOffset FirstSeenAt,
     DateTimeOffset LastSeenAt,
     BoundingBox LastBounds,
-    ConsensusResult Consensus);
+    ConsensusResult Consensus)
+{
+    public int Revision { get; init; }
+}
 
 public readonly record struct GeoPoint(double Latitude, double Longitude, float? AccuracyMeters);
 
@@ -308,6 +311,7 @@ public interface ISightingRepository
 {
     Task InitializeAsync(CancellationToken cancellationToken);
     Task<Sighting> AddOrMergeAsync(ConfirmedPlate plate, GeoPoint? location, VehicleRecord? vehicle, long? tripId, CancellationToken cancellationToken);
+    Task<Sighting> ReviseAsync(long sightingId, ConfirmedPlate plate, VehicleRecord? vehicle, CancellationToken cancellationToken);
     Task<TripSummary> StartTripAsync(DateTimeOffset startedAt, GeoPoint? location, CancellationToken cancellationToken);
     Task<TripSummary> EndTripAsync(long tripId, DateTimeOffset endedAt, GeoPoint? location, CancellationToken cancellationToken);
     Task AddTripPointAsync(long tripId, DateTimeOffset recordedAt, GeoPoint location, CancellationToken cancellationToken);

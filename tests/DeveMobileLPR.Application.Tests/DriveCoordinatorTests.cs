@@ -217,6 +217,7 @@ public sealed class DriveCoordinatorTests
         { EndTripCount++; return Task.FromResult(Trip(tripId, endedAt.AddSeconds(-1), endedAt)); }
         public Task AddTripPointAsync(long tripId, DateTimeOffset recordedAt, GeoPoint location, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task<Sighting> AddOrMergeAsync(ConfirmedPlate plate, GeoPoint? location, VehicleRecord? vehicle, long? tripId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Sighting> ReviseAsync(long sightingId, ConfirmedPlate plate, VehicleRecord? vehicle, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyList<TripSummary>> GetTripsAsync(int offset, int limit, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<TripSummary>>([]);
         public Task<TripSummary?> GetTripAsync(long tripId, CancellationToken cancellationToken) => Task.FromResult<TripSummary?>(null);
         public Task<IReadOnlyList<Sighting>> GetSightingsForTripAsync(long tripId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Sighting>>([]);
