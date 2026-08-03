@@ -155,7 +155,7 @@
                     AutomationId="drive_processing_diagnostics"
                     BindingContext="{Binding Diagnostics}"
                     HorizontalOptions="Start"
-                    IsVisible="{Binding ShowRecognitionDebug}"
+                    IsVisible="{Binding ShowRecognitionStatistics, Source={RelativeSource AncestorType={x:Type vm:DriveViewModel}}}"
                     MaximumWidthRequest="900"
                     VerticalOptions="End" />
                 <Border Grid.Column="1" HorizontalOptions="End" Style="{StaticResource DriveControlCard}" VerticalOptions="Start">

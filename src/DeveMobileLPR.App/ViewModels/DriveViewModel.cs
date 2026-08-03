@@ -48,7 +48,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     public string StartButtonText => IsInitializing ? "Preparing…" : "Start drive";
     public string Duration => _snapshot.StartedAt is null ? "0:00" : FormatClock(DateTimeOffset.UtcNow - _snapshot.StartedAt.Value);
     public DriveDiagnosticsSnapshot Diagnostics => _snapshot.Diagnostics;
-    public bool ShowRecognitionDebug => ShowDriveControls && _snapshot.RecognitionDebugEnabled;
+    public bool ShowRecognitionStatistics => ShowDriveControls && _snapshot.RecognitionStatisticsEnabled;
     public string UniqueVehicles => _snapshot.UniqueVehicles.ToString();
     public string LocationState => _snapshot.HasLocation ? "GPS active" : _settings.TrackLocation ? "Finding GPS" : "Location off";
     public bool HasLatest => _snapshot.RecentSightings.Count > 0;
@@ -119,7 +119,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         {
             nameof(IsInitializing), nameof(IsReady), nameof(IsDriving), nameof(IsStopping), nameof(ShowStartPanel), nameof(ShowDriveControls),
             nameof(CanStart), nameof(ShowNetworkStreamUrl), nameof(Status), nameof(StatusColor), nameof(StatusLabel), nameof(StatusAccent), nameof(StartButtonText), nameof(Duration),
-            nameof(Diagnostics), nameof(ShowRecognitionDebug),
+            nameof(Diagnostics), nameof(ShowRecognitionStatistics),
             nameof(UniqueVehicles), nameof(LocationState), nameof(HasLatest), nameof(LatestPlate),
             nameof(LatestVehicle), nameof(LatestPrice), nameof(TopValue)
         }) OnPropertyChanged(property);

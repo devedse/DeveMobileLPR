@@ -165,7 +165,8 @@ public sealed class DriveCoordinatorTests
         public float Zoom { get; set; } = 1;
         public string CameraId { get; set; } = "rear";
         public int RecognitionFramesPerSecond { get; set; } = 2;
-        public bool RecognitionDebugEnabled { get; set; }
+        public bool TrackingDiagnosticsEnabled { get; set; }
+        public bool RecognitionStatisticsEnabled { get; set; }
         public string NetworkStreamUrl { get; set; } = string.Empty;
     }
 

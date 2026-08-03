@@ -530,7 +530,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
     {
         var recognition = progress.Recognition;
         List<DriveOverlay> candidates;
-        if (_settings.RecognitionDebugEnabled)
+        if (_settings.TrackingDiagnosticsEnabled)
         {
             candidates = progress.Diagnostics.Frame.Candidates.Select(candidate => new DriveOverlay(
                 candidate.Detection.Bounds,
@@ -714,7 +714,8 @@ public sealed class DriveCoordinator : IAsyncDisposable
         _camera?.SupportsNetworkStreams == true,
         _cameraChoices.ToArray(),
         _camera?.SelectedCameraId ?? _settings.CameraId,
-        _settings.RecognitionDebugEnabled);
+        _settings.TrackingDiagnosticsEnabled,
+        _settings.RecognitionStatisticsEnabled);
 
     private DriveDiagnosticsSnapshot CreateDiagnosticsSnapshot() => _diagnostics.WithSourceLabel(
         (_camera?.SelectedCameraId ?? _settings.CameraId) == DriveInputIds.NetworkLlHls

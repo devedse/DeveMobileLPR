@@ -12,6 +12,7 @@ internal sealed class AppSettings : IDriveSettings
     private const string CameraKey = "camera_id";
     private const string RecognitionFramesPerSecondKey = "recognition_frames_per_second";
     private const string RecognitionDebugKey = "recognition_debug";
+    private const string RecognitionStatisticsKey = "recognition_statistics";
     private const int DefaultRecognitionFramesPerSecond = 4;
     private string _networkStreamUrl = string.Empty;
 
@@ -60,10 +61,26 @@ internal sealed class AppSettings : IDriveSettings
             NormalizeRecognitionFramesPerSecond(value));
     }
 
-    public bool RecognitionDebugEnabled
+    public bool TrackingDiagnosticsEnabled
     {
         get => Preferences.Default.Get(RecognitionDebugKey, false);
         set => Preferences.Default.Set(RecognitionDebugKey, value);
+    }
+
+    public bool RecognitionStatisticsEnabled
+    {
+        get
+        {
+            if (!Preferences.Default.ContainsKey(RecognitionStatisticsKey))
+            {
+                Preferences.Default.Set(
+                    RecognitionStatisticsKey,
+                    Preferences.Default.Get(RecognitionDebugKey, false));
+            }
+
+            return Preferences.Default.Get(RecognitionStatisticsKey, false);
+        }
+        set => Preferences.Default.Set(RecognitionStatisticsKey, value);
     }
 
     public string NetworkStreamUrl
