@@ -50,10 +50,10 @@ public sealed class ContextualSnapshotStoreTests : IDisposable
             new BoundingBox(50, 50, 60, 55),
             CancellationToken.None);
 
-        Assert.Equal((50, 40), (encoder.Width, encoder.Height));
+        Assert.Equal((50, 45), (encoder.Width, encoder.Height));
         Assert.Equal([255, 255, 255], PixelAt(encoder.Pixels, encoder.Width, 0, 0));
-        Assert.Equal([245, 197, 66], PixelAt(encoder.Pixels, encoder.Width, 20, 20));
-        Assert.Equal([0, 0, 0], PixelAt(encoder.Pixels, encoder.Width, 25, 22));
+        Assert.Equal([245, 197, 66], PixelAt(encoder.Pixels, encoder.Width, 20, 25));
+        Assert.Equal([0, 0, 0], PixelAt(encoder.Pixels, encoder.Width, 25, 27));
     }
 
     public void Dispose()

@@ -9,7 +9,7 @@ public sealed class ContextualSnapshotStore : IContextualSnapshotStore
     private const string DirectoryName = "vehicle-snapshots";
     private const int MaximumDimension = 1280;
     private const float HorizontalPlateMargin = 2f;
-    private const float TopPlateMargin = 4f;
+    private const float TopPlateMargin = 5f;
     private const float BottomPlateMargin = 3f;
     private const byte DetectionBorderRed = 245;
     private const byte DetectionBorderGreen = 197;
