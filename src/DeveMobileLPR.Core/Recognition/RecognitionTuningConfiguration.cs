@@ -22,7 +22,8 @@ public sealed class RecognitionTuningConfiguration
     // Crop quality estimator
     public float CropQuality_MinimumCropWidthPixels { get; set; } = 48f;
     public float CropQuality_MinimumCropHeightPixels { get; set; } = 12f;
-    public float CropQuality_FrameEdgeMarginPixels { get; set; } = 1f;
+    // Projected bounds are clamped to the frame, so zero rejects only crops that actually reach an edge.
+    public float CropQuality_FrameEdgeMarginPixels { get; set; } = 0f;
     public int CropQuality_SampleColumns { get; set; } = 24;
     public int CropQuality_SampleRows { get; set; } = 10;
     public float CropQuality_SharpnessNormalization { get; set; } = 55f;

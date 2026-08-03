@@ -22,7 +22,7 @@ public sealed class RecognitionTuningConfigurationTests
 
         Assert.Equal(48f, configuration.CropQuality_MinimumCropWidthPixels);
         Assert.Equal(12f, configuration.CropQuality_MinimumCropHeightPixels);
-        Assert.Equal(1f, configuration.CropQuality_FrameEdgeMarginPixels);
+        Assert.Equal(0f, configuration.CropQuality_FrameEdgeMarginPixels);
         Assert.Equal(24, configuration.CropQuality_SampleColumns);
         Assert.Equal(10, configuration.CropQuality_SampleRows);
         Assert.Equal(55f, configuration.CropQuality_SharpnessNormalization);

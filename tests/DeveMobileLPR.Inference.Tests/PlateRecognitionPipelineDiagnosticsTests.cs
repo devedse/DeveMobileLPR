@@ -52,21 +52,22 @@ public sealed class PlateRecognitionPipelineDiagnosticsTests
                 [
                     new PlateDetection(new BoundingBox(10, 10, 50, 20), 0.97f),
                     new PlateDetection(new BoundingBox(0, 10, 60, 30), 0.96f),
-                    new PlateDetection(new BoundingBox(70, 10, 130, 30), 0.95f)
+                    new PlateDetection(new BoundingBox(0.5f, 10, 60.5f, 30), 0.95f),
+                    new PlateDetection(new BoundingBox(70, 10, 130, 30), 0.94f)
                 ]),
             recognizer);
 
         var result = await pipeline.ProcessAsync(frame, CancellationToken.None);
 
-        Assert.Equal(1, recognizer.CallCount);
-        Assert.Equal(1, result.Diagnostics.OcrAttemptCount);
-        Assert.Equal(3, result.Diagnostics.Candidates.Count);
+        Assert.Equal(2, recognizer.CallCount);
+        Assert.Equal(2, result.Diagnostics.OcrAttemptCount);
+        Assert.Equal(4, result.Diagnostics.Candidates.Count);
         Assert.All(result.Diagnostics.Candidates.Take(2), candidate =>
         {
             Assert.Equal(0, candidate.Quality);
             Assert.False(candidate.OcrAttempted);
         });
-        Assert.True(result.Diagnostics.Candidates[2].OcrAttempted);
+        Assert.All(result.Diagnostics.Candidates.Skip(2), candidate => Assert.True(candidate.OcrAttempted));
     }
 
     private sealed class FakeDetector : IPlateDetector, IInferenceBackendInfo, IInferenceBackendDiagnostics
