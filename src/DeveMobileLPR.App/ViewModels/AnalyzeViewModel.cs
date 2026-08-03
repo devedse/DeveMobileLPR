@@ -155,7 +155,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     public double CurrentPositionFraction { get => _currentPositionFraction; set => SetProperty(ref _currentPositionFraction, value); }
     public IReadOnlyList<double> DetectionMarkers { get => _detectionMarkers; private set => SetProperty(ref _detectionMarkers, value); }
     public IReadOnlyList<double> FramePositions { get => _framePositions; private set => SetProperty(ref _framePositions, value); }
-    public bool RecognitionDebugEnabled => _settings.RecognitionDebugEnabled;
+    public bool RecognitionDebugEnabled => _settings.TrackingDiagnosticsEnabled;
     public bool ShowProcessingDiagnostics => IsProcessing && RecognitionDebugEnabled;
     public bool ShowCurrentDiagnostics => RecognitionDebugEnabled && CurrentFrame?.Diagnostics is not null;
     public bool UsesCustomSampling => SelectedSampling.Interval is null;

@@ -13,7 +13,7 @@ public static class DriveOverlayLayout
         }
 
         return snapshot.Overlays
-            .Where(overlay => snapshot.RecognitionDebugEnabled
+            .Where(overlay => snapshot.TrackingDiagnosticsEnabled
                 || overlay.Kind is not (DriveOverlayKind.Candidate or DriveOverlayKind.Track))
             .OrderBy(static overlay => overlay.Kind)
             .ToArray();

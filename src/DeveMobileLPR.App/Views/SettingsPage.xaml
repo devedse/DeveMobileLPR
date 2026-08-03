@@ -91,9 +91,14 @@
                         <Label Style="{StaticResource SettingDescription}" Text="{Binding RecognitionFrameRateDetail}" />
                         <BoxView Style="{StaticResource DividerLine}" />
                         <controls:SettingsToggleRow
-                            Description="Shows track IDs, associations, selected model backends, and per-stage millisecond timings in Drive and Analyze."
-                            IsToggled="{Binding RecognitionDebugEnabled}"
-                            Title="Recognition diagnostics" />
+                            Description="Shows detector candidates, track IDs, and associations over frames in Drive and Analyze."
+                            IsToggled="{Binding TrackingDiagnosticsEnabled}"
+                            Title="Tracking diagnostics" />
+                        <BoxView Style="{StaticResource DividerLine}" />
+                        <controls:SettingsToggleRow
+                            Description="Shows the processing statistics panel on the left side of the Drive screen."
+                            IsToggled="{Binding RecognitionStatisticsEnabled}"
+                            Title="Drive processing statistics" />
                     </VerticalStackLayout>
                 </Border>
                 <Border Style="{StaticResource Card}">
