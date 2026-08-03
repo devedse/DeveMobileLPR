@@ -21,6 +21,25 @@ The FPS values for XNNPACK and LiteRT are simple estimates from the reported per
 - LiteRT GPU was approximately **3.5 times faster** than ONNX Runtime WebGPU for detector inference.
 - WebGPU model execution consumed about **85%** of its full detector pipeline time. Preprocessing and postprocessing were not the main bottlenecks.
 
+## Managed runtime comparison
+
+The SIMD detector preprocessing changes did not materially improve the normal Mono Android build on the Pixel 9. Its `Resize + RGB` time remained approximately **71 ms**. The arm64 CoreCLR build reduced the same stage to **10.4 ms**, approximately **6.8 times faster**.
+
+The captured CoreCLR frame reported:
+
+| Measurement | CoreCLR arm64 |
+|---|---:|
+| Capture interval | 66.6 ms |
+| AI processing | 57.3 ms |
+| Full detector pipeline | 57.2 ms |
+| Detector preparation | 10.6 ms |
+| Tensor fill | 0.2 ms |
+| Resize + RGB | 10.4 ms |
+| Detector model | 46.6 ms |
+| Detector output processing | 0.0 ms |
+
+No plate was detected in this frame, so the plate reader did not run. This is a clean detector measurement rather than a complete detector-plus-OCR workload. It is also a single displayed frame, not a sustained throughput percentile. A longer capture should confirm latency distribution, memory use, garbage-collection pauses, and thermal behavior before treating 57.3 ms as sustained end-to-end performance.
+
 ## Detailed results
 
 ### ONNX Runtime XNNPACK
@@ -96,3 +115,5 @@ They must not be included in performance comparisons until they have run success
 LiteRT GPU was the clear detector winner on the Pixel 9 at approximately **100 ms per frame**. ONNX Runtime WebGPU was stable after graph capture was removed, but its **356-371 ms model time** made it roughly 3.5 times slower. ONNX Runtime XNNPACK remained slower at approximately **403-600 ms**.
 
 The production Android APK therefore uses LiteRT for both detector and OCR, with GPU selected only after a successful warm inference and explicit LiteRT CPU fallback. The detector decision is supported by device measurements; LiteRT OCR still requires a new Pixel 9 measurement and accuracy check against real plate crops.
+
+For managed detector preprocessing, the CoreCLR arm64 build is the clear Pixel 9 winner: `Resize + RGB` fell from approximately **71 ms** on Mono to **10.4 ms** on CoreCLR. The project therefore publishes CoreCLR arm64 as its Android runtime. .NET 10 still classifies CoreCLR on Android as experimental and not intended for production use, and this result does not by itself establish sustained performance or compatibility across every Android device and workload.

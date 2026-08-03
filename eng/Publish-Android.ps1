@@ -8,7 +8,6 @@ param(
     [int]$ApplicationVersion,
     [ValidatePattern('^\d+\.\d+\.\d+$')]
     [string]$ApplicationDisplayVersion,
-    [switch]$CoreClr,
     [string]$OutputDirectory,
     [string]$Keystore,
     [string]$KeystorePassword,
@@ -22,8 +21,7 @@ $root = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $project = Join-Path $root 'src\DeveMobileLPR.App\DeveMobileLPR.App.csproj'
 $projectOutput = Join-Path $root "src\DeveMobileLPR.App\bin\$Configuration"
 $output = if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
-    $relativeOutput = if ($CoreClr) { 'artifacts\android-coreclr' } else { 'artifacts\android' }
-    Join-Path $root $relativeOutput
+    Join-Path $root 'artifacts\android'
 }
 elseif ([System.IO.Path]::IsPathRooted($OutputDirectory)) {
     [System.IO.Path]::GetFullPath($OutputDirectory)
@@ -40,14 +38,10 @@ Get-ChildItem -LiteralPath $output -Filter '*.apk' -File -ErrorAction SilentlyCo
 Get-ChildItem -LiteralPath $projectOutput -Filter '*-Signed.apk' -File -Recurse -ErrorAction SilentlyContinue |
     Remove-Item -Force
 
-if ($CoreClr) {
-    dotnet restore $project --locked-mode -p:UseAndroidCoreClr=true
-}
+dotnet restore $project --locked-mode
 
 $arguments = @('publish', $project, '--framework', 'net10.0-android36.0', '--configuration', $Configuration, '--no-restore', '-p:AndroidPackageFormats=apk', "-p:PublishDir=$output\")
-if ($CoreClr) {
-    $arguments += @('--runtime', 'android-arm64', '-p:UseAndroidCoreClr=true')
-}
+$arguments += @('--runtime', 'android-arm64')
 if ($PSBoundParameters.ContainsKey('Version')) {
     $arguments += "-p:Version=$Version"
 }
@@ -136,11 +130,6 @@ if (-not [string]::IsNullOrWhiteSpace($Keystore)) {
     Write-Host "Verified release signing certificate SHA-256: $actualFingerprint"
 }
 
-if ($CoreClr) {
-    $coreClrName = $publishedPackage.Name -replace '-Signed\.apk$', '-coreclr-Signed.apk'
-    $publishedPackage = Rename-Item -LiteralPath $publishedPackage.FullName -NewName $coreClrName -PassThru
-    dotnet clean $project --framework net10.0-android36.0 --configuration $Configuration --runtime android-arm64 -p:UseAndroidCoreClr=true
-}
+dotnet clean $project --framework net10.0-android36.0 --configuration $Configuration --runtime android-arm64
 
-$runtime = if ($CoreClr) { 'CoreCLR' } else { 'Mono' }
-Write-Host "Published Android $runtime APK: $($publishedPackage.FullName)"
+Write-Host "Published Android CoreCLR APK: $($publishedPackage.FullName)"
