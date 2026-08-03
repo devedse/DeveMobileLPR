@@ -135,6 +135,11 @@ jobs:
         shell: pwsh
         run: ./eng/Publish-Android.ps1 -Configuration Release -Version $env:BUILD_VERSION -ApplicationVersion $env:BUILD_NUMBER -ApplicationDisplayVersion $env:BUILD_VERSION
 
+      - name: Package debug-signed Android CoreCLR APK
+        if: steps.signing.outputs.configured != 'true'
+        shell: pwsh
+        run: ./eng/Publish-Android.ps1 -Configuration Release -Version $env:BUILD_VERSION -ApplicationVersion $env:BUILD_NUMBER -ApplicationDisplayVersion $env:BUILD_VERSION -CoreClr
+
       - name: Package release-signed Android APK
         if: steps.signing.outputs.configured == 'true'
         shell: pwsh
@@ -144,11 +149,28 @@ jobs:
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./eng/Publish-Android.ps1 -Configuration Release -Version $env:BUILD_VERSION -ApplicationVersion $env:BUILD_NUMBER -ApplicationDisplayVersion $env:BUILD_VERSION -Keystore "$env:RUNNER_TEMP\release.keystore" -KeystorePassword $env:KEYSTORE_PASSWORD -KeyAlias $env:KEY_ALIAS -KeyPassword $env:KEY_PASSWORD
 
+      - name: Package release-signed Android CoreCLR APK
+        if: steps.signing.outputs.configured == 'true'
+        shell: pwsh
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./eng/Publish-Android.ps1 -Configuration Release -Version $env:BUILD_VERSION -ApplicationVersion $env:BUILD_NUMBER -ApplicationDisplayVersion $env:BUILD_VERSION -CoreClr -Keystore "$env:RUNNER_TEMP\release.keystore" -KeystorePassword $env:KEYSTORE_PASSWORD -KeyAlias $env:KEY_ALIAS -KeyPassword $env:KEY_PASSWORD
+
       - name: Upload Android APK on every build
         uses: actions/upload-artifact@v7
         with:
           name: DeveMobileLPR-Android-${{ env.BUILD_VERSION }}
           path: artifacts/android/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Android CoreCLR APK on every build
+        uses: actions/upload-artifact@v7
+        with:
+          name: DeveMobileLPR-Android-CoreCLR-${{ env.BUILD_VERSION }}
+          path: artifacts/android-coreclr/*.apk
           if-no-files-found: error
           retention-days: 14
 
@@ -190,6 +212,12 @@ jobs:
           name: DeveMobileLPR-Android-1.0.${{ needs.generate_version_number.outputs.build_number }}
           path: artifacts/android
 
+      - name: Download signed CoreCLR APK
+        uses: actions/download-artifact@v8
+        with:
+          name: DeveMobileLPR-Android-CoreCLR-1.0.${{ needs.generate_version_number.outputs.build_number }}
+          path: artifacts/android-coreclr
+
       - name: Download RDW downloader
         uses: actions/download-artifact@v8
         with:
@@ -211,6 +239,7 @@ jobs:
             ${{ github.event.head_commit.message }}
           files: |
             artifacts/android/*.apk
+            artifacts/android-coreclr/*.apk
             artifacts/windows/win-x64/DeveMobileLPR.exe
             artifacts/rdw-downloader/*.zip
           fail_on_unmatched_files: true

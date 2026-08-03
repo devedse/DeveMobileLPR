@@ -8,6 +8,7 @@ param(
     [int]$ApplicationVersion,
     [ValidatePattern('^\d+\.\d+\.\d+$')]
     [string]$ApplicationDisplayVersion,
+    [switch]$CoreClr,
     [string]$OutputDirectory,
     [string]$Keystore,
     [string]$KeystorePassword,
@@ -21,7 +22,8 @@ $root = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $project = Join-Path $root 'src\DeveMobileLPR.App\DeveMobileLPR.App.csproj'
 $projectOutput = Join-Path $root "src\DeveMobileLPR.App\bin\$Configuration"
 $output = if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
-    Join-Path $root 'artifacts\android'
+    $relativeOutput = if ($CoreClr) { 'artifacts\android-coreclr' } else { 'artifacts\android' }
+    Join-Path $root $relativeOutput
 }
 elseif ([System.IO.Path]::IsPathRooted($OutputDirectory)) {
     [System.IO.Path]::GetFullPath($OutputDirectory)
@@ -38,7 +40,14 @@ Get-ChildItem -LiteralPath $output -Filter '*.apk' -File -ErrorAction SilentlyCo
 Get-ChildItem -LiteralPath $projectOutput -Filter '*-Signed.apk' -File -Recurse -ErrorAction SilentlyContinue |
     Remove-Item -Force
 
+if ($CoreClr) {
+    dotnet restore $project --locked-mode -p:UseAndroidCoreClr=true
+}
+
 $arguments = @('publish', $project, '--framework', 'net10.0-android36.0', '--configuration', $Configuration, '--no-restore', '-p:AndroidPackageFormats=apk', "-p:PublishDir=$output\")
+if ($CoreClr) {
+    $arguments += @('--runtime', 'android-arm64', '-p:UseAndroidCoreClr=true')
+}
 if ($PSBoundParameters.ContainsKey('Version')) {
     $arguments += "-p:Version=$Version"
 }
@@ -77,6 +86,7 @@ $signedPackages = @(Get-ChildItem -LiteralPath $output -Filter '*-Signed.apk' -F
 if ($signedPackages.Count -ne 1) {
     throw "Expected one signed APK in $output, found $($signedPackages.Count)."
 }
+$publishedPackage = $signedPackages[0]
 
 Get-ChildItem -LiteralPath $output -Filter '*.apk' -File |
     Where-Object { $_.Name -notlike '*-Signed.apk' } |
@@ -111,7 +121,7 @@ if (-not [string]::IsNullOrWhiteSpace($Keystore)) {
         throw 'Could not read the SHA-256 certificate fingerprint from the keystore.'
     }
 
-    $apkDetails = & $apksigner.FullName verify --verbose --print-certs $signedPackages[0].FullName 2>&1
+    $apkDetails = & $apksigner.FullName verify --verbose --print-certs $publishedPackage.FullName 2>&1
     $actualMatch = [regex]::Match(($apkDetails -join "`n"), 'certificate SHA-256 digest:\s*([0-9A-Fa-f]{64})')
     if (-not $actualMatch.Success) {
         throw 'Could not read the SHA-256 signing certificate fingerprint from the APK.'
@@ -126,4 +136,11 @@ if (-not [string]::IsNullOrWhiteSpace($Keystore)) {
     Write-Host "Verified release signing certificate SHA-256: $actualFingerprint"
 }
 
-Write-Host "Published Android APK: $($signedPackages[0].FullName)"
+if ($CoreClr) {
+    $coreClrName = $publishedPackage.Name -replace '-Signed\.apk$', '-coreclr-Signed.apk'
+    $publishedPackage = Rename-Item -LiteralPath $publishedPackage.FullName -NewName $coreClrName -PassThru
+    dotnet clean $project --framework net10.0-android36.0 --configuration $Configuration --runtime android-arm64 -p:UseAndroidCoreClr=true
+}
+
+$runtime = if ($CoreClr) { 'CoreCLR' } else { 'Mono' }
+Write-Host "Published Android $runtime APK: $($publishedPackage.FullName)"
