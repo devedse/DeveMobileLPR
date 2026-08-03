@@ -7,7 +7,7 @@ DeveMobileLPR uses a small application-level design system rather than styling e
 1. Use semantic resources such as `Primary`, `Surface`, `TextSecondary`, and `Danger`; do not repeat hex colors in page XAML.
 2. Start scrollable pages with `PageScrollContent`, fixed/list pages with `PageGrid`, and details with `DetailPageGrid` plus `DetailScrollContent`.
 3. Use `Card`, `CompactCard`, `HighlightCard`, or a named semantic variant. Do not recreate padding, corner radius, and stroke on each page.
-4. Use `ResponsiveGrid` for repeated or side-by-side cards. Set `MinimumItemWidth` and `MaximumColumns`; the control owns column and row placement as the window rotates.
+4. Use a wrapping `FlexLayout` for static side-by-side groups and a stable `Grid` for recycled list cards. Do not change a recycled item's row or column structure during rotation.
 5. Use `PageHeader` for page titles and loading state, and `SettingsToggleRow` for labelled switches.
 6. Prefer implicit control styles for buttons, pickers, sliders, switches, search bars, and progress indicators. Add a named variant to the design system when a real semantic difference is needed.
 7. Use layout `Spacing`, `RowSpacing`, and `ColumnSpacing` for sibling gaps. Reserve margins for an intentional exception such as an empty-state breathing area.
@@ -15,7 +15,7 @@ DeveMobileLPR uses a small application-level design system rather than styling e
 
 ## Responsive behavior
 
-`ResponsiveGrid` calculates its columns from the actual allocated width. It reruns after loading, child changes, and size allocation, which matters when the grid is hosted in a `CollectionView` header. History additionally collapses its four large metrics into a one-line landscape summary so the trip list remains useful on a short screen. The Drive page has dedicated portrait and landscape start compositions because its camera-first workflow has stricter height constraints.
+Static metric, filter, and settings groups wrap through `FlexLayout`. Recycled `CollectionView` cards keep a stable `Grid` structure and use `MeasureAllItems` when their heights vary, avoiding stale Android item measurements after rotation. The Drive page has dedicated portrait and landscape start compositions because its camera-first workflow has stricter height constraints.
 
 ## Component boundary
 

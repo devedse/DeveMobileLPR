@@ -15,10 +15,10 @@ internal sealed record SightingCardViewModel(
     string Confidence,
     string LocationLabel,
     GeoPoint? Location,
-    string? SnapshotPath)
+    ImageSource? SnapshotSource)
 {
     public bool HasLocation => Location is not null;
-    public bool HasSnapshot => SnapshotPath is not null;
+    public bool HasSnapshot => SnapshotSource is not null;
 }
 
 internal sealed record TripVehicleCardViewModel(
@@ -35,10 +35,10 @@ internal sealed record TripVehicleCardViewModel(
     DateTimeOffset FirstSeenAt,
     int EarlierSightingCount,
     GeoPoint? Location,
-    string? SnapshotPath)
+    ImageSource? SnapshotSource)
 {
     public bool HasLocation => Location is not null;
-    public bool HasSnapshot => SnapshotPath is not null;
+    public bool HasSnapshot => SnapshotSource is not null;
 }
 
 internal sealed class TripDetailViewModel(
@@ -139,7 +139,7 @@ internal sealed class TripDetailViewModel(
             vehicle.FirstSeenAt,
             vehicle.EarlierSightingCount,
             vehicle.LastLocation,
-            vehicleImageStore.ResolvePath(vehicle.SnapshotReference));
+            SnapshotImageSource.Create(vehicleImageStore, vehicle.SnapshotReference));
     }
 
     private void ApplySort()
@@ -243,7 +243,7 @@ internal sealed class VehicleDetailViewModel(
                     $"{result.Confidence:P0} · {result.ObservationCount} reads",
                     locationLabel,
                     result.Location,
-                    vehicleImageStore.ResolvePath(result.SnapshotReference)));
+                    SnapshotImageSource.Create(vehicleImageStore, result.SnapshotReference)));
             }
             if (results.Count == 0) return;
             var latest = results[0];

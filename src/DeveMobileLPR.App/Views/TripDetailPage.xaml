@@ -19,6 +19,7 @@
         <CollectionView
             x:Name="VehiclesList"
             Grid.Row="1"
+            ItemSizingStrategy="MeasureAllItems"
             ItemsSource="{Binding Vehicles}"
             SelectionChanged="VehicleSelected"
             SelectionMode="Single">
@@ -26,25 +27,28 @@
                 <VerticalStackLayout Style="{StaticResource DetailScrollContent}">
                     <Label Style="{StaticResource SecondaryText}" Text="{Binding Subtitle}" />
 
-                    <controls:ResponsiveGrid ColumnSpacing="12" MaximumColumns="4" MinimumItemWidth="145" RowSpacing="12">
-                        <Border Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding Duration}" /><Label Style="{StaticResource MetricLabel}" Text="Duration" /></VerticalStackLayout></Border>
-                        <Border Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding Distance}" /><Label Style="{StaticResource MetricLabel}" Text="Distance" /></VerticalStackLayout></Border>
-                        <Border Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding Unique}" /><Label Style="{StaticResource MetricLabel}" Text="Unique cars" /></VerticalStackLayout></Border>
-                        <Border Style="{StaticResource CompactHighlightCard}"><VerticalStackLayout Spacing="3"><Label FontAttributes="Bold" FontSize="22" Text="{Binding Highlight}" TextColor="{DynamicResource ValueAccent}" /><Label FontSize="12" Text="Trip highlight" TextColor="{DynamicResource HighlightText}" /></VerticalStackLayout></Border>
-                    </controls:ResponsiveGrid>
+                    <FlexLayout AlignItems="Stretch" Direction="Row" JustifyContent="Start" Wrap="Wrap">
+                        <Border FlexLayout.Basis="145" FlexLayout.Grow="1" Margin="6,0,6,12" Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding Duration}" /><Label Style="{StaticResource MetricLabel}" Text="Duration" /></VerticalStackLayout></Border>
+                        <Border FlexLayout.Basis="145" FlexLayout.Grow="1" Margin="6,0,6,12" Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding Distance}" /><Label Style="{StaticResource MetricLabel}" Text="Distance" /></VerticalStackLayout></Border>
+                        <Border FlexLayout.Basis="145" FlexLayout.Grow="1" Margin="6,0,6,12" Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding Unique}" /><Label Style="{StaticResource MetricLabel}" Text="Unique cars" /></VerticalStackLayout></Border>
+                        <Border FlexLayout.Basis="145" FlexLayout.Grow="1" Margin="6,0,6,12" Style="{StaticResource CompactHighlightCard}"><VerticalStackLayout Spacing="3"><Label FontAttributes="Bold" FontSize="22" Text="{Binding Highlight}" TextColor="{DynamicResource ValueAccent}" /><Label FontSize="12" Text="Trip highlight" TextColor="{DynamicResource HighlightText}" /></VerticalStackLayout></Border>
+                    </FlexLayout>
 
                     <Border Style="{StaticResource Card}">
                         <VerticalStackLayout Style="{StaticResource CardContent}">
                             <controls:TripRouteView Points="{Binding Points}" />
-                            <controls:ResponsiveGrid ColumnSpacing="12" MaximumColumns="2" MinimumItemWidth="220" RowSpacing="8">
-                                <Label Style="{StaticResource SecondaryText}" Text="Offline route trace · yellow is start, mint is finish" VerticalOptions="Center" />
+                            <FlexLayout AlignItems="Center" Direction="Row" JustifyContent="Start" Wrap="Wrap">
+                                <Label FlexLayout.Basis="220" FlexLayout.Grow="1" Margin="0,0,12,8" Style="{StaticResource SecondaryText}" Text="Offline route trace · yellow is start, mint is finish" VerticalOptions="Center" />
                                 <Button
                                     Clicked="OpenRouteClicked"
+                                    FlexLayout.Basis="220"
+                                    FlexLayout.Grow="1"
+                                    Margin="0,0,0,8"
                                     HorizontalOptions="End"
                                     IsVisible="{Binding HasRoute}"
                                     Style="{StaticResource CompactSecondaryButton}"
                                     Text="Open finish in Maps" />
-                            </controls:ResponsiveGrid>
+                                    </FlexLayout>
                         </VerticalStackLayout>
                     </Border>
 
@@ -65,7 +69,7 @@
             <CollectionView.ItemTemplate>
                 <DataTemplate x:DataType="vm:TripVehicleCardViewModel">
                     <Border Style="{StaticResource CompactCard}">
-                        <controls:ResponsiveGrid ColumnSpacing="18" MaximumColumns="2" MinimumItemWidth="245" RowSpacing="10">
+                        <Grid RowDefinitions="Auto,Auto" RowSpacing="10">
                             <Grid ColumnDefinitions="Auto,*,72" ColumnSpacing="16">
                                 <Border MinimumWidthRequest="112" Style="{StaticResource PlateBadge}"><Label Style="{StaticResource PlateBadgeText}" Text="{Binding DisplayPlate}" /></Border>
                                 <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
@@ -78,10 +82,11 @@
                                     Grid.Column="2"
                                     Aspect="AspectFill"
                                     HeightRequest="72"
-                                    Source="{Binding SnapshotPath}"
+                                    IsVisible="{Binding HasSnapshot}"
+                                    Source="{Binding SnapshotSource}"
                                     WidthRequest="72" />
                             </Grid>
-                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12" VerticalOptions="Center">
+                            <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12" VerticalOptions="Center">
                                 <VerticalStackLayout Spacing="2">
                                     <Label FontAttributes="Bold" Text="{Binding Price}" TextColor="{DynamicResource ValueAccent}" />
                                     <Label Style="{StaticResource SecondaryText}" Text="{Binding EarlierSightings}" />
@@ -96,7 +101,7 @@
                                     Text="Map" />
                                 <Label Grid.Column="2" FontSize="24" Text="›" TextColor="{DynamicResource TextMuted}" VerticalOptions="Center" />
                             </Grid>
-                        </controls:ResponsiveGrid>
+                        </Grid>
                     </Border>
                 </DataTemplate>
             </CollectionView.ItemTemplate>

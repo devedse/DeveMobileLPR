@@ -27,9 +27,9 @@ internal sealed record VehicleCardViewModel(
     string Seen,
     string History,
     bool HasLocation,
-    string? SnapshotPath)
+    ImageSource? SnapshotSource)
 {
-    public bool HasSnapshot => SnapshotPath is not null;
+    public bool HasSnapshot => SnapshotSource is not null;
 }
 
 internal enum HistorySection
@@ -323,7 +323,7 @@ internal sealed class HistoryViewModel : ViewModelBase
                 DisplayFormat.Relative(vehicle.LastSeenAt),
                 $"{FormatCount(vehicle.SightingCount, "sighting")} · {FormatCount(vehicle.TripCount, "trip")}",
                 vehicle.LastLocation is not null,
-                _coordinator.VehicleImageStore.ResolvePath(vehicle.SnapshotReference)));
+                SnapshotImageSource.Create(_coordinator.VehicleImageStore, vehicle.SnapshotReference)));
         }
     }
 

@@ -65,26 +65,26 @@
                         <Label Style="{StaticResource SectionTitle}" Text="Today" />
                         <Label Style="{StaticResource SecondaryText}" Text="A quick overview of today's activity." />
                     </VerticalStackLayout>
-                    <controls:ResponsiveGrid ColumnSpacing="12" MaximumColumns="4" MinimumItemWidth="145" RowSpacing="12">
-                        <Border Style="{StaticResource CompactCard}">
+                    <FlexLayout AlignItems="Stretch" Direction="Row" JustifyContent="Start" Wrap="Wrap">
+                        <Border FlexLayout.Basis="145" FlexLayout.Grow="1" Margin="6,0,6,12" Style="{StaticResource CompactCard}">
                             <VerticalStackLayout Spacing="2">
                                 <Label Style="{StaticResource MetricValue}" Text="{Binding TodayTrips}" />
                                 <Label Style="{StaticResource MetricLabel}" Text="Drives today" />
                             </VerticalStackLayout>
                         </Border>
-                        <Border Style="{StaticResource CompactCard}">
+                        <Border FlexLayout.Basis="145" FlexLayout.Grow="1" Margin="6,0,6,12" Style="{StaticResource CompactCard}">
                             <VerticalStackLayout Spacing="2">
                                 <Label Style="{StaticResource MetricValue}" Text="{Binding TodayUnique}" />
                                 <Label Style="{StaticResource MetricLabel}" Text="Unique cars" />
                             </VerticalStackLayout>
                         </Border>
-                        <Border Style="{StaticResource CompactCard}">
+                        <Border FlexLayout.Basis="145" FlexLayout.Grow="1" Margin="6,0,6,12" Style="{StaticResource CompactCard}">
                             <VerticalStackLayout Spacing="2">
                                 <Label Style="{StaticResource MetricValue}" Text="{Binding TodayDistance}" />
                                 <Label Style="{StaticResource MetricLabel}" Text="Route distance" />
                             </VerticalStackLayout>
                         </Border>
-                        <Border Style="{StaticResource CompactHighlightCard}">
+                        <Border FlexLayout.Basis="145" FlexLayout.Grow="1" Margin="6,0,6,12" Style="{StaticResource CompactHighlightCard}">
                             <VerticalStackLayout Spacing="3">
                                 <Label FontAttributes="Bold" FontSize="25" Text="{Binding TodayTopValue}" TextColor="{DynamicResource ValueAccent}" />
                                 <Label FontSize="12" Text="Most expensive today" TextColor="{DynamicResource HighlightText}" />
@@ -93,7 +93,7 @@
                                 </Border>
                             </VerticalStackLayout>
                         </Border>
-                    </controls:ResponsiveGrid>
+                    </FlexLayout>
                 </VerticalStackLayout>
             </ScrollView>
         </RefreshView>
@@ -105,6 +105,7 @@
             IsVisible="{Binding ShowTrips}">
             <CollectionView
                 x:Name="TripsList"
+                ItemSizingStrategy="MeasureAllItems"
                 ItemsSource="{Binding Trips}"
                 RemainingItemsThreshold="5"
                 RemainingItemsThresholdReachedCommand="{Binding LoadMoreTripsCommand}"
@@ -166,6 +167,7 @@
             IsVisible="{Binding ShowVehicles}">
             <CollectionView
                 x:Name="VehiclesList"
+                ItemSizingStrategy="MeasureAllItems"
                 ItemsSource="{Binding Vehicles}"
                 RemainingItemsThreshold="5"
                 RemainingItemsThresholdReachedCommand="{Binding LoadMoreVehiclesCommand}"
@@ -176,20 +178,20 @@
                          move out of the way while the tab selector remains available. -->
                     <VerticalStackLayout Padding="0,0,0,12" Spacing="10">
                         <SearchBar Placeholder="Search plate, make, or model" Text="{Binding SearchText}" />
-                        <controls:ResponsiveGrid ColumnSpacing="10" MaximumColumns="3" MinimumItemWidth="145" RowSpacing="8">
-                            <VerticalStackLayout Spacing="3">
+                        <FlexLayout AlignItems="Stretch" Direction="Row" JustifyContent="Start" Wrap="Wrap">
+                            <VerticalStackLayout FlexLayout.Basis="145" FlexLayout.Grow="1" Margin="0,0,10,8" Spacing="3">
                                 <Label Style="{StaticResource MutedText}" Text="SEEN WITHIN" />
                                 <Picker ItemsSource="{Binding PeriodOptions}" SelectedItem="{Binding SelectedPeriod}" />
                             </VerticalStackLayout>
-                            <VerticalStackLayout Spacing="3">
+                            <VerticalStackLayout FlexLayout.Basis="145" FlexLayout.Grow="1" Margin="0,0,10,8" Spacing="3">
                                 <Label Style="{StaticResource MutedText}" Text="VALUE" />
                                 <Picker ItemsSource="{Binding MinimumValueOptions}" SelectedItem="{Binding SelectedMinimumValue}" />
                             </VerticalStackLayout>
-                            <VerticalStackLayout Spacing="3">
+                            <VerticalStackLayout FlexLayout.Basis="145" FlexLayout.Grow="1" Margin="0,0,0,8" Spacing="3">
                                 <Label Style="{StaticResource MutedText}" Text="SORT BY" />
                                 <Picker ItemsSource="{Binding VehicleSortOptions}" SelectedItem="{Binding SelectedVehicleSort}" />
                             </VerticalStackLayout>
-                        </controls:ResponsiveGrid>
+                        </FlexLayout>
                     </VerticalStackLayout>
                 </CollectionView.Header>
                 <CollectionView.ItemsLayout>
@@ -209,26 +211,31 @@
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="vm:VehicleCardViewModel">
                         <Border Style="{StaticResource CompactCard}">
-                            <Grid ColumnDefinitions="Auto,*,72,Auto" ColumnSpacing="16">
-                                <Border MinimumWidthRequest="112" Style="{StaticResource PlateBadge}" VerticalOptions="Center">
-                                    <Label Style="{StaticResource PlateBadgeText}" Text="{Binding DisplayPlate}" />
-                                </Border>
-                                <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
-                                    <Label FontAttributes="Bold" FontSize="17" LineBreakMode="TailTruncation" Text="{Binding VehicleName}" />
-                                    <Label LineBreakMode="TailTruncation" Style="{StaticResource SecondaryText}" Text="{Binding Metadata}" />
-                                    <Label Style="{StaticResource MutedText}" Text="{Binding Seen}" />
-                                    <Label Style="{StaticResource MutedText}" Text="{Binding History}" />
-                                </VerticalStackLayout>
-                                <Image
-                                    Grid.Column="2"
-                                    Aspect="AspectFill"
-                                    HeightRequest="72"
-                                    Source="{Binding SnapshotPath}"
-                                    WidthRequest="72" />
-                                <VerticalStackLayout Grid.Column="3" HorizontalOptions="End" Spacing="4" VerticalOptions="Center">
-                                    <Label FontAttributes="Bold" HorizontalTextAlignment="End" Text="{Binding Price}" TextColor="{DynamicResource ValueAccent}" />
-                                    <Label FontSize="24" HorizontalTextAlignment="End" Text="›" TextColor="{DynamicResource TextMuted}" />
-                                </VerticalStackLayout>
+                            <Grid RowDefinitions="Auto,Auto" RowSpacing="10">
+                                <Grid ColumnDefinitions="Auto,*,72" ColumnSpacing="16">
+                                    <Border MinimumWidthRequest="112" Style="{StaticResource PlateBadge}">
+                                        <Label Style="{StaticResource PlateBadgeText}" Text="{Binding DisplayPlate}" />
+                                    </Border>
+                                    <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                        <Label FontAttributes="Bold" Text="{Binding VehicleName}" />
+                                        <Label Style="{StaticResource SettingDescription}" Text="{Binding Metadata}" />
+                                        <Label Style="{StaticResource MutedText}" Text="{Binding Seen}" />
+                                    </VerticalStackLayout>
+                                    <Image
+                                        Grid.Column="2"
+                                        Aspect="AspectFill"
+                                        HeightRequest="72"
+                                        IsVisible="{Binding HasSnapshot}"
+                                        Source="{Binding SnapshotSource}"
+                                        WidthRequest="72" />
+                                </Grid>
+                                <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalOptions="Center">
+                                    <VerticalStackLayout Spacing="2">
+                                        <Label FontAttributes="Bold" Text="{Binding Price}" TextColor="{DynamicResource ValueAccent}" />
+                                        <Label Style="{StaticResource SecondaryText}" Text="{Binding History}" />
+                                    </VerticalStackLayout>
+                                    <Label Grid.Column="1" FontSize="24" Text="›" TextColor="{DynamicResource TextMuted}" VerticalOptions="Center" />
+                                </Grid>
                             </Grid>
                         </Border>
                     </DataTemplate>
