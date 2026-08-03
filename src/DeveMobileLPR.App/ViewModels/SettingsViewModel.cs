@@ -96,6 +96,19 @@ internal sealed class SettingsViewModel : ViewModelBase
         set { if (_settings.TrackLocation != value) { _settings.TrackLocation = value; OnPropertyChanged(); _coordinator.RefreshSettings(); } }
     }
 
+    public bool SaveVehicleImages
+    {
+        get => _settings.SaveVehicleImages;
+        set
+        {
+            if (_settings.SaveVehicleImages != value)
+            {
+                _settings.SaveVehicleImages = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public bool ShowRoadGuide
     {
         get => _settings.ShowRoadGuide;

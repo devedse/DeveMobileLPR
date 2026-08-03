@@ -66,28 +66,36 @@
             <CollectionView.ItemTemplate>
                 <DataTemplate x:DataType="vm:SightingCardViewModel">
                     <Border Style="{StaticResource CompactCard}">
-                        <controls:ResponsiveGrid ColumnSpacing="18" MaximumColumns="2" MinimumItemWidth="220" RowSpacing="10">
-                            <VerticalStackLayout Spacing="3">
-                                <Label Style="{StaticResource Eyebrow}" Text="{Binding Sequence}" />
-                                <Label FontAttributes="Bold" Text="{Binding Seen}" />
-                                <Label Style="{StaticResource MutedText}" Text="{Binding RelativeSeen}" />
-                                <Label Style="{StaticResource SecondaryText}" Text="{Binding Trip}" />
-                                <Label Style="{StaticResource MutedText}" Text="{Binding Confidence}" />
-                            </VerticalStackLayout>
-                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalOptions="Center">
-                                <VerticalStackLayout Spacing="2" VerticalOptions="Center">
-                                    <Label Style="{StaticResource FieldCaption}" Text="Location" />
-                                    <Label Style="{StaticResource SecondaryText}" Text="{Binding LocationLabel}" />
+                        <VerticalStackLayout Spacing="12">
+                            <Image
+                                Aspect="AspectFit"
+                                BackgroundColor="Black"
+                                HeightRequest="240"
+                                IsVisible="{Binding HasSnapshot}"
+                                Source="{Binding SnapshotPath}" />
+                            <controls:ResponsiveGrid ColumnSpacing="18" MaximumColumns="2" MinimumItemWidth="220" RowSpacing="10">
+                                <VerticalStackLayout Spacing="3">
+                                    <Label Style="{StaticResource Eyebrow}" Text="{Binding Sequence}" />
+                                    <Label FontAttributes="Bold" Text="{Binding Seen}" />
+                                    <Label Style="{StaticResource MutedText}" Text="{Binding RelativeSeen}" />
+                                    <Label Style="{StaticResource SecondaryText}" Text="{Binding Trip}" />
+                                    <Label Style="{StaticResource MutedText}" Text="{Binding Confidence}" />
                                 </VerticalStackLayout>
-                                <Button
-                                    Grid.Column="1"
-                                    Clicked="OpenLocationClicked"
-                                    CommandParameter="{Binding Location}"
-                                    IsVisible="{Binding HasLocation}"
-                                    Style="{StaticResource CompactSecondaryButton}"
-                                    Text="Open map" />
-                            </Grid>
-                        </controls:ResponsiveGrid>
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalOptions="Center">
+                                    <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                                        <Label Style="{StaticResource FieldCaption}" Text="Location" />
+                                        <Label Style="{StaticResource SecondaryText}" Text="{Binding LocationLabel}" />
+                                    </VerticalStackLayout>
+                                    <Button
+                                        Grid.Column="1"
+                                        Clicked="OpenLocationClicked"
+                                        CommandParameter="{Binding Location}"
+                                        IsVisible="{Binding HasLocation}"
+                                        Style="{StaticResource CompactSecondaryButton}"
+                                        Text="Open map" />
+                                </Grid>
+                            </controls:ResponsiveGrid>
+                        </VerticalStackLayout>
                     </Border>
                 </DataTemplate>
             </CollectionView.ItemTemplate>

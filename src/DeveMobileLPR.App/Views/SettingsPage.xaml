@@ -54,7 +54,12 @@
                 <Border Style="{StaticResource Card}">
                     <VerticalStackLayout Style="{StaticResource CardContent}">
                         <Label Style="{StaticResource SectionTitle}" Text="Privacy &amp; permissions" />
-                        <Label Style="{StaticResource SecondaryText}" Text="Plate recognition, RDW lookups, trips, and route points are processed locally. Raw camera frames are discarded immediately and never saved." />
+                        <Label Style="{StaticResource SecondaryText}" Text="Plate recognition, RDW lookups, trips, and route points are processed locally. Raw camera frames are discarded after processing." />
+                        <controls:SettingsToggleRow
+                            Description="On confirmation, saves a local image around the detected vehicle. Off by default."
+                            IsToggled="{Binding SaveVehicleImages}"
+                            Title="Save vehicle images" />
+                        <Label Style="{StaticResource MutedText}" Text="Saved images stay on this device and are removed when you delete history." />
                         <Border Style="{StaticResource InsetCard}">
                             <Label FontSize="13" Text="{Binding PermissionsDetail}" />
                         </Border>
