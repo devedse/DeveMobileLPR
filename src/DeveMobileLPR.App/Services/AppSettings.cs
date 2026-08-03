@@ -5,6 +5,7 @@ namespace DeveMobileLPR.App.Services;
 internal sealed class AppSettings : IDriveSettings
 {
     private const string TrackLocationKey = "track_location";
+    private const string SaveContextualSnapshotsKey = "save_contextual_snapshots";
     private const string ShowGuideKey = "show_road_guide";
     private const string HapticKey = "confirmation_haptic";
     private const string ZoomKey = "camera_zoom";
@@ -18,6 +19,12 @@ internal sealed class AppSettings : IDriveSettings
     {
         get => Preferences.Default.Get(TrackLocationKey, true);
         set => Preferences.Default.Set(TrackLocationKey, value);
+    }
+
+    public bool SaveContextualSnapshots
+    {
+        get => Preferences.Default.Get(SaveContextualSnapshotsKey, false);
+        set => Preferences.Default.Set(SaveContextualSnapshotsKey, value);
     }
 
     public bool ShowRoadGuide

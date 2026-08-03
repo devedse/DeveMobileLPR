@@ -34,6 +34,11 @@ public sealed class SqliteSightingRepository : ISightingRepository
             await ExecuteAsync(connection, "ALTER TABLE sightings ADD COLUMN trip_id INTEGER NULL REFERENCES trips(id) ON DELETE SET NULL;", cancellationToken).ConfigureAwait(false);
         }
 
+        if (!await HasColumnAsync(connection, "sightings", "snapshot_reference", cancellationToken).ConfigureAwait(false))
+        {
+            await ExecuteAsync(connection, "ALTER TABLE sightings ADD COLUMN snapshot_reference TEXT NULL;", cancellationToken).ConfigureAwait(false);
+        }
+
         await ExecuteAsync(connection, Indexes, cancellationToken).ConfigureAwait(false);
         // Recover a drive interrupted by process termination at its last useful timestamp.
         await ExecuteAsync(connection, """
@@ -43,7 +48,7 @@ public sealed class SqliteSightingRepository : ISightingRepository
                 (SELECT MAX(last_seen_at) FROM sightings WHERE trip_id = trips.id),
                 started_at)
             WHERE ended_at IS NULL;
-            PRAGMA user_version = 2;
+                PRAGMA user_version = 3;
             """, cancellationToken).ConfigureAwait(false);
     }
 
@@ -116,6 +121,27 @@ public sealed class SqliteSightingRepository : ISightingRepository
 
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return await GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<Sighting> SetSnapshotReferenceAsync(
+        long sightingId,
+        string snapshotReference,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sightingId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(snapshotReference);
+        await using var connection = _connections.Create();
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE sightings SET snapshot_reference = @reference WHERE id = @id;";
+        command.Parameters.AddWithValue("@reference", snapshotReference);
+        command.Parameters.AddWithValue("@id", sightingId);
+        if (await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) != 1)
+        {
+            throw new InvalidOperationException($"Sighting {sightingId} does not exist.");
+        }
+
+        return await GetByIdAsync(sightingId, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<TripSummary> StartTripAsync(DateTimeOffset startedAt, GeoPoint? location, CancellationToken cancellationToken)
@@ -578,7 +604,8 @@ public sealed class SqliteSightingRepository : ISightingRepository
             location,
             vehicle)
         {
-            TripId = GetNullableInt64(reader, "trip_id")
+            TripId = GetNullableInt64(reader, "trip_id"),
+            SnapshotReference = GetNullableString(reader, "snapshot_reference")
         };
     }
 
@@ -661,7 +688,8 @@ public sealed class SqliteSightingRepository : ISightingRepository
             registration_year INTEGER NULL,
             fuel_description TEXT NULL,
             body_type TEXT NULL,
-            trip_id INTEGER NULL REFERENCES trips(id) ON DELETE SET NULL
+            trip_id INTEGER NULL REFERENCES trips(id) ON DELETE SET NULL,
+            snapshot_reference TEXT NULL
         );
         CREATE TABLE IF NOT EXISTS trip_points (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

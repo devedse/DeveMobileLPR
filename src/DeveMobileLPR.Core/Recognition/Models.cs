@@ -203,6 +203,7 @@ public sealed record Sighting(
     VehicleRecord? Vehicle)
 {
     public long? TripId { get; init; }
+    public string? SnapshotReference { get; init; }
 }
 
 public sealed record TripSummary(
@@ -308,6 +309,7 @@ public interface ISightingRepository
 {
     Task InitializeAsync(CancellationToken cancellationToken);
     Task<Sighting> AddOrMergeAsync(ConfirmedPlate plate, GeoPoint? location, VehicleRecord? vehicle, long? tripId, CancellationToken cancellationToken);
+    Task<Sighting> SetSnapshotReferenceAsync(long sightingId, string snapshotReference, CancellationToken cancellationToken);
     Task<TripSummary> StartTripAsync(DateTimeOffset startedAt, GeoPoint? location, CancellationToken cancellationToken);
     Task<TripSummary> EndTripAsync(long tripId, DateTimeOffset endedAt, GeoPoint? location, CancellationToken cancellationToken);
     Task AddTripPointAsync(long tripId, DateTimeOffset recordedAt, GeoPoint location, CancellationToken cancellationToken);

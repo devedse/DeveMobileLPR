@@ -1,4 +1,5 @@
 using DeveMobileLPR.App.ViewModels;
+using DeveMobileLPR.Application;
 using DeveMobileLPR.Recognition;
 using DeveMobileLPR.Storage;
 
@@ -8,10 +9,13 @@ public partial class VehicleDetailPage : ContentPage
 {
     private readonly VehicleDetailViewModel _viewModel;
 
-    internal VehicleDetailPage(ISightingRepository repository, string normalizedPlate)
+    internal VehicleDetailPage(
+        ISightingRepository repository,
+        IContextualSnapshotStore snapshotStore,
+        string normalizedPlate)
     {
         InitializeComponent();
-        BindingContext = _viewModel = new VehicleDetailViewModel(repository, normalizedPlate);
+        BindingContext = _viewModel = new VehicleDetailViewModel(repository, snapshotStore, normalizedPlate);
     }
 
     protected override async void OnAppearing()

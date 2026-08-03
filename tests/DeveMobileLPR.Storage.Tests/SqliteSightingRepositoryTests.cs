@@ -49,6 +49,59 @@ public sealed class SqliteSightingRepositoryTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task SetSnapshotReferenceAsync_PersistsRelativeReference()
+    {
+        var sighting = await _repository.AddOrMergeAsync(
+            Confirmed("AB1234", DateTimeOffset.UtcNow, 3),
+            null,
+            null,
+            null,
+            CancellationToken.None);
+
+        var updated = await _repository.SetSnapshotReferenceAsync(
+            sighting.Id,
+            "vehicle-snapshots/1.jpg",
+            CancellationToken.None);
+
+        Assert.Equal("vehicle-snapshots/1.jpg", updated.SnapshotReference);
+        Assert.Equal(
+            "vehicle-snapshots/1.jpg",
+            Assert.Single(await _repository.GetRecentAsync(1, CancellationToken.None)).SnapshotReference);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_UpgradesVersionTwoDatabaseWithNullableSnapshotReference()
+    {
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        await using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={_databasePath}"))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                ALTER TABLE sightings DROP COLUMN snapshot_reference;
+                PRAGMA user_version = 2;
+                """;
+            await command.ExecuteNonQueryAsync();
+        }
+
+        await _repository.InitializeAsync(CancellationToken.None);
+        var sighting = await _repository.AddOrMergeAsync(
+            Confirmed("AB1234", DateTimeOffset.UtcNow, 3),
+            null,
+            null,
+            null,
+            CancellationToken.None);
+
+        Assert.Null(sighting.SnapshotReference);
+        Assert.Equal(
+            "vehicle-snapshots/1.jpg",
+            (await _repository.SetSnapshotReferenceAsync(
+                sighting.Id,
+                "vehicle-snapshots/1.jpg",
+                CancellationToken.None)).SnapshotReference);
+    }
+
+    [Fact]
     public async Task Confirmation_WithImportedRdwVehicle_PersistsCatalogDetails()
     {
         var rdwPath = Path.Combine(Path.GetTempPath(), $"DeveMobileLPR-rdw-{Guid.NewGuid():N}.sqlite");
@@ -265,11 +318,12 @@ public sealed class SqliteSightingRepositoryTests : IAsyncLifetime
             var sighting = Assert.Single(await repository.GetAllSightingsAsync(CancellationToken.None));
             Assert.Equal("AB1234", sighting.NormalizedPlate);
             Assert.Null(sighting.TripId);
+            Assert.Null(sighting.SnapshotReference);
             await using var verify = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={legacyPath}");
             await verify.OpenAsync();
             await using var version = verify.CreateCommand();
             version.CommandText = "PRAGMA user_version;";
-            Assert.Equal(2L, (long)(await version.ExecuteScalarAsync())!);
+            Assert.Equal(3L, (long)(await version.ExecuteScalarAsync())!);
         }
         finally
         {

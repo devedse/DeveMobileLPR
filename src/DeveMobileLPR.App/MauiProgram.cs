@@ -34,13 +34,18 @@ public static class MauiProgram
     #if ANDROID
         builder.Services.AddSingleton<IDriveLocationTracker>(_ =>
             new AndroidLocationTracker(global::Android.App.Application.Context));
+        builder.Services.AddSingleton<IContextualSnapshotEncoder, AndroidContextualSnapshotEncoder>();
         builder.Services.AddSingleton<IRecognitionPipelineProvider, AndroidRecognitionPipelineProvider>();
         builder.Services.AddSingleton<IVideoFileBackend, AndroidVideoFileBackend>();
     #elif WINDOWS
         builder.Services.AddSingleton<IDriveLocationTracker, NoOpDriveLocationTracker>();
+        builder.Services.AddSingleton<IContextualSnapshotEncoder, WindowsContextualSnapshotEncoder>();
         builder.Services.AddSingleton<IRecognitionPipelineProvider, WindowsRecognitionPipelineProvider>();
         builder.Services.AddSingleton<IVideoFileBackend, WindowsVideoFileBackend>();
     #endif
+        builder.Services.AddSingleton<IContextualSnapshotStore>(services => new ContextualSnapshotStore(
+            FileSystem.AppDataDirectory,
+            services.GetRequiredService<IContextualSnapshotEncoder>()));
         builder.Services.AddSingleton<DriveCoordinator>();
         builder.Services.AddSingleton<VideoAnalysisService>();
         builder.Services.AddSingleton(_ => new JsonVideoAnalysisRepository(Path.Combine(FileSystem.AppDataDirectory, "video-analyses")));

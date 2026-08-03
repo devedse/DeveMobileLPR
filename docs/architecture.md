@@ -54,13 +54,14 @@ For OCR results classified as Dutch, a confirmed string must match one of RDW si
 
 Confirmed sightings within three minutes of the same plate and the same trip are merged. The merge keeps the earliest first-seen time, advances the last-seen time, adds observation counts, keeps the strongest confidence, and fills missing GPS/RDW facts. A trip boundary always creates a distinct appearance, even when two drives happen close together.
 
-SQLite uses WAL mode and indexes plate/time, trip/time, route points, and catalog price. Schema version 2 adds trips and filtered GPS route points while migrating version-1 sightings in place. RDW data is intentionally a second SQLite database because it is large and replaceable. `SqliteRdwVehicleLookup` reads through the stable `rdw_vehicles` view so the user's downloader schema remains decoupled from the app.
+SQLite uses WAL mode and indexes plate/time, trip/time, route points, and catalog price. Schema version 2 adds trips and filtered GPS route points while migrating version-1 sightings in place. Schema version 3 adds a nullable relative reference for an optional contextual vehicle image. RDW data is intentionally a second SQLite database because it is large and replaceable. `SqliteRdwVehicleLookup` reads through the stable `rdw_vehicles` view so the user's downloader schema remains decoupled from the app.
 
 ## Security and privacy defaults
 
 - No network permission is declared.
 - Models and RDW data are read locally.
-- Raw frames and crops are never persisted.
+- Raw source frames and plate crops are never persisted.
+- Contextual vehicle images are disabled by default. When enabled, only confirmation frames are encoded after a padded plate rectangle is blacked out; files remain in private app storage and are deleted with history.
 - The Android manifest disallows cleartext traffic.
 - Models are verified by byte length and SHA-256 before use on Android and Windows.
 - RDW imports are copied to a temporary file, schema-validated, and atomically moved.

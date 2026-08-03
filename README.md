@@ -15,6 +15,7 @@ DeveMobileLPR is an offline-first .NET MAUI app for Dutch license-plate recognit
 - Multi-frame tracking and consensus with Dutch sidecode validation.
 - Recorded-video analysis using the same recognition pipeline as live capture.
 - Local SQLite history, trips, optional routes, CSV export, and RDW enrichment.
+- Optional local context images with the detected plate blacked out, disabled by default.
 - No remote inference, analytics, telemetry, or media uploads.
 
 ## Build

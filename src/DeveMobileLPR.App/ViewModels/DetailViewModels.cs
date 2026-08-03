@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using DeveMobileLPR.App.UI;
+using DeveMobileLPR.Application;
 using DeveMobileLPR.Recognition;
 using DeveMobileLPR.Storage;
 
@@ -13,9 +14,11 @@ internal sealed record SightingCardViewModel(
     string Trip,
     string Confidence,
     string LocationLabel,
-    GeoPoint? Location)
+    GeoPoint? Location,
+    string? SnapshotPath)
 {
     public bool HasLocation => Location is not null;
+    public bool HasSnapshot => SnapshotPath is not null;
 }
 
 internal sealed record TripVehicleCardViewModel(
@@ -157,7 +160,10 @@ internal sealed class TripDetailViewModel(ISightingRepository repository, long t
     }
 }
 
-internal sealed class VehicleDetailViewModel(ISightingRepository repository, string normalizedPlate) : ViewModelBase
+internal sealed class VehicleDetailViewModel(
+    ISightingRepository repository,
+    IContextualSnapshotStore snapshotStore,
+    string normalizedPlate) : ViewModelBase
 {
     private bool _isBusy;
     private string _displayPlate = PlateText.FormatDutchPlate(normalizedPlate);
@@ -230,7 +236,8 @@ internal sealed class VehicleDetailViewModel(ISightingRepository repository, str
                     trip,
                     $"{result.Confidence:P0} · {result.ObservationCount} reads",
                     locationLabel,
-                    result.Location));
+                    result.Location,
+                    snapshotStore.ResolvePath(result.SnapshotReference)));
             }
             if (results.Count == 0) return;
             var latest = results[0];
