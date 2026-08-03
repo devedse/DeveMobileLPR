@@ -7,7 +7,7 @@ namespace DeveMobileLPR.Application;
 public interface IDriveSettings
 {
     bool TrackLocation { get; set; }
-    bool SaveContextualSnapshots { get; set; }
+    bool SaveVehicleImages { get; set; }
     bool ConfirmationHaptic { get; set; }
     float Zoom { get; set; }
     string CameraId { get; set; }
@@ -17,7 +17,7 @@ public interface IDriveSettings
     string NetworkStreamUrl { get; set; }
 }
 
-public interface IContextualSnapshotEncoder
+public interface IVehicleImageEncoder
 {
     Task EncodeJpegAsync(
         ReadOnlyMemory<byte> rgbPixels,
@@ -27,7 +27,7 @@ public interface IContextualSnapshotEncoder
         CancellationToken cancellationToken);
 }
 
-public interface IContextualSnapshotStore
+public interface IVehicleImageStore
 {
     Task<string> SaveAsync(
         long sightingId,

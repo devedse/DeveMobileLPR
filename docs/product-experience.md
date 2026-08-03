@@ -18,7 +18,7 @@ This split follows Android's automotive guidance to keep in-motion text short, i
 - As a driver, I want duration, unique-car count, most expensive car, GPS state, and the latest confirmation without opening another screen.
 - As a driver, I want one large stop-and-save action and no reachable navigation tabs while processing.
 - As a privacy-conscious user, I want processing to stop when the app leaves the foreground and raw frames never to be persisted.
-- As a privacy-conscious user, I want contextual vehicle images to require explicit opt-in, obscure the detected plate, stay on-device, and be deleted with history.
+- As a privacy-conscious user, I want vehicle images to require explicit opt-in, stay on-device, and be deleted with history.
 
 ### Reviewing the day
 
@@ -31,7 +31,7 @@ This split follows Android's automotive guidance to keep in-motion text short, i
 ### Setup, trust, and control
 
 - As a user, I want RDW import to clearly show installed/missing state and reject invalid files before replacing the working database.
-- As a user, I want location trails, contextual vehicle images, the road guide, and confirmation haptics to be independently configurable.
+- As a user, I want location trails, vehicle images, the road guide, and confirmation haptics to be independently configurable.
 - As a user, I want an explicit explanation of what stays local and which Android permissions are active.
 - As a user, I want to export all history to CSV or permanently delete trips, points, and sightings without deleting the reusable RDW snapshot.
 - As a maintainer, I want model names, app/build version, package ID, and platform baseline visible for diagnostics.

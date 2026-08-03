@@ -16,12 +16,12 @@ public sealed class DriveCoordinatorTests
     {
         var repository = new FakeRepository();
         var pipeline = new ConfirmingPipeline();
-        var snapshotStore = new TestSnapshotStore();
+        var vehicleImageStore = new TestVehicleImageStore();
         var input = new TestVideoInput();
         await using var coordinator = new DriveCoordinator(
             repository,
-            snapshotStore,
-            new TestSettings { SaveContextualSnapshots = enabled },
+            vehicleImageStore,
+            new TestSettings { SaveVehicleImages = enabled },
             new TestVehicleDataStatus(),
             new RecognitionTuningConfiguration(),
             new TestPipelineProvider(pipeline),
@@ -45,7 +45,7 @@ public sealed class DriveCoordinatorTests
         {
             await repository.SnapshotReferenceSet.Task.WaitAsync(TimeSpan.FromSeconds(2));
         }
-        Assert.Equal(expectedSaveCount, snapshotStore.SaveCount);
+        Assert.Equal(expectedSaveCount, vehicleImageStore.SaveCount);
         Assert.Equal(expectedSaveCount, repository.SetSnapshotReferenceCount);
     }
 
@@ -58,7 +58,7 @@ public sealed class DriveCoordinatorTests
         var device = new TestDeviceExperience();
         await using var coordinator = new DriveCoordinator(
             repository,
-            new TestSnapshotStore(),
+            new TestVehicleImageStore(),
             new TestSettings(),
             new TestVehicleDataStatus(),
             new RecognitionTuningConfiguration(),
@@ -143,7 +143,7 @@ public sealed class DriveCoordinatorTests
     {
         var coordinator = new DriveCoordinator(
             repository,
-            new TestSnapshotStore(),
+            new TestVehicleImageStore(),
             new TestSettings(),
             new TestVehicleDataStatus(),
             new RecognitionTuningConfiguration(),
@@ -160,7 +160,7 @@ public sealed class DriveCoordinatorTests
     private sealed class TestSettings : IDriveSettings
     {
         public bool TrackLocation { get; set; } = true;
-        public bool SaveContextualSnapshots { get; set; }
+        public bool SaveVehicleImages { get; set; }
         public bool ConfirmationHaptic { get; set; } = true;
         public float Zoom { get; set; } = 1;
         public string CameraId { get; set; } = "rear";
@@ -268,7 +268,7 @@ public sealed class DriveCoordinatorTests
     }
 
     private sealed class TestVehicleDataStatus : IVehicleDataStatus { public bool IsAvailable => true; }
-    private sealed class TestSnapshotStore : IContextualSnapshotStore
+    private sealed class TestVehicleImageStore : IVehicleImageStore
     {
         public int SaveCount { get; private set; }
         public Task<string> SaveAsync(long sightingId, Yuv420Frame frame, BoundingBox plateBounds, CancellationToken cancellationToken) =>

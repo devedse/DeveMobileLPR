@@ -2,7 +2,7 @@ using SixLabors.ImageSharp;
 
 namespace DeveMobileLPR.Application.Tests;
 
-public sealed class ImageSharpContextualSnapshotEncoderTests : IDisposable
+public sealed class ImageSharpVehicleImageEncoderTests : IDisposable
 {
     private readonly string _destinationPath = Path.Combine(
         Path.GetTempPath(),
@@ -11,7 +11,7 @@ public sealed class ImageSharpContextualSnapshotEncoderTests : IDisposable
     [Fact]
     public async Task EncodeJpegWritesDecodableImageWithExpectedDimensions()
     {
-        var encoder = new ImageSharpContextualSnapshotEncoder();
+        var encoder = new ImageSharpVehicleImageEncoder();
 
         await encoder.EncodeJpegAsync(
             new byte[]
@@ -33,7 +33,7 @@ public sealed class ImageSharpContextualSnapshotEncoderTests : IDisposable
     [Fact]
     public async Task EncodeJpegRejectsUnexpectedPixelLength()
     {
-        var encoder = new ImageSharpContextualSnapshotEncoder();
+        var encoder = new ImageSharpVehicleImageEncoder();
 
         var exception = await Assert.ThrowsAsync<ArgumentException>(() => encoder.EncodeJpegAsync(
             new byte[] { 255, 0, 0 },

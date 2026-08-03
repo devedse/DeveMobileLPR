@@ -31,7 +31,7 @@ public partial class HistoryPage : ContentPage
         VehiclesList.SelectedItem = null;
         await Navigation.PushAsync(new VehicleDetailPage(
             _viewModel.Coordinator.Repository,
-            _viewModel.Coordinator.SnapshotStore,
+            _viewModel.Coordinator.VehicleImageStore,
             vehicle.NormalizedPlate));
     }
 }

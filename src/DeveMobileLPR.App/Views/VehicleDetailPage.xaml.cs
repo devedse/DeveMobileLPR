@@ -11,11 +11,11 @@ public partial class VehicleDetailPage : ContentPage
 
     internal VehicleDetailPage(
         ISightingRepository repository,
-        IContextualSnapshotStore snapshotStore,
+        IVehicleImageStore vehicleImageStore,
         string normalizedPlate)
     {
         InitializeComponent();
-        BindingContext = _viewModel = new VehicleDetailViewModel(repository, snapshotStore, normalizedPlate);
+        BindingContext = _viewModel = new VehicleDetailViewModel(repository, vehicleImageStore, normalizedPlate);
     }
 
     protected override async void OnAppearing()

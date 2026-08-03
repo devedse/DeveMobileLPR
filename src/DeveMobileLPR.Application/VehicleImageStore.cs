@@ -4,7 +4,7 @@ using DeveMobileLPR.Imaging;
 
 namespace DeveMobileLPR.Application;
 
-public sealed class ContextualSnapshotStore : IContextualSnapshotStore
+public sealed class VehicleImageStore : IVehicleImageStore
 {
     private const string DirectoryName = "vehicle-snapshots";
     private const int MaximumDimension = 1280;
@@ -15,13 +15,13 @@ public sealed class ContextualSnapshotStore : IContextualSnapshotStore
     private const byte DetectionBorderGreen = 197;
     private const byte DetectionBorderBlue = 66;
     private readonly string _rootDirectory;
-    private readonly IContextualSnapshotEncoder _encoder;
+    private readonly IVehicleImageEncoder _vehicleImageEncoder;
 
-    public ContextualSnapshotStore(string rootDirectory, IContextualSnapshotEncoder encoder)
+    public VehicleImageStore(string rootDirectory, IVehicleImageEncoder vehicleImageEncoder)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rootDirectory);
         _rootDirectory = Path.GetFullPath(rootDirectory);
-        _encoder = encoder ?? throw new ArgumentNullException(nameof(encoder));
+        _vehicleImageEncoder = vehicleImageEncoder ?? throw new ArgumentNullException(nameof(vehicleImageEncoder));
     }
 
     public async Task<string> SaveAsync(
@@ -34,7 +34,7 @@ public sealed class ContextualSnapshotStore : IContextualSnapshotStore
         ArgumentNullException.ThrowIfNull(frame);
         if (plateBounds.IsEmpty)
         {
-            throw new ArgumentException("Plate bounds are required for redaction.", nameof(plateBounds));
+            throw new ArgumentException("Plate bounds are required for the vehicle image.", nameof(plateBounds));
         }
 
         var clampedPlateBounds = plateBounds.Clamp(frame.OrientedWidth, frame.OrientedHeight);
@@ -58,7 +58,7 @@ public sealed class ContextualSnapshotStore : IContextualSnapshotStore
         {
             FillSnapshotRgb(frame, clampedPlateBounds, crop, pixels.AsSpan(0, pixelLength), width, height);
             Directory.CreateDirectory(snapshotDirectory);
-            await _encoder.EncodeJpegAsync(
+            await _vehicleImageEncoder.EncodeJpegAsync(
                 pixels.AsMemory(0, pixelLength),
                 width,
                 height,

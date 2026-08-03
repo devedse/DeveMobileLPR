@@ -4,7 +4,7 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace DeveMobileLPR.Application;
 
-public sealed class ImageSharpContextualSnapshotEncoder : IContextualSnapshotEncoder
+public sealed class ImageSharpVehicleImageEncoder : IVehicleImageEncoder
 {
     private const int JpegQuality = 85;
 

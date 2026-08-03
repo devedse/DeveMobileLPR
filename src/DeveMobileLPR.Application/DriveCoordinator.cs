@@ -7,7 +7,7 @@ namespace DeveMobileLPR.Application;
 public sealed class DriveCoordinator : IAsyncDisposable
 {
     private readonly ISightingRepository _repository;
-    private readonly IContextualSnapshotStore _snapshotStore;
+    private readonly IVehicleImageStore _vehicleImageStore;
     private readonly IDriveSettings _settings;
     private readonly IVehicleDataStatus _vehicleDataStatus;
     private readonly RecognitionTuningConfiguration _recognitionTuning;
@@ -46,7 +46,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
     private IReadOnlyList<CameraChoice> _cameraChoices = [new("rear", "Rear cameras · automatic lens")];
     public DriveCoordinator(
         ISightingRepository repository,
-        IContextualSnapshotStore snapshotStore,
+        IVehicleImageStore vehicleImageStore,
         IDriveSettings settings,
         IVehicleDataStatus vehicleDataStatus,
         RecognitionTuningConfiguration recognitionTuning,
@@ -57,7 +57,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
         IApplicationDispatcher dispatcher)
     {
         _repository = repository;
-        _snapshotStore = snapshotStore;
+        _vehicleImageStore = vehicleImageStore;
         _settings = settings;
         _vehicleDataStatus = vehicleDataStatus;
         _recognitionTuning = recognitionTuning;
@@ -71,7 +71,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
 
     public event EventHandler<DriveSnapshot>? SnapshotChanged;
     public ISightingRepository Repository => _repository;
-    public IContextualSnapshotStore SnapshotStore => _snapshotStore;
+    public IVehicleImageStore VehicleImageStore => _vehicleImageStore;
     public DriveSnapshot Snapshot { get { lock (_stateGate) return CreateSnapshot(); } }
     public long? ActiveTripId { get { var value = Interlocked.Read(ref _activeTripId); return value == 0 ? null : value; } }
 
@@ -106,9 +106,9 @@ public sealed class DriveCoordinator : IAsyncDisposable
                 pipeline,
                 _recognitionTuning,
                 _repository,
-                _snapshotStore,
+                _vehicleImageStore,
                 _vehicleLookup,
-                () => _settings.SaveContextualSnapshots,
+                () => _settings.SaveVehicleImages,
                 () => _location.Latest,
                 () => ActiveTripId);
             _recognition.Progress += RecognitionProgressed;
@@ -495,11 +495,11 @@ public sealed class DriveCoordinator : IAsyncDisposable
         await _repository.DeleteHistoryAsync(CancellationToken.None);
         try
         {
-            await _snapshotStore.DeleteAllAsync(CancellationToken.None);
+            await _vehicleImageStore.DeleteAllAsync(CancellationToken.None);
         }
         catch (Exception exception)
         {
-            throw new InvalidOperationException("History was deleted, but contextual snapshot cleanup failed.", exception);
+            throw new InvalidOperationException("History was deleted, but vehicle image cleanup failed.", exception);
         }
     }
 

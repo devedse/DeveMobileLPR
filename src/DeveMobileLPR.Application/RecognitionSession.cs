@@ -16,9 +16,9 @@ internal sealed class RecognitionSession : IAsyncDisposable
 {
     private readonly RecognitionStreamProcessor _processor;
     private readonly ISightingRepository _repository;
-    private readonly IContextualSnapshotStore _snapshotStore;
+    private readonly IVehicleImageStore _vehicleImageStore;
     private readonly IVehicleLookup _vehicleLookup;
-    private readonly Func<bool> _saveContextualSnapshots;
+    private readonly Func<bool> _saveVehicleImages;
     private readonly Func<GeoPoint?> _location;
     private readonly Func<long?> _tripId;
     private readonly LatestFrameSlot _frames = new();
@@ -30,17 +30,17 @@ internal sealed class RecognitionSession : IAsyncDisposable
         IFrameRecognitionPipeline pipeline,
         RecognitionTuningConfiguration configuration,
         ISightingRepository repository,
-        IContextualSnapshotStore snapshotStore,
+        IVehicleImageStore vehicleImageStore,
         IVehicleLookup vehicleLookup,
-        Func<bool> saveContextualSnapshots,
+        Func<bool> saveVehicleImages,
         Func<GeoPoint?> location,
         Func<long?> tripId)
     {
         _processor = new RecognitionStreamProcessor(pipeline, configuration);
         _repository = repository;
-        _snapshotStore = snapshotStore;
+        _vehicleImageStore = vehicleImageStore;
         _vehicleLookup = vehicleLookup;
-        _saveContextualSnapshots = saveContextualSnapshots;
+        _saveVehicleImages = saveVehicleImages;
         _location = location;
         _tripId = tripId;
         _worker = Task.Run(ProcessLoopAsync);
@@ -95,11 +95,11 @@ internal sealed class RecognitionSession : IAsyncDisposable
                         vehicle,
                         _tripId(),
                         _cancellation.Token).ConfigureAwait(false);
-                    if (_saveContextualSnapshots())
+                    if (_saveVehicleImages())
                     {
                         try
                         {
-                            var reference = await _snapshotStore.SaveAsync(
+                            var reference = await _vehicleImageStore.SaveAsync(
                                 sighting.Id,
                                 frame,
                                 confirmation.LastBounds,
@@ -116,7 +116,7 @@ internal sealed class RecognitionSession : IAsyncDisposable
                         catch (Exception exception)
                         {
                             Failed?.Invoke(this, new InvalidOperationException(
-                                "The contextual vehicle snapshot could not be saved.",
+                                "The vehicle image could not be saved.",
                                 exception));
                         }
                     }

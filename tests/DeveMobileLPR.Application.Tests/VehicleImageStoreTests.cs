@@ -4,17 +4,17 @@ using DeveMobileLPR.Imaging;
 
 namespace DeveMobileLPR.Application.Tests;
 
-public sealed class ContextualSnapshotStoreTests : IDisposable
+public sealed class VehicleImageStoreTests : IDisposable
 {
     private readonly string _rootDirectory = Path.Combine(
         Path.GetTempPath(),
-        $"DeveMobileLPR-snapshot-tests-{Guid.NewGuid():N}");
+        $"DeveMobileLPR-vehicle-image-tests-{Guid.NewGuid():N}");
 
     [Fact]
-    public async Task SaveRedactsPlateAndKeepsOnlyRelativeReference()
+    public async Task SaveKeepsPlateVisibleAndReturnsOnlyRelativeReference()
     {
         var encoder = new RecordingEncoder();
-        var store = new ContextualSnapshotStore(_rootDirectory, encoder);
+        var store = new VehicleImageStore(_rootDirectory, encoder);
         using var frame = CreateWhiteFrame(6, 4);
 
         var reference = await store.SaveAsync(
@@ -27,7 +27,7 @@ public sealed class ContextualSnapshotStoreTests : IDisposable
         Assert.Equal((6, 4), (encoder.Width, encoder.Height));
         Assert.Equal([255, 255, 255], PixelAt(encoder.Pixels, encoder.Width, 0, 0));
         Assert.Equal([245, 197, 66], PixelAt(encoder.Pixels, encoder.Width, 2, 2));
-        Assert.Equal([0, 0, 0], PixelAt(encoder.Pixels, encoder.Width, 4, 2));
+        Assert.Equal([255, 255, 255], PixelAt(encoder.Pixels, encoder.Width, 4, 2));
         Assert.NotNull(store.ResolvePath(reference));
         Assert.Null(store.ResolvePath("../42.jpg"));
         Assert.Null(store.ResolvePath("vehicle-snapshots/not-a-sighting.jpg"));
@@ -41,7 +41,7 @@ public sealed class ContextualSnapshotStoreTests : IDisposable
     public async Task SaveCropsToEstimatedVehicleRegionAroundPlate()
     {
         var encoder = new RecordingEncoder();
-        var store = new ContextualSnapshotStore(_rootDirectory, encoder);
+        var store = new VehicleImageStore(_rootDirectory, encoder);
         using var frame = CreateWhiteFrame(100, 80);
 
         await store.SaveAsync(
@@ -53,7 +53,7 @@ public sealed class ContextualSnapshotStoreTests : IDisposable
         Assert.Equal((50, 45), (encoder.Width, encoder.Height));
         Assert.Equal([255, 255, 255], PixelAt(encoder.Pixels, encoder.Width, 0, 0));
         Assert.Equal([245, 197, 66], PixelAt(encoder.Pixels, encoder.Width, 20, 25));
-        Assert.Equal([0, 0, 0], PixelAt(encoder.Pixels, encoder.Width, 25, 27));
+        Assert.Equal([255, 255, 255], PixelAt(encoder.Pixels, encoder.Width, 25, 27));
     }
 
     public void Dispose()
@@ -94,7 +94,7 @@ public sealed class ContextualSnapshotStoreTests : IDisposable
             1);
     }
 
-    private sealed class RecordingEncoder : IContextualSnapshotEncoder
+    private sealed class RecordingEncoder : IVehicleImageEncoder
     {
         public byte[] Pixels { get; private set; } = [];
         public int Width { get; private set; }

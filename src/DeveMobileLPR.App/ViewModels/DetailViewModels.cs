@@ -43,7 +43,7 @@ internal sealed record TripVehicleCardViewModel(
 
 internal sealed class TripDetailViewModel(
     ISightingRepository repository,
-    IContextualSnapshotStore snapshotStore,
+    IVehicleImageStore vehicleImageStore,
     long tripId) : ViewModelBase
 {
     internal const string SortByTime = "Time seen";
@@ -139,7 +139,7 @@ internal sealed class TripDetailViewModel(
             vehicle.FirstSeenAt,
             vehicle.EarlierSightingCount,
             vehicle.LastLocation,
-            snapshotStore.ResolvePath(vehicle.SnapshotReference));
+            vehicleImageStore.ResolvePath(vehicle.SnapshotReference));
     }
 
     private void ApplySort()
@@ -168,7 +168,7 @@ internal sealed class TripDetailViewModel(
 
 internal sealed class VehicleDetailViewModel(
     ISightingRepository repository,
-    IContextualSnapshotStore snapshotStore,
+    IVehicleImageStore vehicleImageStore,
     string normalizedPlate) : ViewModelBase
 {
     private bool _isBusy;
@@ -243,7 +243,7 @@ internal sealed class VehicleDetailViewModel(
                     $"{result.Confidence:P0} · {result.ObservationCount} reads",
                     locationLabel,
                     result.Location,
-                    snapshotStore.ResolvePath(result.SnapshotReference)));
+                    vehicleImageStore.ResolvePath(result.SnapshotReference)));
             }
             if (results.Count == 0) return;
             var latest = results[0];

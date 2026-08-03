@@ -323,7 +323,7 @@ internal sealed class HistoryViewModel : ViewModelBase
                 DisplayFormat.Relative(vehicle.LastSeenAt),
                 $"{FormatCount(vehicle.SightingCount, "sighting")} · {FormatCount(vehicle.TripCount, "trip")}",
                 vehicle.LastLocation is not null,
-                _coordinator.SnapshotStore.ResolvePath(vehicle.SnapshotReference)));
+                _coordinator.VehicleImageStore.ResolvePath(vehicle.SnapshotReference)));
         }
     }
 

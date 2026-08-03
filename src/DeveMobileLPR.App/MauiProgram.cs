@@ -31,7 +31,7 @@ public static class MauiProgram
             new AppVehicleLookup(services.GetRequiredService<RdwDatabaseService>().DatabasePath));
         builder.Services.AddSingleton<IApplicationDispatcher, MauiApplicationDispatcher>();
         builder.Services.AddSingleton<IDeviceExperience, MauiDeviceExperience>();
-        builder.Services.AddSingleton<IContextualSnapshotEncoder, ImageSharpContextualSnapshotEncoder>();
+        builder.Services.AddSingleton<IVehicleImageEncoder, ImageSharpVehicleImageEncoder>();
     #if ANDROID
         builder.Services.AddSingleton<IDriveLocationTracker>(_ =>
             new AndroidLocationTracker(global::Android.App.Application.Context));
@@ -42,9 +42,9 @@ public static class MauiProgram
         builder.Services.AddSingleton<IRecognitionPipelineProvider, WindowsRecognitionPipelineProvider>();
         builder.Services.AddSingleton<IVideoFileBackend, WindowsVideoFileBackend>();
     #endif
-        builder.Services.AddSingleton<IContextualSnapshotStore>(services => new ContextualSnapshotStore(
+        builder.Services.AddSingleton<IVehicleImageStore>(services => new VehicleImageStore(
             FileSystem.AppDataDirectory,
-            services.GetRequiredService<IContextualSnapshotEncoder>()));
+            services.GetRequiredService<IVehicleImageEncoder>()));
         builder.Services.AddSingleton<DriveCoordinator>();
         builder.Services.AddSingleton<VideoAnalysisService>();
         builder.Services.AddSingleton(_ => new JsonVideoAnalysisRepository(Path.Combine(FileSystem.AppDataDirectory, "video-analyses")));
