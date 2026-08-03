@@ -34,7 +34,7 @@ The detector's trained YOLO graph is shared, but its execution adapter is platfo
 
 Android converts the CCT-S V2 OCR graph to float32 LiteRT while preserving its uint8 NHWC input and two float outputs. Detector and OCR each create a GPU-only LiteRT compiled model and accept it only after a complete warm inference; if that fails, they create an explicit CPU model. Windows keeps both models on ONNX Runtime and attempts DirectML before CPU. Preprocessing, OCR decoding, and detector postprocessing live below the platform runners so both runtimes use identical recognition semantics. Model sessions and reusable buffers are long-lived, and runs are serialized per model. The selected detector and OCR backend names are retained on every recognition diagnostic frame and shown in Drive and Analyze diagnostics.
 
-The Android Release project currently keeps Mono AOT disabled because the pinned .NET 10 Android toolchain's cross-assembler fails both universal and arm64 profiled-AOT packaging. Model execution is unaffected because LiteRT is native. The managed preprocessing optimizations are therefore explicit algorithm/allocation improvements rather than depending on an unshippable build flag.
+The Android Release project publishes CoreCLR JIT for arm64 with ReadyToRun disabled. Mono AOT is not used because the pinned .NET 10 Android toolchain's cross-assembler fails both universal and arm64 profiled-AOT packaging. Model execution remains native LiteRT; CoreCLR accelerates the managed preprocessing path. .NET 10 still classifies CoreCLR on Android as experimental and not intended for production use, so sustained device stability remains a release risk to validate.
 
 ## Confirmation policy
 

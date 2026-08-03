@@ -31,6 +31,7 @@ public sealed class PlateRecognitionPipelineDiagnosticsTests
         Assert.False(result.Diagnostics.Candidates[1].OcrAttempted);
         Assert.Null(result.Diagnostics.Candidates[1].OcrTiming);
         Assert.Equal(new ModelExecutionTiming(0, 1, 2, 1), result.Diagnostics.Detector);
+        Assert.Equal(new DetectorPreparationTiming(0.1, 0.2, 0.7), result.Diagnostics.DetectorPreparation);
         Assert.Equal(new ModelExecutionTiming(0, 1, 3, 1), result.Diagnostics.Ocr);
         Assert.True(result.Diagnostics.CropQualityMilliseconds >= 0);
         Assert.True(result.Diagnostics.TotalMilliseconds >= result.Diagnostics.CropQualityMilliseconds);
@@ -52,7 +53,10 @@ public sealed class PlateRecognitionPipelineDiagnosticsTests
                     new PlateDetection(new BoundingBox(10, 10, 60, 30), 0.95f),
                     new PlateDetection(new BoundingBox(70, 10, 120, 30), 0.85f)
                 ],
-                new ModelExecutionTiming(0, 1, 2, 1)));
+                new ModelExecutionTiming(0, 1, 2, 1))
+            {
+                Preparation = new DetectorPreparationTiming(0.1, 0.2, 0.7)
+            });
     }
 
     private sealed class EmptyRecognizer : IPlateRecognizer, IInferenceBackendInfo, IInferenceBackendDiagnostics

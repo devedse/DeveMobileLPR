@@ -38,7 +38,7 @@ Skip Android model generation and packaging when working only on portable or Win
 ./build.ps1 -Configuration Release -SkipAndroid
 ```
 
-Published outputs are written under `artifacts/android`, `artifacts/windows/win-x64`, and `artifacts/rdw-downloader`. CI publishes one versioned Android APK containing both LiteRT models.
+Published outputs are written under `artifacts/android`, `artifacts/windows/win-x64`, and `artifacts/rdw-downloader`. CI publishes one arm64 Android APK containing both LiteRT models. Android uses CoreCLR because it substantially improves managed detector preprocessing on the tested Pixel 9; .NET 10 still classifies CoreCLR on Android as experimental and not intended for production use. The published APK does not support x64 emulators.
 
 ## RDW database
 

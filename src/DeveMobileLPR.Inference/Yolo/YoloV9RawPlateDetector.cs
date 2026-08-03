@@ -45,7 +45,7 @@ public sealed class YoloV9RawPlateDetector : IPlateDetector, IInferenceBackendIn
             ObjectDisposedException.ThrowIf(_disposed, this);
             var stageStartedAt = Stopwatch.GetTimestamp();
             var source = _configuration.Detector_RoadRegion.ToPixels(frame.OrientedWidth, frame.OrientedHeight);
-            var transform = DetectorPreprocessor.Fill(frame, source, _input, _model.InputLayout);
+            var preprocessing = DetectorPreprocessor.FillMeasured(frame, source, _input, _model.InputLayout);
             var preprocessingMilliseconds = Stopwatch.GetElapsedTime(stageStartedAt).TotalMilliseconds;
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -57,7 +57,7 @@ public sealed class YoloV9RawPlateDetector : IPlateDetector, IInferenceBackendIn
             var detections = YoloV9RawPostprocessor.Process(
                 output.Boxes,
                 output.Scores,
-                transform,
+                preprocessing.Transform,
                 frame.OrientedWidth,
                 frame.OrientedHeight,
                 _configuration);
@@ -69,7 +69,10 @@ public sealed class YoloV9RawPlateDetector : IPlateDetector, IInferenceBackendIn
                     queueMilliseconds,
                     preprocessingMilliseconds,
                     inferenceMilliseconds,
-                    postprocessingMilliseconds));
+                    postprocessingMilliseconds))
+                {
+                    Preparation = preprocessing.Timing
+                };
         }
         finally
         {

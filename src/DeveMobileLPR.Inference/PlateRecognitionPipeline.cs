@@ -92,6 +92,7 @@ public sealed class PlateRecognitionPipeline : IFrameRecognitionPipeline, IDispo
             {
                 Candidates = candidates,
                 CropQualityMilliseconds = cropQualityMilliseconds,
+                DetectorPreparation = detectionResult.Preparation,
                 DetectorBackend = _detectorBackend,
                 OcrBackend = _ocrBackend,
                 BackendDiagnostics = _backendDiagnostics

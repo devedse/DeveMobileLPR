@@ -38,7 +38,10 @@ Get-ChildItem -LiteralPath $output -Filter '*.apk' -File -ErrorAction SilentlyCo
 Get-ChildItem -LiteralPath $projectOutput -Filter '*-Signed.apk' -File -Recurse -ErrorAction SilentlyContinue |
     Remove-Item -Force
 
+dotnet restore $project --locked-mode
+
 $arguments = @('publish', $project, '--framework', 'net10.0-android36.0', '--configuration', $Configuration, '--no-restore', '-p:AndroidPackageFormats=apk', "-p:PublishDir=$output\")
+$arguments += @('--runtime', 'android-arm64')
 if ($PSBoundParameters.ContainsKey('Version')) {
     $arguments += "-p:Version=$Version"
 }
@@ -77,6 +80,7 @@ $signedPackages = @(Get-ChildItem -LiteralPath $output -Filter '*-Signed.apk' -F
 if ($signedPackages.Count -ne 1) {
     throw "Expected one signed APK in $output, found $($signedPackages.Count)."
 }
+$publishedPackage = $signedPackages[0]
 
 Get-ChildItem -LiteralPath $output -Filter '*.apk' -File |
     Where-Object { $_.Name -notlike '*-Signed.apk' } |
@@ -111,7 +115,7 @@ if (-not [string]::IsNullOrWhiteSpace($Keystore)) {
         throw 'Could not read the SHA-256 certificate fingerprint from the keystore.'
     }
 
-    $apkDetails = & $apksigner.FullName verify --verbose --print-certs $signedPackages[0].FullName 2>&1
+    $apkDetails = & $apksigner.FullName verify --verbose --print-certs $publishedPackage.FullName 2>&1
     $actualMatch = [regex]::Match(($apkDetails -join "`n"), 'certificate SHA-256 digest:\s*([0-9A-Fa-f]{64})')
     if (-not $actualMatch.Success) {
         throw 'Could not read the SHA-256 signing certificate fingerprint from the APK.'
@@ -126,4 +130,6 @@ if (-not [string]::IsNullOrWhiteSpace($Keystore)) {
     Write-Host "Verified release signing certificate SHA-256: $actualFingerprint"
 }
 
-Write-Host "Published Android APK: $($signedPackages[0].FullName)"
+dotnet clean $project --framework net10.0-android36.0 --configuration $Configuration --runtime android-arm64
+
+Write-Host "Published Android CoreCLR APK: $($publishedPackage.FullName)"

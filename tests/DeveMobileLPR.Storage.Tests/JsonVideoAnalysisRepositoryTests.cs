@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using DeveMobileLPR.Geometry;
 using DeveMobileLPR.Recognition;
 using DeveMobileLPR.Storage;
@@ -29,6 +30,9 @@ public sealed class JsonVideoAnalysisRepositoryTests : IDisposable
         Assert.Equal(new BoundingBox(105, 202, 298, 258), Assert.Single(frame.Confirmations).Bounds);
         Assert.Equal(42, frame.Diagnostics?.Frame.TotalMilliseconds);
         Assert.Equal(0.75, frame.Diagnostics?.Frame.CropQualityMilliseconds);
+        Assert.Equal(
+            new DetectorPreparationTiming(0.1, 0.2, 1.7),
+            frame.Diagnostics?.Frame.DetectorPreparation);
         Assert.Equal(3, Assert.Single(frame.Diagnostics!.Tracks).ObservationCount);
         Assert.Equal("AB1234", Assert.Single(frame.Diagnostics.Frame.Candidates).ReadText);
         var association = Assert.Single(frame.Diagnostics.Associations);
@@ -52,6 +56,24 @@ public sealed class JsonVideoAnalysisRepositoryTests : IDisposable
         var result = Assert.Single(await repository.LoadAllAsync(CancellationToken.None));
 
         Assert.Equal(valid.Id, result.Id);
+    }
+
+    [Fact]
+    public async Task LoadAll_DefaultsMissingDetectorPreparationTiming()
+    {
+        var repository = new JsonVideoAnalysisRepository(_directory);
+        var original = CreateResult(DateTimeOffset.UtcNow, "legacy.mp4");
+        await repository.SaveAsync(original, CancellationToken.None);
+        var path = Assert.Single(Directory.GetFiles(_directory, $"{original.Id:N}.json"));
+        var root = JsonNode.Parse(await File.ReadAllTextAsync(path)) ?? throw new InvalidDataException();
+        var frameDiagnostics = root["frames"]?[0]?["diagnostics"]?["frame"]?.AsObject()
+            ?? throw new InvalidDataException();
+        Assert.True(frameDiagnostics.Remove("detectorPreparation"));
+        await File.WriteAllTextAsync(path, root.ToJsonString());
+
+        var loaded = Assert.Single(await repository.LoadAllAsync(CancellationToken.None));
+
+        Assert.Equal(DetectorPreparationTiming.Empty, Assert.Single(loaded.Frames).Diagnostics?.Frame.DetectorPreparation);
     }
 
     [Fact]
@@ -105,6 +127,7 @@ public sealed class JsonVideoAnalysisRepositoryTests : IDisposable
                         1)
                     {
                         CropQualityMilliseconds = 0.75,
+                        DetectorPreparation = new DetectorPreparationTiming(0.1, 0.2, 1.7),
                         Candidates = [new PlateCandidateDiagnostics(
                             new PlateDetection(new BoundingBox(100, 200, 300, 260), 0.9f),
                             0.9f,

@@ -42,9 +42,22 @@ public sealed record ModelExecutionTiming(
         left.PostprocessingMilliseconds + right.PostprocessingMilliseconds);
 }
 
+public sealed record DetectorPreparationTiming(
+    double SetupMilliseconds,
+    double TensorFillMilliseconds,
+    double ResampleMilliseconds)
+{
+    public static DetectorPreparationTiming Empty { get; } = new(0, 0, 0);
+
+    public double TotalMilliseconds => SetupMilliseconds + TensorFillMilliseconds + ResampleMilliseconds;
+}
+
 public sealed record PlateDetectionResult(
     IReadOnlyList<PlateDetection> Detections,
-    ModelExecutionTiming Timing);
+    ModelExecutionTiming Timing)
+{
+    public DetectorPreparationTiming Preparation { get; init; } = DetectorPreparationTiming.Empty;
+}
 
 public sealed record PlateRecognitionResult(
     PlateRead Read,
@@ -76,6 +89,7 @@ public sealed record RecognitionFrameDiagnostics(
 
     public IReadOnlyList<PlateCandidateDiagnostics> Candidates { get; init; } = [];
     public double CropQualityMilliseconds { get; init; }
+    public DetectorPreparationTiming DetectorPreparation { get; init; } = DetectorPreparationTiming.Empty;
     public string DetectorBackend { get; init; } = "Unknown";
     public string OcrBackend { get; init; } = "Unknown";
     public IReadOnlyList<string> BackendDiagnostics { get; init; } = [];
