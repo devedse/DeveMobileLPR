@@ -13,15 +13,16 @@ public sealed class RecognitionTuningConfigurationTests
         configuration.Validate();
 
         Assert.Equal(0.32f, configuration.Detector_ConfidenceThreshold);
-        Assert.Equal(new NormalizedRegion(0.03f, 0.18f, 0.97f, 0.94f), configuration.Detector_RoadRegion);
+        Assert.Equal(new NormalizedRegion(0f, 0.18f, 1f, 0.94f), configuration.Detector_RoadRegion);
         Assert.Equal(12f, configuration.Detector_MinimumPlateWidthPixels);
         Assert.Equal(5f, configuration.Detector_MinimumPlateHeightPixels);
         Assert.Equal(0.45f, configuration.Detector_NonMaximumSuppressionIntersectionOverUnionThreshold);
         Assert.Equal(100, configuration.Detector_MaximumDetectionsPerFrame);
         Assert.Equal(6, configuration.Detector_MaximumOcrAttemptsPerFrame);
 
-        Assert.Equal(8f, configuration.CropQuality_MinimumCropWidthPixels);
-        Assert.Equal(4f, configuration.CropQuality_MinimumCropHeightPixels);
+        Assert.Equal(48f, configuration.CropQuality_MinimumCropWidthPixels);
+        Assert.Equal(12f, configuration.CropQuality_MinimumCropHeightPixels);
+        Assert.Equal(0f, configuration.CropQuality_FrameEdgeMarginPixels);
         Assert.Equal(24, configuration.CropQuality_SampleColumns);
         Assert.Equal(10, configuration.CropQuality_SampleRows);
         Assert.Equal(55f, configuration.CropQuality_SharpnessNormalization);

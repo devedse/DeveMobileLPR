@@ -11,7 +11,7 @@ public sealed class RecognitionTuningConfiguration
 {
     // Detector and per-frame pipeline
     public float Detector_ConfidenceThreshold { get; set; } = 0.32f;
-    public NormalizedRegion Detector_RoadRegion { get; set; } = new(0.03f, 0.18f, 0.97f, 0.94f);
+    public NormalizedRegion Detector_RoadRegion { get; set; } = new(0f, 0.18f, 1f, 0.94f);
     public float Detector_MinimumPlateWidthPixels { get; set; } = 12f;
     public float Detector_MinimumPlateHeightPixels { get; set; } = 5f;
     // These match the constants embedded in the original end-to-end ONNX model.
@@ -20,8 +20,10 @@ public sealed class RecognitionTuningConfiguration
     public int Detector_MaximumOcrAttemptsPerFrame { get; set; } = 6;
 
     // Crop quality estimator
-    public float CropQuality_MinimumCropWidthPixels { get; set; } = 8f;
-    public float CropQuality_MinimumCropHeightPixels { get; set; } = 4f;
+    public float CropQuality_MinimumCropWidthPixels { get; set; } = 48f;
+    public float CropQuality_MinimumCropHeightPixels { get; set; } = 12f;
+    // Projected bounds are clamped to the frame, so zero rejects only crops that actually reach an edge.
+    public float CropQuality_FrameEdgeMarginPixels { get; set; } = 0f;
     public int CropQuality_SampleColumns { get; set; } = 24;
     public int CropQuality_SampleRows { get; set; } = 10;
     public float CropQuality_SharpnessNormalization { get; set; } = 55f;
@@ -88,6 +90,7 @@ public sealed class RecognitionTuningConfiguration
 
         ValidatePositive(CropQuality_MinimumCropWidthPixels, nameof(CropQuality_MinimumCropWidthPixels));
         ValidatePositive(CropQuality_MinimumCropHeightPixels, nameof(CropQuality_MinimumCropHeightPixels));
+        ValidateAtLeast(CropQuality_FrameEdgeMarginPixels, 0, nameof(CropQuality_FrameEdgeMarginPixels));
         ValidateAtLeast(CropQuality_SampleColumns, 3, nameof(CropQuality_SampleColumns));
         ValidateAtLeast(CropQuality_SampleRows, 3, nameof(CropQuality_SampleRows));
         ValidatePositive(CropQuality_SharpnessNormalization, nameof(CropQuality_SharpnessNormalization));

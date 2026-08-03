@@ -256,7 +256,8 @@ internal sealed class SettingsViewModel : ViewModelBase
                 "Crop quality",
                 "Scores plate crops for sharpness, exposure, and usable pixel size before temporal consensus.",
                 [
-                    Value("Minimum crop", $"{tuning.CropQuality_MinimumCropWidthPixels:0.#} × {tuning.CropQuality_MinimumCropHeightPixels:0.#} px", "Smaller crops receive a zero quality score."),
+                    Value("Minimum OCR crop", $"{tuning.CropQuality_MinimumCropWidthPixels:0.#} × {tuning.CropQuality_MinimumCropHeightPixels:0.#} px", "Smaller crops skip OCR."),
+                    Value("Frame-edge margin", $"{tuning.CropQuality_FrameEdgeMarginPixels:0.#} px", "Crops reaching this margin skip OCR because the plate may be clipped."),
                     Value("Sampling grid", $"{tuning.CropQuality_SampleColumns} × {tuning.CropQuality_SampleRows}", "Luminance samples used to estimate crop quality."),
                     Value("Sharpness normalization", tuning.CropQuality_SharpnessNormalization.ToString("0.#"), "Scales edge strength into a 0–100% score."),
                     Value("Target luminance", $"{tuning.CropQuality_TargetLuminance:0.#} / 255", "Brightness that receives the best exposure score."),

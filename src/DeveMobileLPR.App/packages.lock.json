@@ -1853,7 +1853,7 @@
         "dependencies": {
           "DeveMobileLPR.Core": "[1.0.0, )",
           "DeveMobileLPR.Inference": "[1.0.0, )",
-          "SixLabors.ImageSharp": "(, )"
+          "SixLabors.ImageSharp": "[3.1.12, )"
         }
       },
       "devemobilelpr.core": {
@@ -1893,6 +1893,12 @@
         "dependencies": {
           "System.Numerics.Tensors": "9.0.0"
         }
+      },
+      "SixLabors.ImageSharp": {
+        "type": "CentralTransitive",
+        "requested": "[3.1.12, )",
+        "resolved": "3.1.12",
+        "contentHash": "iAg6zifihXEFS/t7fiHhZBGAdCp3FavsF4i2ZIDp0JfeYeDVzvmlbY1CNhhIKimaIzrzSi5M/NBFcWvZT2rB/A=="
       },
       "SQLitePCLRaw.bundle_e_sqlite3": {
         "type": "CentralTransitive",
@@ -2358,7 +2364,7 @@
         "dependencies": {
           "DeveMobileLPR.Core": "[1.0.0, )",
           "DeveMobileLPR.Inference": "[1.0.0, )",
-          "SixLabors.ImageSharp": "(, )"
+          "SixLabors.ImageSharp": "[3.1.12, )"
         }
       },
       "devemobilelpr.core": {
@@ -2405,6 +2411,12 @@
         "dependencies": {
           "System.Numerics.Tensors": "9.0.0"
         }
+      },
+      "SixLabors.ImageSharp": {
+        "type": "CentralTransitive",
+        "requested": "[3.1.12, )",
+        "resolved": "3.1.12",
+        "contentHash": "iAg6zifihXEFS/t7fiHhZBGAdCp3FavsF4i2ZIDp0JfeYeDVzvmlbY1CNhhIKimaIzrzSi5M/NBFcWvZT2rB/A=="
       },
       "SQLitePCLRaw.bundle_e_sqlite3": {
         "type": "CentralTransitive",
