@@ -135,14 +135,6 @@ public sealed class ContextualSnapshotStore : IContextualSnapshotStore
             for (var x = 0; x < width; x++)
             {
                 var sourceX = Math.Min(crop.Right - 1, crop.Left + (int)((x + 0.5d) * scaleX));
-                if (sourceX >= redactionBounds.Left && sourceX < redactionBounds.Right
-                    && sourceY >= redactionBounds.Top && sourceY < redactionBounds.Bottom)
-                {
-                    destination[offset++] = 0;
-                    destination[offset++] = 0;
-                    destination[offset++] = 0;
-                    continue;
-                }
 
                 frame.GetRgb(sourceX, sourceY, out var red, out var green, out var blue);
                 destination[offset++] = red;
