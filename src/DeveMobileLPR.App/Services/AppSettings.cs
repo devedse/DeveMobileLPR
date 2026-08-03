@@ -5,7 +5,7 @@ namespace DeveMobileLPR.App.Services;
 internal sealed class AppSettings : IDriveSettings
 {
     private const string TrackLocationKey = "track_location";
-    private const string SaveVehicleImagesKey = "save_contextual_snapshots";
+    private const string SaveVehicleImagesKey = "save_vehicle_images";
     private const string ShowGuideKey = "show_road_guide";
     private const string HapticKey = "confirmation_haptic";
     private const string ZoomKey = "camera_zoom";
