@@ -61,7 +61,7 @@ SQLite uses WAL mode and indexes plate/time, trip/time, route points, and catalo
 - No network permission is declared.
 - Models and RDW data are read locally.
 - Raw source frames and plate crops are never persisted.
-- Contextual vehicle images are disabled by default. When enabled, only confirmation frames are encoded after a padded plate rectangle is blacked out; files remain in private app storage and are deleted with history.
+- Contextual vehicle images are disabled by default. When enabled, only confirmation frames are encoded; files remain in private app storage and are deleted with history.
 - The Android manifest disallows cleartext traffic.
 - Models are verified by byte length and SHA-256 before use on Android and Windows.
 - RDW imports are copied to a temporary file, schema-validated, and atomically moved.
