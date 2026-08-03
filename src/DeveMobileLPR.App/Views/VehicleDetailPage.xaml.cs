@@ -26,19 +26,7 @@ public partial class VehicleDetailPage : ContentPage
     {
         if (sender is Button { CommandParameter: GeoPoint location })
         {
-            await OpenMapAsync(location);
-        }
-    }
-
-    private async Task OpenMapAsync(GeoPoint location)
-    {
-        try
-        {
-            await Microsoft.Maui.ApplicationModel.Map.Default.OpenAsync(location.Latitude, location.Longitude, new MapLaunchOptions { Name = "Vehicle sighting", NavigationMode = NavigationMode.None });
-        }
-        catch (Exception)
-        {
-            await DisplayAlertAsync("Map unavailable", "Install or enable a maps application to open this sighting.", "OK");
+            await this.OpenVehicleMapAsync(location);
         }
     }
 }
