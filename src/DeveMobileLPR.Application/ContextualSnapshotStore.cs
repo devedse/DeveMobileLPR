@@ -8,6 +8,9 @@ public sealed class ContextualSnapshotStore : IContextualSnapshotStore
 {
     private const string DirectoryName = "vehicle-snapshots";
     private const int MaximumDimension = 1280;
+    private const float HorizontalPlateMargin = 2f;
+    private const float TopPlateMargin = 5f;
+    private const float BottomPlateMargin = 2f;
     private readonly string _rootDirectory;
     private readonly IContextualSnapshotEncoder _encoder;
 
@@ -31,9 +34,16 @@ public sealed class ContextualSnapshotStore : IContextualSnapshotStore
             throw new ArgumentException("Plate bounds are required for redaction.", nameof(plateBounds));
         }
 
-        var scale = Math.Min(1d, (double)MaximumDimension / Math.Max(frame.OrientedWidth, frame.OrientedHeight));
-        var width = Math.Max(1, (int)Math.Round(frame.OrientedWidth * scale));
-        var height = Math.Max(1, (int)Math.Round(frame.OrientedHeight * scale));
+        var clampedPlateBounds = plateBounds.Clamp(frame.OrientedWidth, frame.OrientedHeight);
+        if (clampedPlateBounds.IsEmpty)
+        {
+            throw new ArgumentException("Plate bounds must intersect the frame.", nameof(plateBounds));
+        }
+
+        var crop = CreateVehicleCrop(clampedPlateBounds, frame.OrientedWidth, frame.OrientedHeight);
+        var scale = Math.Min(1d, (double)MaximumDimension / Math.Max(crop.Width, crop.Height));
+        var width = Math.Max(1, (int)Math.Round(crop.Width * scale));
+        var height = Math.Max(1, (int)Math.Round(crop.Height * scale));
         var pixelLength = checked(width * height * 3);
         var pixels = ArrayPool<byte>.Shared.Rent(pixelLength);
         var snapshotDirectory = Path.Combine(_rootDirectory, DirectoryName);
@@ -43,7 +53,7 @@ public sealed class ContextualSnapshotStore : IContextualSnapshotStore
 
         try
         {
-            FillRedactedRgb(frame, plateBounds, pixels.AsSpan(0, pixelLength), width, height);
+            FillRedactedRgb(frame, clampedPlateBounds, crop, pixels.AsSpan(0, pixelLength), width, height);
             Directory.CreateDirectory(snapshotDirectory);
             await _encoder.EncodeJpegAsync(
                 pixels.AsMemory(0, pixelLength),
@@ -106,21 +116,22 @@ public sealed class ContextualSnapshotStore : IContextualSnapshotStore
     private static void FillRedactedRgb(
         Yuv420Frame frame,
         BoundingBox plateBounds,
+        VehicleCrop crop,
         Span<byte> destination,
         int width,
         int height)
     {
         var redactionBounds = plateBounds.Expand(0.15f, 0.35f, frame.OrientedWidth, frame.OrientedHeight);
-        var scaleX = (double)frame.OrientedWidth / width;
-        var scaleY = (double)frame.OrientedHeight / height;
+        var scaleX = (double)crop.Width / width;
+        var scaleY = (double)crop.Height / height;
         var offset = 0;
 
         for (var y = 0; y < height; y++)
         {
-            var sourceY = Math.Min(frame.OrientedHeight - 1, (int)((y + 0.5d) * scaleY));
+            var sourceY = Math.Min(crop.Bottom - 1, crop.Top + (int)((y + 0.5d) * scaleY));
             for (var x = 0; x < width; x++)
             {
-                var sourceX = Math.Min(frame.OrientedWidth - 1, (int)((x + 0.5d) * scaleX));
+                var sourceX = Math.Min(crop.Right - 1, crop.Left + (int)((x + 0.5d) * scaleX));
                 if (sourceX >= redactionBounds.Left && sourceX < redactionBounds.Right
                     && sourceY >= redactionBounds.Top && sourceY < redactionBounds.Bottom)
                 {
@@ -136,5 +147,17 @@ public sealed class ContextualSnapshotStore : IContextualSnapshotStore
                 destination[offset++] = blue;
             }
         }
+    }
+
+    private static VehicleCrop CreateVehicleCrop(BoundingBox plateBounds, int frameWidth, int frameHeight) => new(
+        Math.Max(0, (int)Math.Floor(plateBounds.Left - plateBounds.Width * HorizontalPlateMargin)),
+        Math.Max(0, (int)Math.Floor(plateBounds.Top - plateBounds.Height * TopPlateMargin)),
+        Math.Min(frameWidth, (int)Math.Ceiling(plateBounds.Right + plateBounds.Width * HorizontalPlateMargin)),
+        Math.Min(frameHeight, (int)Math.Ceiling(plateBounds.Bottom + plateBounds.Height * BottomPlateMargin)));
+
+    private readonly record struct VehicleCrop(int Left, int Top, int Right, int Bottom)
+    {
+        public int Width => Right - Left;
+        public int Height => Bottom - Top;
     }
 }

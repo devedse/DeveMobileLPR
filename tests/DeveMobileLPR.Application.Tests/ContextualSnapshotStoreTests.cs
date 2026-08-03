@@ -36,6 +36,24 @@ public sealed class ContextualSnapshotStoreTests : IDisposable
         Assert.Null(store.ResolvePath(reference));
     }
 
+    [Fact]
+    public async Task SaveCropsToEstimatedVehicleRegionAroundPlate()
+    {
+        var encoder = new RecordingEncoder();
+        var store = new ContextualSnapshotStore(_rootDirectory, encoder);
+        using var frame = CreateWhiteFrame(100, 80);
+
+        await store.SaveAsync(
+            43,
+            frame,
+            new BoundingBox(50, 50, 60, 55),
+            CancellationToken.None);
+
+        Assert.Equal((50, 40), (encoder.Width, encoder.Height));
+        Assert.Equal([255, 255, 255], PixelAt(encoder.Pixels, encoder.Width, 0, 0));
+        Assert.Equal([0, 0, 0], PixelAt(encoder.Pixels, encoder.Width, 25, 27));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_rootDirectory))
