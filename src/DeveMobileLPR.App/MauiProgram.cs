@@ -31,15 +31,14 @@ public static class MauiProgram
             new AppVehicleLookup(services.GetRequiredService<RdwDatabaseService>().DatabasePath));
         builder.Services.AddSingleton<IApplicationDispatcher, MauiApplicationDispatcher>();
         builder.Services.AddSingleton<IDeviceExperience, MauiDeviceExperience>();
+        builder.Services.AddSingleton<IContextualSnapshotEncoder, ImageSharpContextualSnapshotEncoder>();
     #if ANDROID
         builder.Services.AddSingleton<IDriveLocationTracker>(_ =>
             new AndroidLocationTracker(global::Android.App.Application.Context));
-        builder.Services.AddSingleton<IContextualSnapshotEncoder, AndroidContextualSnapshotEncoder>();
         builder.Services.AddSingleton<IRecognitionPipelineProvider, AndroidRecognitionPipelineProvider>();
         builder.Services.AddSingleton<IVideoFileBackend, AndroidVideoFileBackend>();
     #elif WINDOWS
         builder.Services.AddSingleton<IDriveLocationTracker, NoOpDriveLocationTracker>();
-        builder.Services.AddSingleton<IContextualSnapshotEncoder, WindowsContextualSnapshotEncoder>();
         builder.Services.AddSingleton<IRecognitionPipelineProvider, WindowsRecognitionPipelineProvider>();
         builder.Services.AddSingleton<IVideoFileBackend, WindowsVideoFileBackend>();
     #endif
