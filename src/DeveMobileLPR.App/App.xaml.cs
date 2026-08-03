@@ -15,7 +15,10 @@ public partial class App : Microsoft.Maui.Controls.Application
         RequestedThemeChanged += ThemeChanged;
     }
 
-    protected override Window CreateWindow(IActivationState? activationState) => new(_services.GetRequiredService<AppShell>());
+    protected override Window CreateWindow(IActivationState? activationState) => new(_services.GetRequiredService<AppShell>())
+    {
+        Title = AppInfo.Current.Name
+    };
 
     private void ThemeChanged(object? sender, AppThemeChangedEventArgs args) =>
         MainThread.BeginInvokeOnMainThread(() => ApplyTheme(args.RequestedTheme));

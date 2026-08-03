@@ -26,7 +26,11 @@ internal sealed record VehicleCardViewModel(
     string Price,
     string Seen,
     string History,
-    bool HasLocation);
+    bool HasLocation,
+    string? SnapshotPath)
+{
+    public bool HasSnapshot => SnapshotPath is not null;
+}
 
 internal enum HistorySection
 {
@@ -318,7 +322,8 @@ internal sealed class HistoryViewModel : ViewModelBase
                 DisplayFormat.Price(vehicle.Vehicle?.CatalogPrice),
                 DisplayFormat.Relative(vehicle.LastSeenAt),
                 $"{FormatCount(vehicle.SightingCount, "sighting")} · {FormatCount(vehicle.TripCount, "trip")}",
-                vehicle.LastLocation is not null));
+                vehicle.LastLocation is not null,
+                _coordinator.VehicleImageStore.ResolvePath(vehicle.SnapshotReference)));
         }
     }
 

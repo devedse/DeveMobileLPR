@@ -13,6 +13,7 @@ The Android models are mechanically derived from the pinned ONNX models above. T
 |---|---|---|
 | onnx2tf model converter | [PINTO0309/onnx2tf](https://github.com/PINTO0309/onnx2tf) | MIT |
 | Google AI Edge LiteRT Android runtime and .NET binding | [Google AI Edge LiteRT](https://github.com/google-ai-edge/LiteRT) / [Microsoft .NET for Android](https://github.com/dotnet/android-libraries) | Apache-2.0 / MIT |
+| SixLabors.ImageSharp 3.1.12 | [Six Labors ImageSharp](https://github.com/SixLabors/ImageSharp/tree/v3.1.12) | Six Labors Split License 1.0 |
 
 The RDW database builder uses these additional inputs:
 

@@ -1,4 +1,5 @@
 using DeveMobileLPR.App.ViewModels;
+using DeveMobileLPR.Application;
 using DeveMobileLPR.Recognition;
 using DeveMobileLPR.Storage;
 
@@ -8,10 +9,13 @@ public partial class VehicleDetailPage : ContentPage
 {
     private readonly VehicleDetailViewModel _viewModel;
 
-    internal VehicleDetailPage(ISightingRepository repository, string normalizedPlate)
+    internal VehicleDetailPage(
+        ISightingRepository repository,
+        IVehicleImageStore vehicleImageStore,
+        string normalizedPlate)
     {
         InitializeComponent();
-        BindingContext = _viewModel = new VehicleDetailViewModel(repository, normalizedPlate);
+        BindingContext = _viewModel = new VehicleDetailViewModel(repository, vehicleImageStore, normalizedPlate);
     }
 
     protected override async void OnAppearing()
@@ -26,19 +30,7 @@ public partial class VehicleDetailPage : ContentPage
     {
         if (sender is Button { CommandParameter: GeoPoint location })
         {
-            await OpenMapAsync(location);
-        }
-    }
-
-    private async Task OpenMapAsync(GeoPoint location)
-    {
-        try
-        {
-            await Microsoft.Maui.ApplicationModel.Map.Default.OpenAsync(location.Latitude, location.Longitude, new MapLaunchOptions { Name = "Vehicle sighting", NavigationMode = NavigationMode.None });
-        }
-        catch (Exception)
-        {
-            await DisplayAlertAsync("Map unavailable", "Install or enable a maps application to open this sighting.", "OK");
+            await this.OpenVehicleMapAsync(location);
         }
     }
 }

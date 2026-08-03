@@ -102,7 +102,8 @@
         "type": "Project",
         "dependencies": {
           "DeveMobileLPR.Core": "[1.0.0, )",
-          "DeveMobileLPR.Inference": "[1.0.0, )"
+          "DeveMobileLPR.Inference": "[1.0.0, )",
+          "SixLabors.ImageSharp": "(, )"
         }
       },
       "devemobilelpr.core": {

@@ -61,4 +61,5 @@ public sealed record DriveSnapshot(
     bool SupportsNetworkStreams,
     IReadOnlyList<CameraChoice> CameraChoices,
     string SelectedCameraId,
-    bool RecognitionDebugEnabled);
+    bool TrackingDiagnosticsEnabled,
+    bool RecognitionStatisticsEnabled);

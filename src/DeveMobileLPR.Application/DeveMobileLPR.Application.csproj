@@ -8,4 +8,7 @@
     <ProjectReference Include="../DeveMobileLPR.Core/DeveMobileLPR.Core.csproj" />
     <ProjectReference Include="../DeveMobileLPR.Inference/DeveMobileLPR.Inference.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="SixLabors.ImageSharp" />
+  </ItemGroup>
 </Project>

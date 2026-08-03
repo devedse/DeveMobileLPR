@@ -96,6 +96,19 @@ internal sealed class SettingsViewModel : ViewModelBase
         set { if (_settings.TrackLocation != value) { _settings.TrackLocation = value; OnPropertyChanged(); _coordinator.RefreshSettings(); } }
     }
 
+    public bool SaveVehicleImages
+    {
+        get => _settings.SaveVehicleImages;
+        set
+        {
+            if (_settings.SaveVehicleImages != value)
+            {
+                _settings.SaveVehicleImages = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public bool ShowRoadGuide
     {
         get => _settings.ShowRoadGuide;
@@ -108,14 +121,28 @@ internal sealed class SettingsViewModel : ViewModelBase
         set { if (_settings.ConfirmationHaptic != value) { _settings.ConfirmationHaptic = value; OnPropertyChanged(); } }
     }
 
-    public bool RecognitionDebugEnabled
+    public bool TrackingDiagnosticsEnabled
     {
-        get => _settings.RecognitionDebugEnabled;
+        get => _settings.TrackingDiagnosticsEnabled;
         set
         {
-            if (_settings.RecognitionDebugEnabled != value)
+            if (_settings.TrackingDiagnosticsEnabled != value)
             {
-                _settings.RecognitionDebugEnabled = value;
+                _settings.TrackingDiagnosticsEnabled = value;
+                OnPropertyChanged();
+                _coordinator.RefreshSettings();
+            }
+        }
+    }
+
+    public bool RecognitionStatisticsEnabled
+    {
+        get => _settings.RecognitionStatisticsEnabled;
+        set
+        {
+            if (_settings.RecognitionStatisticsEnabled != value)
+            {
+                _settings.RecognitionStatisticsEnabled = value;
                 OnPropertyChanged();
                 _coordinator.RefreshSettings();
             }

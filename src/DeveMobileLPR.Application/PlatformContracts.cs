@@ -1,3 +1,4 @@
+using DeveMobileLPR.Geometry;
 using DeveMobileLPR.Imaging;
 using DeveMobileLPR.Recognition;
 
@@ -6,12 +7,36 @@ namespace DeveMobileLPR.Application;
 public interface IDriveSettings
 {
     bool TrackLocation { get; set; }
+    bool SaveVehicleImages { get; set; }
     bool ConfirmationHaptic { get; set; }
     float Zoom { get; set; }
     string CameraId { get; set; }
     int RecognitionFramesPerSecond { get; set; }
-    bool RecognitionDebugEnabled { get; set; }
+    bool TrackingDiagnosticsEnabled { get; set; }
+    bool RecognitionStatisticsEnabled { get; set; }
     string NetworkStreamUrl { get; set; }
+}
+
+public interface IVehicleImageEncoder
+{
+    Task EncodeJpegAsync(
+        ReadOnlyMemory<byte> rgbPixels,
+        int width,
+        int height,
+        string destinationPath,
+        CancellationToken cancellationToken);
+}
+
+public interface IVehicleImageStore
+{
+    Task<string> SaveAsync(
+        long sightingId,
+        Yuv420Frame frame,
+        BoundingBox plateBounds,
+        CancellationToken cancellationToken);
+
+    string? ResolvePath(string? reference);
+    Task DeleteAllAsync(CancellationToken cancellationToken);
 }
 
 public interface IRecognitionPipelineProvider

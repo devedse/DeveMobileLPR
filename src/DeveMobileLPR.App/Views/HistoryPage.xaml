@@ -209,7 +209,7 @@
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="vm:VehicleCardViewModel">
                         <Border Style="{StaticResource CompactCard}">
-                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
+                            <Grid ColumnDefinitions="Auto,*,72,Auto" ColumnSpacing="16">
                                 <Border MinimumWidthRequest="112" Style="{StaticResource PlateBadge}" VerticalOptions="Center">
                                     <Label Style="{StaticResource PlateBadgeText}" Text="{Binding DisplayPlate}" />
                                 </Border>
@@ -219,7 +219,13 @@
                                     <Label Style="{StaticResource MutedText}" Text="{Binding Seen}" />
                                     <Label Style="{StaticResource MutedText}" Text="{Binding History}" />
                                 </VerticalStackLayout>
-                                <VerticalStackLayout Grid.Column="2" HorizontalOptions="End" Spacing="4" VerticalOptions="Center">
+                                <Image
+                                    Grid.Column="2"
+                                    Aspect="AspectFill"
+                                    HeightRequest="72"
+                                    Source="{Binding SnapshotPath}"
+                                    WidthRequest="72" />
+                                <VerticalStackLayout Grid.Column="3" HorizontalOptions="End" Spacing="4" VerticalOptions="Center">
                                     <Label FontAttributes="Bold" HorizontalTextAlignment="End" Text="{Binding Price}" TextColor="{DynamicResource ValueAccent}" />
                                     <Label FontSize="24" HorizontalTextAlignment="End" Text="›" TextColor="{DynamicResource TextMuted}" />
                                 </VerticalStackLayout>

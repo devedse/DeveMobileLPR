@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using DeveMobileLPR.App.UI;
+using DeveMobileLPR.Application;
 using DeveMobileLPR.Recognition;
 using DeveMobileLPR.Storage;
 
@@ -13,9 +14,11 @@ internal sealed record SightingCardViewModel(
     string Trip,
     string Confidence,
     string LocationLabel,
-    GeoPoint? Location)
+    GeoPoint? Location,
+    string? SnapshotPath)
 {
     public bool HasLocation => Location is not null;
+    public bool HasSnapshot => SnapshotPath is not null;
 }
 
 internal sealed record TripVehicleCardViewModel(
@@ -31,12 +34,17 @@ internal sealed record TripVehicleCardViewModel(
     decimal? CatalogPrice,
     DateTimeOffset FirstSeenAt,
     int EarlierSightingCount,
-    GeoPoint? Location)
+    GeoPoint? Location,
+    string? SnapshotPath)
 {
     public bool HasLocation => Location is not null;
+    public bool HasSnapshot => SnapshotPath is not null;
 }
 
-internal sealed class TripDetailViewModel(ISightingRepository repository, long tripId) : ViewModelBase
+internal sealed class TripDetailViewModel(
+    ISightingRepository repository,
+    IVehicleImageStore vehicleImageStore,
+    long tripId) : ViewModelBase
 {
     internal const string SortByTime = "Time seen";
     internal const string SortByValue = "Highest value";
@@ -107,7 +115,7 @@ internal sealed class TripDetailViewModel(ISightingRepository repository, long t
         }
     }
 
-    private static TripVehicleCardViewModel CreateVehicle(TripVehicleSummary vehicle)
+    private TripVehicleCardViewModel CreateVehicle(TripVehicleSummary vehicle)
     {
         var vehicleName = string.Join(' ', new[] { vehicle.Vehicle?.Make, vehicle.Vehicle?.Model }.Where(value => !string.IsNullOrWhiteSpace(value)));
         var metadata = string.Join(" · ", new[] { vehicle.Vehicle?.RegistrationYear?.ToString(), vehicle.Vehicle?.FuelDescription, vehicle.Vehicle?.BodyType }.Where(value => !string.IsNullOrWhiteSpace(value)));
@@ -130,7 +138,8 @@ internal sealed class TripDetailViewModel(ISightingRepository repository, long t
             vehicle.Vehicle?.CatalogPrice,
             vehicle.FirstSeenAt,
             vehicle.EarlierSightingCount,
-            vehicle.LastLocation);
+            vehicle.LastLocation,
+            vehicleImageStore.ResolvePath(vehicle.SnapshotReference));
     }
 
     private void ApplySort()
@@ -157,7 +166,10 @@ internal sealed class TripDetailViewModel(ISightingRepository repository, long t
     }
 }
 
-internal sealed class VehicleDetailViewModel(ISightingRepository repository, string normalizedPlate) : ViewModelBase
+internal sealed class VehicleDetailViewModel(
+    ISightingRepository repository,
+    IVehicleImageStore vehicleImageStore,
+    string normalizedPlate) : ViewModelBase
 {
     private bool _isBusy;
     private string _displayPlate = PlateText.FormatDutchPlate(normalizedPlate);
@@ -230,7 +242,8 @@ internal sealed class VehicleDetailViewModel(ISightingRepository repository, str
                     trip,
                     $"{result.Confidence:P0} · {result.ObservationCount} reads",
                     locationLabel,
-                    result.Location));
+                    result.Location,
+                    vehicleImageStore.ResolvePath(result.SnapshotReference)));
             }
             if (results.Count == 0) return;
             var latest = results[0];
