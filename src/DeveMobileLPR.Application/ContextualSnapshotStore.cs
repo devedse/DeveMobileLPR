@@ -9,8 +9,11 @@ public sealed class ContextualSnapshotStore : IContextualSnapshotStore
     private const string DirectoryName = "vehicle-snapshots";
     private const int MaximumDimension = 1280;
     private const float HorizontalPlateMargin = 2f;
-    private const float TopPlateMargin = 5f;
-    private const float BottomPlateMargin = 2f;
+    private const float TopPlateMargin = 4f;
+    private const float BottomPlateMargin = 3f;
+    private const byte DetectionBorderRed = 245;
+    private const byte DetectionBorderGreen = 197;
+    private const byte DetectionBorderBlue = 66;
     private readonly string _rootDirectory;
     private readonly IContextualSnapshotEncoder _encoder;
 
@@ -53,7 +56,7 @@ public sealed class ContextualSnapshotStore : IContextualSnapshotStore
 
         try
         {
-            FillRedactedRgb(frame, clampedPlateBounds, crop, pixels.AsSpan(0, pixelLength), width, height);
+            FillSnapshotRgb(frame, clampedPlateBounds, crop, pixels.AsSpan(0, pixelLength), width, height);
             Directory.CreateDirectory(snapshotDirectory);
             await _encoder.EncodeJpegAsync(
                 pixels.AsMemory(0, pixelLength),
@@ -113,7 +116,7 @@ public sealed class ContextualSnapshotStore : IContextualSnapshotStore
         return Task.CompletedTask;
     }
 
-    private static void FillRedactedRgb(
+    private static void FillSnapshotRgb(
         Yuv420Frame frame,
         BoundingBox plateBounds,
         VehicleCrop crop,
@@ -145,6 +148,41 @@ public sealed class ContextualSnapshotStore : IContextualSnapshotStore
                 destination[offset++] = red;
                 destination[offset++] = green;
                 destination[offset++] = blue;
+            }
+        }
+
+        DrawDetectionBorder(plateBounds, crop, destination, width, height, scaleX, scaleY);
+    }
+
+    private static void DrawDetectionBorder(
+        BoundingBox plateBounds,
+        VehicleCrop crop,
+        Span<byte> pixels,
+        int width,
+        int height,
+        double scaleX,
+        double scaleY)
+    {
+        var left = Math.Clamp((int)Math.Floor((plateBounds.Left - crop.Left) / scaleX), 0, width - 1);
+        var top = Math.Clamp((int)Math.Floor((plateBounds.Top - crop.Top) / scaleY), 0, height - 1);
+        var right = Math.Clamp((int)Math.Ceiling((plateBounds.Right - crop.Left) / scaleX) - 1, left, width - 1);
+        var bottom = Math.Clamp((int)Math.Ceiling((plateBounds.Bottom - crop.Top) / scaleY) - 1, top, height - 1);
+        var thickness = Math.Clamp(Math.Min(width, height) / 120, 1, 4);
+
+        for (var y = top; y <= bottom; y++)
+        {
+            for (var x = left; x <= right; x++)
+            {
+                if (x >= left + thickness && x <= right - thickness
+                    && y >= top + thickness && y <= bottom - thickness)
+                {
+                    continue;
+                }
+
+                var offset = (y * width + x) * 3;
+                pixels[offset] = DetectionBorderRed;
+                pixels[offset + 1] = DetectionBorderGreen;
+                pixels[offset + 2] = DetectionBorderBlue;
             }
         }
     }

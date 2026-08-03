@@ -26,7 +26,8 @@ public sealed class ContextualSnapshotStoreTests : IDisposable
         Assert.Equal("vehicle-snapshots/42.jpg", reference);
         Assert.Equal((6, 4), (encoder.Width, encoder.Height));
         Assert.Equal([255, 255, 255], PixelAt(encoder.Pixels, encoder.Width, 0, 0));
-        Assert.Equal([0, 0, 0], PixelAt(encoder.Pixels, encoder.Width, 2, 2));
+        Assert.Equal([245, 197, 66], PixelAt(encoder.Pixels, encoder.Width, 2, 2));
+        Assert.Equal([0, 0, 0], PixelAt(encoder.Pixels, encoder.Width, 4, 2));
         Assert.NotNull(store.ResolvePath(reference));
         Assert.Null(store.ResolvePath("../42.jpg"));
         Assert.Null(store.ResolvePath("vehicle-snapshots/not-a-sighting.jpg"));
@@ -51,7 +52,8 @@ public sealed class ContextualSnapshotStoreTests : IDisposable
 
         Assert.Equal((50, 40), (encoder.Width, encoder.Height));
         Assert.Equal([255, 255, 255], PixelAt(encoder.Pixels, encoder.Width, 0, 0));
-        Assert.Equal([0, 0, 0], PixelAt(encoder.Pixels, encoder.Width, 25, 27));
+        Assert.Equal([245, 197, 66], PixelAt(encoder.Pixels, encoder.Width, 20, 20));
+        Assert.Equal([0, 0, 0], PixelAt(encoder.Pixels, encoder.Width, 25, 22));
     }
 
     public void Dispose()
