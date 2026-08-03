@@ -66,7 +66,7 @@
                 <DataTemplate x:DataType="vm:TripVehicleCardViewModel">
                     <Border Style="{StaticResource CompactCard}">
                         <controls:ResponsiveGrid ColumnSpacing="18" MaximumColumns="2" MinimumItemWidth="245" RowSpacing="10">
-                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
+                            <Grid ColumnDefinitions="Auto,*,72" ColumnSpacing="16">
                                 <Border MinimumWidthRequest="112" Style="{StaticResource PlateBadge}"><Label Style="{StaticResource PlateBadgeText}" Text="{Binding DisplayPlate}" /></Border>
                                 <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
                                     <Label FontAttributes="Bold" Text="{Binding VehicleName}" />
@@ -74,6 +74,12 @@
                                     <Label Style="{StaticResource MutedText}" Text="{Binding Seen}" />
                                     <Label Style="{StaticResource MutedText}" Text="{Binding Confidence}" />
                                 </VerticalStackLayout>
+                                <Image
+                                    Grid.Column="2"
+                                    Aspect="AspectFill"
+                                    HeightRequest="72"
+                                    Source="{Binding SnapshotPath}"
+                                    WidthRequest="72" />
                             </Grid>
                             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12" VerticalOptions="Center">
                                 <VerticalStackLayout Spacing="2">

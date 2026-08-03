@@ -69,9 +69,9 @@ internal sealed class DetectionOverlayView : AView
 
     private void DrawGuide(Canvas canvas)
     {
-        var left = Width * .03f;
+        var left = 0f;
         var top = Height * .18f;
-        var right = Width * .97f;
+        var right = Width;
         var bottom = Height * .94f;
         var length = Math.Min(42 * _density, Math.Min(right - left, bottom - top) / 5);
         _boxPaint.Color = AColor.Argb(165, 255, 255, 255);

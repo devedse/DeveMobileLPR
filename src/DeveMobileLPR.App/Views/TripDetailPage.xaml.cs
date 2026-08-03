@@ -1,4 +1,5 @@
 using DeveMobileLPR.App.ViewModels;
+using DeveMobileLPR.Application;
 using DeveMobileLPR.Recognition;
 using DeveMobileLPR.Storage;
 
@@ -8,12 +9,14 @@ public partial class TripDetailPage : ContentPage
 {
     private readonly TripDetailViewModel _viewModel;
     private readonly ISightingRepository _repository;
+    private readonly IVehicleImageStore _vehicleImageStore;
 
     internal TripDetailPage(HistoryViewModel history, long tripId)
     {
         InitializeComponent();
         _repository = history.Coordinator.Repository;
-        BindingContext = _viewModel = new TripDetailViewModel(_repository, tripId);
+        _vehicleImageStore = history.Coordinator.VehicleImageStore;
+        BindingContext = _viewModel = new TripDetailViewModel(_repository, _vehicleImageStore, tripId);
     }
 
     protected override async void OnAppearing()
@@ -26,12 +29,12 @@ public partial class TripDetailPage : ContentPage
 
     private async void OpenRouteClicked(object? sender, EventArgs args)
     {
-        if (_viewModel.RouteDestination is { } location) await OpenMapAsync(location);
+        if (_viewModel.RouteDestination is { } location) await this.OpenVehicleMapAsync(location);
     }
 
     private async void OpenLocationClicked(object? sender, EventArgs args)
     {
-        if (sender is Button { CommandParameter: GeoPoint location }) await OpenMapAsync(location);
+        if (sender is Button { CommandParameter: GeoPoint location }) await this.OpenVehicleMapAsync(location);
     }
 
     private async void SortClicked(object? sender, EventArgs args)
@@ -51,21 +54,7 @@ public partial class TripDetailPage : ContentPage
     {
         if (args.CurrentSelection.FirstOrDefault() is not TripVehicleCardViewModel vehicle) return;
         VehiclesList.SelectedItem = null;
-        await Navigation.PushAsync(new VehicleDetailPage(_repository, vehicle.NormalizedPlate));
+        await Navigation.PushAsync(new VehicleDetailPage(_repository, _vehicleImageStore, vehicle.NormalizedPlate));
     }
 
-    private async Task OpenMapAsync(GeoPoint location)
-    {
-        try
-        {
-            await Microsoft.Maui.ApplicationModel.Map.Default.OpenAsync(
-                location.Latitude,
-                location.Longitude,
-                new MapLaunchOptions { Name = "Vehicle sighting", NavigationMode = NavigationMode.None });
-        }
-        catch (Exception)
-        {
-            await DisplayAlertAsync("Map unavailable", "Install or enable a maps application to open this sighting.", "OK");
-        }
-    }
 }

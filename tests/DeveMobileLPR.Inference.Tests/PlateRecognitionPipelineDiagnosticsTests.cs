@@ -42,17 +42,53 @@ public sealed class PlateRecognitionPipelineDiagnosticsTests
             result.Diagnostics.BackendDiagnostics);
     }
 
+    [Fact]
+    public async Task ProcessAsync_SkipsUnreadableAndFrameEdgeCropsBeforeOcr()
+    {
+        using var frame = CreateFrame();
+        var recognizer = new EmptyRecognizer();
+        using var pipeline = new PlateRecognitionPipeline(
+            new FakeDetector(
+                [
+                    new PlateDetection(new BoundingBox(10, 10, 50, 20), 0.97f),
+                    new PlateDetection(new BoundingBox(0, 10, 60, 30), 0.96f),
+                    new PlateDetection(new BoundingBox(0.5f, 10, 60.5f, 30), 0.95f),
+                    new PlateDetection(new BoundingBox(70, 10, 130, 30), 0.94f)
+                ]),
+            recognizer);
+
+        var result = await pipeline.ProcessAsync(frame, CancellationToken.None);
+
+        Assert.Equal(2, recognizer.CallCount);
+        Assert.Equal(2, result.Diagnostics.OcrAttemptCount);
+        Assert.Equal(4, result.Diagnostics.Candidates.Count);
+        Assert.All(result.Diagnostics.Candidates.Take(2), candidate =>
+        {
+            Assert.Equal(0, candidate.Quality);
+            Assert.False(candidate.OcrAttempted);
+        });
+        Assert.All(result.Diagnostics.Candidates.Skip(2), candidate => Assert.True(candidate.OcrAttempted));
+    }
+
     private sealed class FakeDetector : IPlateDetector, IInferenceBackendInfo, IInferenceBackendDiagnostics
     {
+        private readonly IReadOnlyList<PlateDetection> _detections;
+
+        public FakeDetector(IReadOnlyList<PlateDetection>? detections = null)
+        {
+            _detections = detections ??
+            [
+                new PlateDetection(new BoundingBox(10, 10, 60, 30), 0.95f),
+                new PlateDetection(new BoundingBox(70, 10, 120, 30), 0.85f)
+            ];
+        }
+
         public string BackendName => "Test detector";
         public IReadOnlyList<string> BackendDiagnostics => ["Detector candidate: unavailable"];
 
         public ValueTask<PlateDetectionResult> DetectAsync(Yuv420Frame frame, CancellationToken cancellationToken) =>
             ValueTask.FromResult(new PlateDetectionResult(
-                [
-                    new PlateDetection(new BoundingBox(10, 10, 60, 30), 0.95f),
-                    new PlateDetection(new BoundingBox(70, 10, 120, 30), 0.85f)
-                ],
+                _detections,
                 new ModelExecutionTiming(0, 1, 2, 1))
             {
                 Preparation = new DetectorPreparationTiming(0.1, 0.2, 0.7)
@@ -61,15 +97,21 @@ public sealed class PlateRecognitionPipelineDiagnosticsTests
 
     private sealed class EmptyRecognizer : IPlateRecognizer, IInferenceBackendInfo, IInferenceBackendDiagnostics
     {
+        public int CallCount { get; private set; }
+
         public string BackendName => "Test OCR";
         public IReadOnlyList<string> BackendDiagnostics => ["OCR candidate: 12.0 ms"];
 
         public ValueTask<PlateRecognitionResult> RecognizeAsync(
             Yuv420Frame frame,
             BoundingBox plateBounds,
-            CancellationToken cancellationToken) => ValueTask.FromResult(new PlateRecognitionResult(
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            return ValueTask.FromResult(new PlateRecognitionResult(
                 new PlateRead(string.Empty, 0, [], null, null),
                 new ModelExecutionTiming(0, 1, 3, 1)));
+        }
     }
 
     private static Yuv420Frame CreateFrame()

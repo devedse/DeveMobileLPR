@@ -16,7 +16,9 @@ internal sealed class RecognitionSession : IAsyncDisposable
 {
     private readonly RecognitionStreamProcessor _processor;
     private readonly ISightingRepository _repository;
+    private readonly IVehicleImageStore _vehicleImageStore;
     private readonly IVehicleLookup _vehicleLookup;
+    private readonly Func<bool> _saveVehicleImages;
     private readonly Func<GeoPoint?> _location;
     private readonly Func<long?> _tripId;
     private readonly LatestFrameSlot _frames = new();
@@ -29,13 +31,17 @@ internal sealed class RecognitionSession : IAsyncDisposable
         IFrameRecognitionPipeline pipeline,
         RecognitionTuningConfiguration configuration,
         ISightingRepository repository,
+        IVehicleImageStore vehicleImageStore,
         IVehicleLookup vehicleLookup,
+        Func<bool> saveVehicleImages,
         Func<GeoPoint?> location,
         Func<long?> tripId)
     {
         _processor = new RecognitionStreamProcessor(pipeline, configuration);
         _repository = repository;
+        _vehicleImageStore = vehicleImageStore;
         _vehicleLookup = vehicleLookup;
+        _saveVehicleImages = saveVehicleImages;
         _location = location;
         _tripId = tripId;
         _worker = Task.Run(ProcessLoopAsync);
@@ -106,6 +112,32 @@ internal sealed class RecognitionSession : IAsyncDisposable
                     }
 
                     _sightingIdsByTrack[confirmation.TrackId] = sighting.Id;
+                    if (_saveVehicleImages())
+                    {
+                        try
+                        {
+                            var reference = await _vehicleImageStore.SaveAsync(
+                                sighting.Id,
+                                frame,
+                                confirmation.LastBounds,
+                                _cancellation.Token).ConfigureAwait(false);
+                            sighting = await _repository.SetSnapshotReferenceAsync(
+                                sighting.Id,
+                                reference,
+                                _cancellation.Token).ConfigureAwait(false);
+                        }
+                        catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
+                        {
+                            throw;
+                        }
+                        catch (Exception exception)
+                        {
+                            Failed?.Invoke(this, new InvalidOperationException(
+                                "The vehicle image could not be saved.",
+                                exception));
+                        }
+                    }
+
                     PlateConfirmed?.Invoke(this, new RecognitionConfirmation(sighting, confirmation));
                 }
             }
