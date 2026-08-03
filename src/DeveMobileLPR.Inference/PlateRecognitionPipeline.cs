@@ -55,6 +55,12 @@ public sealed class PlateRecognitionPipeline : IFrameRecognitionPipeline, IDispo
             var qualityStartedAt = Stopwatch.GetTimestamp();
             var quality = CropQualityEstimator.Estimate(frame, detection.Bounds, _configuration);
             cropQualityMilliseconds += Stopwatch.GetElapsedTime(qualityStartedAt).TotalMilliseconds;
+            if (quality <= 0)
+            {
+                candidates.Add(new PlateCandidateDiagnostics(detection, quality, false, null, null, null));
+                continue;
+            }
+
             var recognitionResult = await _recognizer.RecognizeAsync(frame, detection.Bounds, cancellationToken).ConfigureAwait(false);
             var read = recognitionResult.Read;
             ocrTiming += recognitionResult.Timing;

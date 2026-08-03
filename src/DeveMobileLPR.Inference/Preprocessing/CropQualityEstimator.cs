@@ -13,7 +13,12 @@ internal static class CropQualityEstimator
     {
         bounds = bounds.Clamp(frame.OrientedWidth, frame.OrientedHeight);
         if (bounds.Width < configuration.CropQuality_MinimumCropWidthPixels
-            || bounds.Height < configuration.CropQuality_MinimumCropHeightPixels)
+            || bounds.Height < configuration.CropQuality_MinimumCropHeightPixels
+            || TouchesFrameEdge(
+                bounds,
+                frame.OrientedWidth,
+                frame.OrientedHeight,
+                configuration.CropQuality_FrameEdgeMarginPixels))
         {
             return 0;
         }
@@ -64,4 +69,14 @@ internal static class CropQualityEstimator
             configuration.CropQuality_MinimumScore,
             1);
     }
+
+    private static bool TouchesFrameEdge(
+        BoundingBox bounds,
+        int frameWidth,
+        int frameHeight,
+        float margin) =>
+        bounds.Left <= margin
+        || bounds.Top <= margin
+        || bounds.Right >= frameWidth - margin
+        || bounds.Bottom >= frameHeight - margin;
 }
