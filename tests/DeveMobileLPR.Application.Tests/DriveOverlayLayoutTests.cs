@@ -33,7 +33,8 @@ public sealed class DriveOverlayLayoutTests
         var snapshot = Snapshot([candidate, track, reading], debug: false);
 
         Assert.Equal([reading], DriveOverlayLayout.GetVisibleOverlays(snapshot));
-        Assert.Equal(3, DriveOverlayLayout.GetVisibleOverlays(snapshot with { RecognitionDebugEnabled = true }).Count);
+        Assert.Equal([reading], DriveOverlayLayout.GetVisibleOverlays(snapshot with { RecognitionStatisticsEnabled = true }));
+        Assert.Equal(3, DriveOverlayLayout.GetVisibleOverlays(snapshot with { TrackingDiagnosticsEnabled = true }).Count);
         Assert.Empty(DriveOverlayLayout.GetVisibleOverlays(snapshot with { IsDriving = false }));
     }
 
@@ -42,5 +43,5 @@ public sealed class DriveOverlayLayoutTests
 
     private static DriveSnapshot Snapshot(IReadOnlyList<DriveOverlay> overlays, bool debug) => new(
         false, true, true, false, "Ready", false, DateTimeOffset.UtcNow,
-        DriveDiagnosticsSnapshot.Empty, 0, [], null, overlays, false, true, true, [], "rear", debug);
+        DriveDiagnosticsSnapshot.Empty, 0, [], null, overlays, false, true, true, [], "rear", debug, false);
 }

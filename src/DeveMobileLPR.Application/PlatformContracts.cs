@@ -10,7 +10,8 @@ public interface IDriveSettings
     float Zoom { get; set; }
     string CameraId { get; set; }
     int RecognitionFramesPerSecond { get; set; }
-    bool RecognitionDebugEnabled { get; set; }
+    bool TrackingDiagnosticsEnabled { get; set; }
+    bool RecognitionStatisticsEnabled { get; set; }
     string NetworkStreamUrl { get; set; }
 }
 
