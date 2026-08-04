@@ -33,7 +33,9 @@
                 </FlexLayout>
             </Border>
 
-            <FlexLayout AlignItems="Stretch" Direction="Row" JustifyContent="Start" Wrap="Wrap">
+            <!-- AlignItems must not be Stretch: this wraps inside a ScrollView, so the cross axis is
+                 unbounded and stretching clips each card to a height that ignores its content. -->
+            <FlexLayout AlignItems="Start" Direction="Row" JustifyContent="Start" Wrap="Wrap">
                 <Border FlexLayout.Basis="320" FlexLayout.Grow="1" Margin="0,0,16,16" Style="{StaticResource Card}">
                     <VerticalStackLayout Style="{StaticResource CardContent}">
                         <Label Style="{StaticResource SectionTitle}" Text="Drive experience" />
@@ -85,7 +87,9 @@
                 </VerticalStackLayout>
             </Border>
 
-            <FlexLayout AlignItems="Stretch" Direction="Row" JustifyContent="Start" Wrap="Wrap">
+            <!-- AlignItems must not be Stretch: this wraps inside a ScrollView, so the cross axis is
+                 unbounded and stretching clips each card to a height that ignores its content. -->
+            <FlexLayout AlignItems="Start" Direction="Row" JustifyContent="Start" Wrap="Wrap">
                 <Border FlexLayout.Basis="320" FlexLayout.Grow="1" Margin="0,0,16,16" Style="{StaticResource Card}">
                     <VerticalStackLayout Style="{StaticResource CardContent}">
                         <Label Style="{StaticResource SectionTitle}" Text="Recognition engine" />

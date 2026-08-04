@@ -20,7 +20,12 @@ internal sealed class ConfirmedOverlayTracker(Func<DateTimeOffset> clock)
     /// the tail: while a track is still being reported, <see cref="ObserveFrame"/> keeps pushing the
     /// window out, so a car that stays in view keeps its overlay for as long as it is tracked.
     /// </summary>
-    public static readonly TimeSpan LingerWindow = TimeSpan.FromSeconds(4);
+    /// <remarks>
+    /// This has to stay above the interval between analyzed frames. The window is only refreshed
+    /// when a frame reports the track, so if one detection is missed and the next frame lands later
+    /// than this window, the overlay drops and reappears — a visible blink rather than a clean fade.
+    /// </remarks>
+    public static readonly TimeSpan LingerWindow = TimeSpan.FromSeconds(1);
 
     /// <summary>Upper bound on simultaneously drawn plates; the soonest to expire is dropped first.</summary>
     public const int MaxTrackedPlates = 8;
