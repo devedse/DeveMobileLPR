@@ -23,7 +23,7 @@ internal sealed class RdwDatabaseService : IVehicleDataStatus
 
         try
         {
-            var lookup = new SqliteRdwVehicleLookup(temporary);
+            var lookup = new RdwVehicleLookup(temporary);
             await lookup.ValidateAsync(cancellationToken).ConfigureAwait(false);
             Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
             File.Move(temporary, DatabasePath, true);

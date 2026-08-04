@@ -42,7 +42,7 @@ public sealed class RdwImportServiceTests : IAsyncLifetime
         Assert.True(File.Exists(output));
         Assert.False(File.Exists(output + ".building"));
 
-        var lookup = new SqliteRdwVehicleLookup(output);
+        var lookup = new RdwVehicleLookup(output);
         var vehicle = await lookup.FindAsync("ab-12-cd", CancellationToken.None);
         Assert.NotNull(vehicle);
         Assert.Equal("Audi", vehicle.Make);
