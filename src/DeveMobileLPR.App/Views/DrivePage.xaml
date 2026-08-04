@@ -18,7 +18,7 @@
             <controls:DriveOverlayView
                 AutomationId="drive_detection_overlay"
                 Overlays="{Binding Overlays}"
-                ScaleMode="{Binding Source={x:Reference Preview}, Path=ScaleMode}"
+                ScaleMode="{Binding ScaleMode, Source={x:Reference Preview}, x:DataType=controls:CameraPreview}"
                 ShowGuide="{Binding ShowRoadGuide}" />
         </Grid>
 
