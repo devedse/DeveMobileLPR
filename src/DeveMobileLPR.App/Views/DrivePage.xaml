@@ -7,7 +7,20 @@
     xmlns:controls="clr-namespace:DeveMobileLPR.App.Controls"
     xmlns:vm="clr-namespace:DeveMobileLPR.App.ViewModels">
     <Grid>
-        <controls:CameraPreview />
+        <!--
+            The preview surface sizes itself to the source aspect and centres in the page, so the
+            overlay has to share the preview's box rather than the page's or the projected boxes
+            drift off the plates. Centring this wrapper makes it hug the preview, and the overlay
+            fills the wrapper.
+        -->
+        <Grid HorizontalOptions="Center" VerticalOptions="Center">
+            <controls:CameraPreview x:Name="Preview" IsNetworkStream="{Binding IsNetworkStreamPreview}" />
+            <controls:DriveOverlayView
+                AutomationId="drive_detection_overlay"
+                Overlays="{Binding Overlays}"
+                ScaleMode="{Binding Source={x:Reference Preview}, Path=ScaleMode}"
+                ShowGuide="{Binding ShowRoadGuide}" />
+        </Grid>
 
         <BoxView IsVisible="{Binding ShowStartPanel}" InputTransparent="True">
             <BoxView.Background>

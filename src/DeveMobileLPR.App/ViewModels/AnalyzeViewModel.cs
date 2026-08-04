@@ -147,9 +147,15 @@ internal sealed class AnalyzeViewModel : ViewModelBase
             if (SetProperty(ref _currentFrame, value))
             {
                 OnPropertyChanged(nameof(ShowCurrentDiagnostics));
+                OnPropertyChanged(nameof(CurrentOverlays));
             }
         }
     }
+
+    /// <summary>The reviewed frame's detections in the same overlay model the live drive view uses.</summary>
+    public IReadOnlyList<DriveOverlay> CurrentOverlays => CurrentFrame is null
+        ? []
+        : DriveOverlayFactory.CreateAnalyzedFrameOverlays(CurrentFrame, RecognitionDebugEnabled);
     public string CurrentFrameTitle { get => _currentFrameTitle; private set => SetProperty(ref _currentFrameTitle, value); }
     public string CurrentFrameDetail { get => _currentFrameDetail; private set => SetProperty(ref _currentFrameDetail, value); }
     public double CurrentPositionFraction { get => _currentPositionFraction; set => SetProperty(ref _currentPositionFraction, value); }
@@ -197,6 +203,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         OnPropertyChanged(nameof(RecognitionDebugEnabled));
         OnPropertyChanged(nameof(ShowProcessingDiagnostics));
         OnPropertyChanged(nameof(ShowCurrentDiagnostics));
+        OnPropertyChanged(nameof(CurrentOverlays));
     }
 
     public async Task InitializeAsync()

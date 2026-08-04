@@ -14,6 +14,7 @@ public interface IDriveSettings
     int RecognitionFramesPerSecond { get; set; }
     bool TrackingDiagnosticsEnabled { get; set; }
     bool RecognitionStatisticsEnabled { get; set; }
+    bool ShowRoadGuide { get; set; }
     string NetworkStreamUrl { get; set; }
 }
 

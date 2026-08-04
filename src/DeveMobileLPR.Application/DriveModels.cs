@@ -19,14 +19,28 @@ public sealed record DriveOverlay(
     float Confidence,
     DriveOverlayKind Kind);
 
+/// <summary>
+/// Overlay classes in draw order: later members are drawn on top of earlier ones.
+/// </summary>
 public enum DriveOverlayKind
 {
+    /// <summary>Detector output before consensus, shown only with tracking diagnostics on.</summary>
     Candidate,
+
+    /// <summary>Where a track was predicted to be this frame, shown only with diagnostics on.</summary>
+    Prediction,
+
     Reading,
     Track,
+
+    /// <summary>Confirmed, and not seen on any earlier trip.</summary>
     Confirmed,
+
+    /// <summary>Confirmed, and seen at least once on an earlier trip.</summary>
     ConfirmedKnown,
-    ConfirmedNew
+
+    /// <summary>Confirmed within the highlight window, whether or not the vehicle is known.</summary>
+    ConfirmedHighlight
 }
 
 public sealed record DriveIntervalDiagnostics(string Label, double? IntervalMilliseconds);
@@ -64,4 +78,5 @@ public sealed record DriveSnapshot(
     IReadOnlyList<CameraChoice> CameraChoices,
     string SelectedCameraId,
     bool TrackingDiagnosticsEnabled,
-    bool RecognitionStatisticsEnabled);
+    bool RecognitionStatisticsEnabled,
+    bool ShowRoadGuide);

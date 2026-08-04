@@ -1,4 +1,3 @@
-using DeveMobileLPR.Geometry;
 using DeveMobileLPR.Imaging;
 using DeveMobileLPR.Recognition;
 
@@ -6,20 +5,6 @@ namespace DeveMobileLPR.Application;
 
 public sealed class DriveCoordinator : IAsyncDisposable
 {
-    private static readonly TimeSpan ConfirmedOverlayHighlight = TimeSpan.FromSeconds(3);
-    private static readonly TimeSpan ConfirmedOverlayLinger = TimeSpan.FromSeconds(10);
-    private const int MaxConfirmedOverlays = 8;
-    private const float ConfirmedOverlaySuppressionIoU = 0.35f;
-
-    private sealed record ConfirmedOverlayState(
-        Sighting Sighting,
-        PriorVehicleSightings Prior,
-        BoundingBox LastBounds,
-        int SourceWidth,
-        int SourceHeight,
-        DateTimeOffset HighlightUntil,
-        DateTimeOffset ExpiresAt);
-
     private readonly ISightingRepository _repository;
     private readonly IVehicleImageStore _vehicleImageStore;
     private readonly IDriveSettings _settings;
@@ -37,14 +22,12 @@ public sealed class DriveCoordinator : IAsyncDisposable
     private readonly HashSet<string> _uniqueVehicles = new(StringComparer.Ordinal);
     private readonly Dictionary<long, Sighting> _sessionSightings = [];
     private readonly List<Sighting> _recentSightings = [];
-    private readonly Dictionary<Guid, ConfirmedOverlayState> _confirmedPlates = [];
+    private readonly ConfirmedOverlayTracker _confirmedPlates = new(() => DateTimeOffset.UtcNow);
     private RecognitionSession? _recognition;
     private IDriveVideoInput? _camera;
     private Task? _cameraInitialization;
     private CancellationTokenSource? _routeCancellation;
     private Task? _routeWorker;
-    private int _lastRecognitionWidth;
-    private int _lastRecognitionHeight;
     private GeoPoint? _lastRoutePoint;
     private DateTimeOffset _lastRouteAt;
     private long _activeTripId;
@@ -58,7 +41,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
     private DateTimeOffset? _startedAt;
     private DriveDiagnosticsSnapshot _diagnostics = DriveDiagnosticsSnapshot.Empty;
     private Sighting? _mostExpensive;
-    private IReadOnlyList<DriveOverlay> _overlays = [];
+    private IReadOnlyList<DriveOverlay> _liveOverlays = [];
     private IReadOnlyList<CameraChoice> _cameraChoices = [new("rear", "Rear cameras · automatic lens")];
     public DriveCoordinator(
         ISightingRepository repository,
@@ -249,10 +232,8 @@ public sealed class DriveCoordinator : IAsyncDisposable
                 _sessionSightings.Clear();
                 _recentSightings.Clear();
                 _mostExpensive = null;
-                _overlays = [];
+                _liveOverlays = [];
                 _confirmedPlates.Clear();
-                _lastRecognitionWidth = 0;
-                _lastRecognitionHeight = 0;
                 _hasError = false;
                 _status = "Scanning · video stays on this device";
             }
@@ -310,7 +291,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
                 _driving = false;
                 _stopping = true;
                 _status = "Finishing your trip…";
-                _overlays = [];
+                _liveOverlays = [];
                 _confirmedPlates.Clear();
                 _diagnostics = DriveDiagnosticsSnapshot.Empty;
             }
@@ -395,10 +376,8 @@ public sealed class DriveCoordinator : IAsyncDisposable
         lock (_stateGate)
         {
             _diagnostics = DriveDiagnosticsSnapshot.Empty;
-            _overlays = [];
+            _liveOverlays = [];
             _confirmedPlates.Clear();
-            _lastRecognitionWidth = 0;
-            _lastRecognitionHeight = 0;
         }
     }
 
@@ -551,105 +530,22 @@ public sealed class DriveCoordinator : IAsyncDisposable
     private void RecognitionProgressed(object? sender, RecognitionProgress progress)
     {
         var recognition = progress.Recognition;
-        var now = DateTimeOffset.UtcNow;
-        var activeConfirmed = new List<ConfirmedOverlayState>();
-
         lock (_stateGate)
         {
-            foreach (var track in progress.Diagnostics.Tracks)
-            {
-                if (track.Confirmed && _confirmedPlates.TryGetValue(track.TrackId, out var state))
-                {
-                    state = state with { LastBounds = track.Bounds, ExpiresAt = now + ConfirmedOverlayLinger };
-                    _confirmedPlates[track.TrackId] = state;
-                    activeConfirmed.Add(state);
-                }
-            }
-
-            if (activeConfirmed.Count < _confirmedPlates.Count)
-            {
-                foreach (var trackId in _confirmedPlates
-                    .Where(pair => !activeConfirmed.Contains(pair.Value))
-                    .Select(static pair => pair.Key)
-                    .ToArray())
-                {
-                    var state = _confirmedPlates[trackId];
-                    if (state.ExpiresAt <= now
-                        || state.SourceWidth != recognition.SourceWidth
-                        || state.SourceHeight != recognition.SourceHeight)
-                    {
-                        _confirmedPlates.Remove(trackId);
-                    }
-                    else
-                    {
-                        activeConfirmed.Add(state);
-                    }
-                }
-            }
-
-            List<DriveOverlay> candidates;
-            if (_settings.TrackingDiagnosticsEnabled)
-            {
-                candidates = progress.Diagnostics.Frame.Candidates.Select(candidate => new DriveOverlay(
-                    candidate.Detection.Bounds,
+            _confirmedPlates.ObserveFrame(
+                recognition.SourceWidth,
+                recognition.SourceHeight,
+                progress.Diagnostics.Tracks);
+            _liveOverlays = _settings.TrackingDiagnosticsEnabled
+                ? DriveOverlayFactory.CreateDiagnosticOverlays(
+                    progress.Diagnostics,
                     recognition.SourceWidth,
-                    recognition.SourceHeight,
-                    string.IsNullOrWhiteSpace(candidate.ReadText) ? "Detector candidate" : FormatPlate(candidate.ReadText),
-                    candidate.OcrAttempted
-                        ? $"det {candidate.Detection.Confidence:P0} · OCR {candidate.OcrConfidence:P0} · quality {candidate.Quality:P0}"
-                        : $"det {candidate.Detection.Confidence:P0} · OCR not attempted",
-                    candidate.Detection.Confidence,
-                    DriveOverlayKind.Candidate)).ToList();
-                candidates.AddRange(progress.Diagnostics.Associations
-                    .Where(static association => association.PredictedBounds is not null)
-                    .Select(association => new DriveOverlay(
-                        association.PredictedBounds!.Value,
-                        recognition.SourceWidth,
-                        recognition.SourceHeight,
-                        $"T{association.TrackId.ToString("N")[..6]} · prediction",
-                        AssociationDiagnosticsFormatter.Format(association),
-                        association.Score ?? 0,
-                        DriveOverlayKind.Candidate)));
-                candidates.AddRange(progress.Diagnostics.Tracks.Select(track =>
-                {
-                    var association = progress.Diagnostics.Associations.FirstOrDefault(item => item.TrackId == track.TrackId);
-                    var associationText = association is null
-                        ? "not observed this frame"
-                        : AssociationDiagnosticsFormatter.Format(association);
-                    return new DriveOverlay(
-                        track.Bounds,
-                        recognition.SourceWidth,
-                        recognition.SourceHeight,
-                        $"T{track.TrackId.ToString("N")[..6]} · {FormatPlate(track.LastRead)}",
-                        $"{track.ObservationCount} obs · {associationText}",
-                        track.DetectorConfidence,
-                        DriveOverlayKind.Track);
-                }));
-            }
-            else
-            {
-                candidates = recognition.Observations
-                    .Where(observation => !activeConfirmed.Any(state =>
-                        observation.Detection.Bounds.IntersectionOverUnion(state.LastBounds) >= ConfirmedOverlaySuppressionIoU))
-                    .Select(observation => new DriveOverlay(
-                        observation.Detection.Bounds,
-                        recognition.SourceWidth,
-                        recognition.SourceHeight,
-                        FormatPlate(observation.Read.Text),
-                        $"Reading · {observation.Read.Confidence:P0}",
-                        observation.Detection.Confidence,
-                        DriveOverlayKind.Reading)).ToList();
-            }
-
-            foreach (var state in activeConfirmed)
-            {
-                candidates.Add(CreateConfirmedOverlay(state, state.HighlightUntil > now));
-            }
-
-            _overlays = candidates;
+                    recognition.SourceHeight).ToArray()
+                : DriveOverlayFactory.CreateReadingOverlays(
+                    recognition.Observations,
+                    recognition.SourceWidth,
+                    recognition.SourceHeight).ToArray();
             _diagnostics = _diagnostics with { Recognition = progress.Diagnostics };
-            _lastRecognitionWidth = recognition.SourceWidth;
-            _lastRecognitionHeight = recognition.SourceHeight;
         }
         Publish();
     }
@@ -670,31 +566,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
                 .Where(static item => item.Vehicle?.CatalogPrice is not null)
                 .OrderByDescending(static item => item.Vehicle!.CatalogPrice)
                 .FirstOrDefault();
-            var now = DateTimeOffset.UtcNow;
-            var existing = _confirmedPlates.TryGetValue(result.Confirmation.TrackId, out var current) ? current : null;
-            var highlight = result.Confirmation.Revision == 0;
-            var state = new ConfirmedOverlayState(
-                sighting,
-                result.Prior,
-                result.Confirmation.LastBounds,
-                _lastRecognitionWidth > 0 ? _lastRecognitionWidth : 1,
-                _lastRecognitionHeight > 0 ? _lastRecognitionHeight : 1,
-                highlight
-                    ? now + ConfirmedOverlayHighlight
-                    : existing?.HighlightUntil ?? now,
-                now + ConfirmedOverlayLinger);
-            _confirmedPlates[result.Confirmation.TrackId] = state;
-            while (_confirmedPlates.Count > MaxConfirmedOverlays)
-            {
-                _confirmedPlates.Remove(
-                    _confirmedPlates.OrderBy(static pair => pair.Value.ExpiresAt).First().Key);
-            }
-            _overlays = _overlays
-                .Where(overlay => overlay.Kind is not (DriveOverlayKind.Confirmed or DriveOverlayKind.ConfirmedKnown or DriveOverlayKind.ConfirmedNew)
-                    && !(overlay.Kind == DriveOverlayKind.Reading
-                        && overlay.Bounds.IntersectionOverUnion(state.LastBounds) >= ConfirmedOverlaySuppressionIoU))
-                .Append(CreateConfirmedOverlay(state, highlight))
-                .ToArray();
+            _confirmedPlates.Confirm(result.Confirmation, sighting, result.Prior);
         }
 
         if (result.Confirmation.Revision == 0 && _settings.ConfirmationHaptic)
@@ -774,84 +646,31 @@ public sealed class DriveCoordinator : IAsyncDisposable
         _uniqueVehicles.Count,
         _recentSightings.ToArray(),
         _mostExpensive,
-        _overlays.ToArray(),
+        CreateOverlays(),
         _location.Latest is not null,
         _camera?.IsReady == true,
         _camera?.SupportsNetworkStreams == true,
         _cameraChoices.ToArray(),
         _camera?.SelectedCameraId ?? _settings.CameraId,
         _settings.TrackingDiagnosticsEnabled,
-        _settings.RecognitionStatisticsEnabled);
+        _settings.RecognitionStatisticsEnabled,
+        _settings.ShowRoadGuide);
+
+    /// <summary>
+    /// Confirmed plates are composed in at snapshot time rather than stored alongside the live
+    /// overlays, so a new confirmation cannot drop the plates already on screen and the highlight
+    /// window decays even while no further frames arrive. Caller must hold <c>_stateGate</c>.
+    /// </summary>
+    private IReadOnlyList<DriveOverlay> CreateOverlays() => _liveOverlays
+        .Where(overlay => overlay.Kind != DriveOverlayKind.Reading
+            || !_confirmedPlates.Suppresses(overlay.Bounds))
+        .Concat(_confirmedPlates.CreateOverlays())
+        .ToArray();
 
     private DriveDiagnosticsSnapshot CreateDiagnosticsSnapshot() => _diagnostics.WithSourceLabel(
         (_camera?.SelectedCameraId ?? _settings.CameraId) == DriveInputIds.NetworkLlHls
             ? "Decode interval"
             : "Capture interval");
-
-    private static string FormatPlate(string value)
-    {
-        var normalized = PlateText.Normalize(value);
-        return normalized.Length == 6 ? PlateText.FormatDutchPlate(normalized) : value.ToUpperInvariant();
-    }
-
-    private static DriveOverlay CreateConfirmedOverlay(ConfirmedOverlayState state, bool highlight)
-    {
-        var kind = highlight
-            ? DriveOverlayKind.ConfirmedNew
-            : state.Prior.SightingCount > 0 ? DriveOverlayKind.ConfirmedKnown : DriveOverlayKind.Confirmed;
-        return new DriveOverlay(
-            state.LastBounds,
-            state.SourceWidth,
-            state.SourceHeight,
-            state.Sighting.DisplayPlate,
-            FormatConfirmedDetail(state.Sighting, state.Prior),
-            state.Sighting.Confidence,
-            kind);
-    }
-
-    private static string FormatConfirmedDetail(Sighting sighting, PriorVehicleSightings prior)
-    {
-        if (prior.SightingCount > 0 && prior.LastSeenAt is { } lastSeen)
-        {
-            var vehicle = sighting.Vehicle;
-            var brand = string.Join(' ', new[] { vehicle?.Make, vehicle?.Model }.Where(value => !string.IsNullOrWhiteSpace(value)));
-            return string.IsNullOrWhiteSpace(brand)
-                ? $"{prior.SightingCount}× · {FormatLastSeen(lastSeen)}"
-                : $"{brand} · {prior.SightingCount}× · {FormatLastSeen(lastSeen)}";
-        }
-
-        var detail = sighting.Vehicle is { } known
-            ? string.Join(' ', new[]
-            {
-                string.Join(' ', new[] { known.Make, known.Model }.Where(value => !string.IsNullOrWhiteSpace(value))),
-                CompactPrice(known.CatalogPrice),
-                known.BodyType
-            }.Where(value => !string.IsNullOrWhiteSpace(value)))
-            : "no RDW details";
-        return detail;
-    }
-
-    private static string FormatLastSeen(DateTimeOffset value)
-    {
-        var days = (int)(DateTimeOffset.UtcNow - value).TotalDays;
-        return days switch
-        {
-            <= 0 => "today",
-            1 => "yesterday",
-            < 14 => $"{days}d",
-            < 56 => $"{days / 7}w",
-            < 365 => $"{days / 30}mo",
-            _ => $"{days / 365}y"
-        };
-    }
-
-    private static string CompactPrice(decimal? value) => value switch
-    {
-        null => "—",
-        >= 1_000_000 => $"€{value.Value / 1_000_000:0.#}m",
-        >= 1_000 => $"€{value.Value / 1_000:0}k",
-        _ => $"€{value.Value:0}"
-    };
 
     private static double DistanceMeters(GeoPoint from, GeoPoint to)
     {

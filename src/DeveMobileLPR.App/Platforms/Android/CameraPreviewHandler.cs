@@ -15,13 +15,17 @@ namespace DeveMobileLPR.App;
 
 internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, FrameLayout>
 {
-    private const AspectScaleMode PreviewScaleMode = AspectScaleMode.Fill;
+    /// <summary>CameraX frames fill the viewport; the phone is mounted, so cropping beats letterboxing.</summary>
+    private const AspectScaleMode CameraScaleMode = AspectScaleMode.Fill;
+
+    /// <summary>Network streams carry an arbitrary aspect, so <see cref="AndroidVideoTextureView"/> letterboxes them.</summary>
+    private const AspectScaleMode StreamScaleMode = AspectScaleMode.Fit;
+
     public static readonly IPropertyMapper<CameraPreview, CameraPreviewHandler> Mapper =
         new PropertyMapper<CameraPreview, CameraPreviewHandler>(ViewHandler.ViewMapper);
 
     private AndroidDriveFrameSource? _source;
     private DriveCoordinator? _coordinator;
-    private DetectionOverlayView? _overlay;
 
     public CameraPreviewHandler() : base(Mapper)
     {
@@ -38,7 +42,8 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, FrameLay
         var match = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.MatchParent);
         var preview = new PreviewView(context);
         preview.SetScaleType(GetPreviewScaleType());
-        // Compatible uses TextureView, which guarantees the custom detection layer composites above it.
+        // Compatible uses TextureView, so the preview composites in normal view order instead of
+        // punching a SurfaceView hole that anything drawn on top would have to fight.
         preview.SetImplementationMode(PreviewView.ImplementationMode.Compatible);
         root.AddView(preview, match);
         var streamPreview = new AndroidVideoTextureView(context)
@@ -51,13 +56,6 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, FrameLay
         {
             Gravity = GravityFlags.Center
         });
-        _overlay = new DetectionOverlayView(
-            context,
-            () => settings.ShowRoadGuide,
-            () => _coordinator?.Snapshot.SelectedCameraId == DriveInputIds.NetworkLlHls
-                ? AspectScaleMode.Fit
-                : PreviewScaleMode);
-        root.AddView(_overlay, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.MatchParent));
         _source = new AndroidDriveFrameSource(
             context,
             activity,
@@ -67,14 +65,17 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, FrameLay
             () => settings.RecognitionFramesPerSecond,
             frame => _coordinator.SubmitFrame(frame));
         _coordinator.AttachCamera(_source);
-        _coordinator.SnapshotChanged += SnapshotChanged;
-        _overlay.Update(_coordinator.Snapshot);
         return root;
     }
 
-    private void SnapshotChanged(object? sender, DriveSnapshot snapshot) => _overlay?.Update(snapshot);
+    protected override void ConnectHandler(FrameLayout platformView)
+    {
+        base.ConnectHandler(platformView);
+        VirtualView.CameraScaleMode = CameraScaleMode;
+        VirtualView.StreamScaleMode = StreamScaleMode;
+    }
 
-    private static PreviewView.ScaleType GetPreviewScaleType() => PreviewScaleMode switch
+    private static PreviewView.ScaleType GetPreviewScaleType() => CameraScaleMode switch
     {
         AspectScaleMode.Fit => PreviewView.ScaleType.FitCenter!,
         AspectScaleMode.Fill => PreviewView.ScaleType.FillCenter!,
@@ -83,17 +84,12 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, FrameLay
 
     protected override void DisconnectHandler(FrameLayout platformView)
     {
-        if (_coordinator is not null)
-        {
-            _coordinator.SnapshotChanged -= SnapshotChanged;
-        }
         if (_source is not null)
         {
             _coordinator?.DetachCamera(_source);
             _ = DisposeSourceAsync(_source);
             _source = null;
         }
-        _overlay = null;
         _coordinator = null;
         base.DisconnectHandler(platformView);
     }
