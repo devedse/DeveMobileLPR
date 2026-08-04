@@ -4,17 +4,14 @@ using DeveMobileLPR.Recognition;
 namespace DeveMobileLPR.Application;
 
 /// <summary>
-/// Keeps confirmed plates on screen after the detector stops reporting them, so a plate that
-/// has already passed out of frame stays readable for a few seconds. Plates are keyed by track,
+/// Keeps confirmed plates on screen briefly after the detector stops reporting them, so a plate
+/// does not vanish the instant its car leaves frame. Plates are keyed by track,
 /// which the recognition stream resets whenever the source geometry changes, so a resolution
 /// change discards every tracked plate rather than projecting it against stale dimensions.
 /// This type is not thread safe; the caller owns synchronisation.
 /// </summary>
 internal sealed class ConfirmedOverlayTracker(Func<DateTimeOffset> clock)
 {
-    /// <summary>How long a freshly confirmed plate is drawn in the highlight colour.</summary>
-    public static readonly TimeSpan HighlightWindow = TimeSpan.FromSeconds(3);
-
     /// <summary>
     /// How long a plate stays on screen after the detector last reported its track. This is only
     /// the tail: while a track is still being reported, <see cref="ObserveFrame"/> keeps pushing the
@@ -79,21 +76,16 @@ internal sealed class ConfirmedOverlayTracker(Func<DateTimeOffset> clock)
     }
 
     /// <summary>
-    /// Records a confirmation. A corrected plate keeps the highlight window of the original
-    /// confirmation so a late correction does not flash the overlay a second time.
+    /// Records a confirmation, replacing whatever the track previously resolved to. A correction
+    /// therefore takes effect immediately, including its plate text and prior-sighting history.
     /// </summary>
     public void Confirm(ConfirmedPlate confirmation, Sighting sighting, PriorVehicleSightings prior)
     {
-        var now = clock();
-        var highlightUntil = confirmation.Revision == 0
-            ? now + HighlightWindow
-            : _plates.TryGetValue(confirmation.TrackId, out var existing) ? existing.HighlightUntil : now;
         _plates[confirmation.TrackId] = new TrackedPlate(
             sighting,
             prior,
             confirmation.LastBounds,
-            highlightUntil,
-            now + LingerWindow);
+            clock() + LingerWindow);
         while (_plates.Count > MaxTrackedPlates)
         {
             _plates.Remove(_plates.OrderBy(static pair => pair.Value.ExpiresAt).First().Key);
@@ -115,7 +107,7 @@ internal sealed class ConfirmedOverlayTracker(Func<DateTimeOffset> clock)
                 plate.Sighting.DisplayPlate,
                 FormatDetail(plate, now),
                 plate.Sighting.Confidence,
-                ResolveKind(plate, now)))
+                ResolveKind(plate)))
             .ToArray();
     }
 
@@ -126,11 +118,9 @@ internal sealed class ConfirmedOverlayTracker(Func<DateTimeOffset> clock)
     private IEnumerable<TrackedPlate> ActivePlates(DateTimeOffset now) =>
         _plates.Values.Where(plate => plate.ExpiresAt > now);
 
-    private static DriveOverlayKind ResolveKind(TrackedPlate plate, DateTimeOffset now) => plate.HighlightUntil > now
-        ? DriveOverlayKind.ConfirmedHighlight
-        : plate.Prior.SightingCount > 0
-            ? DriveOverlayKind.ConfirmedKnown
-            : DriveOverlayKind.Confirmed;
+    private static DriveOverlayKind ResolveKind(TrackedPlate plate) => plate.Prior.SightingCount > 0
+        ? DriveOverlayKind.ConfirmedKnown
+        : DriveOverlayKind.Confirmed;
 
     private static string FormatDetail(TrackedPlate plate, DateTimeOffset now)
     {
@@ -175,6 +165,5 @@ internal sealed class ConfirmedOverlayTracker(Func<DateTimeOffset> clock)
         Sighting Sighting,
         PriorVehicleSightings Prior,
         BoundingBox Bounds,
-        DateTimeOffset HighlightUntil,
         DateTimeOffset ExpiresAt);
 }

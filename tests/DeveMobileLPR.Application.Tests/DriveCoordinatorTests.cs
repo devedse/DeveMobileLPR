@@ -226,7 +226,7 @@ public sealed class DriveCoordinatorTests
     }
 
     [Fact]
-    public async Task ConfirmedPlateOverlayIsHighlightedWhenNew()
+    public async Task ConfirmedPlateOverlayReportsAVehicleWithoutRdwData()
     {
         var repository = new FakeRepository();
         var pipeline = new ConfirmingPipeline();
@@ -234,10 +234,11 @@ public sealed class DriveCoordinatorTests
         await SubmitFramesAsync(coordinator, pipeline, 3);
 
         await repository.SightingAdded.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        await WaitUntilAsync(() => coordinator.Snapshot.Overlays.Any(item => item.Kind == DriveOverlayKind.ConfirmedHighlight));
+        await WaitUntilAsync(() => coordinator.Snapshot.Overlays.Any(IsConfirmed));
 
-        var highlighted = coordinator.Snapshot.Overlays.Single(item => item.Kind == DriveOverlayKind.ConfirmedHighlight);
-        Assert.Equal("no RDW details", highlighted.Detail);
+        var confirmed = coordinator.Snapshot.Overlays.Single(IsConfirmed);
+        Assert.Equal(DriveOverlayKind.Confirmed, confirmed.Kind);
+        Assert.Equal("no RDW details", confirmed.Detail);
     }
 
     [Fact]
@@ -290,7 +291,7 @@ public sealed class DriveCoordinatorTests
     }
 
     private static bool IsConfirmed(DriveOverlay overlay) => overlay.Kind
-        is DriveOverlayKind.Confirmed or DriveOverlayKind.ConfirmedKnown or DriveOverlayKind.ConfirmedHighlight;
+        is DriveOverlayKind.Confirmed or DriveOverlayKind.ConfirmedKnown;
 
     private static async Task SubmitFramesAsync(
         DriveCoordinator coordinator,

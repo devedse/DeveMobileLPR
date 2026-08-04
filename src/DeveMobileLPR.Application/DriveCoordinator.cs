@@ -658,8 +658,8 @@ public sealed class DriveCoordinator : IAsyncDisposable
 
     /// <summary>
     /// Confirmed plates are composed in at snapshot time rather than stored alongside the live
-    /// overlays, so a new confirmation cannot drop the plates already on screen and the highlight
-    /// window decays even while no further frames arrive. Caller must hold <c>_stateGate</c>.
+    /// overlays, so a new confirmation cannot drop the plates already on screen and a plate still
+    /// expires while no further frames arrive. Caller must hold <c>_stateGate</c>.
     /// </summary>
     private IReadOnlyList<DriveOverlay> CreateOverlays() => _liveOverlays
         .Where(overlay => overlay.Kind != DriveOverlayKind.Reading

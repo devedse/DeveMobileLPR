@@ -17,7 +17,6 @@ internal sealed record DriveOverlayStyle(
     private static readonly Color Reading = Color.FromArgb("#58E0C2");
     private static readonly Color Confirmed = Color.FromArgb("#F5C542");
     private static readonly Color Known = Color.FromArgb("#D77BFF");
-    private static readonly Color Highlight = Color.FromArgb("#3DF09E");
     private static readonly Color Candidate = Color.FromArgb("#55A7FF");
     private static readonly Color Prediction = Color.FromArgb("#FF9F43");
     private static readonly Color DarkLabel = Color.FromArgb("#E80B0D10");
@@ -40,8 +39,6 @@ internal sealed record DriveOverlayStyle(
             Confirmed, Color.FromArgb("#F2F5C542"), Color.FromArgb("#141105"), Color.FromArgb("#2D260A"), 3.5f),
         DriveOverlayKind.ConfirmedKnown => new(
             Known, Color.FromArgb("#F22A163F"), LightText, Color.FromArgb("#D6BEFF"), 3.5f),
-        DriveOverlayKind.ConfirmedHighlight => new(
-            Highlight, Color.FromArgb("#F20C291A"), LightText, Color.FromArgb("#BEFFDC"), 3.5f),
         // Every kind is styled above. This arm exists so that adding a kind without styling it
         // degrades to a plain box mid-drive instead of throwing out of the render pass.
         _ => new(Reading, DarkLabel, LightText, Color.FromArgb("#BECDD6"), 2.25f)

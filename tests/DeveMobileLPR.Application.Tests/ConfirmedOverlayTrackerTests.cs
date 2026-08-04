@@ -9,54 +9,31 @@ public sealed class ConfirmedOverlayTrackerTests
     private static readonly BoundingBox PlateBounds = new(10, 20, 40, 30);
 
     [Fact]
-    public void HighlightGivesWayToTheConfirmedKindWhileTheCarStaysInView()
+    public void ConfirmingAPlateNewToThisDeviceSettlesImmediately()
     {
         var clock = new FakeClock(Start);
         var tracker = new ConfirmedOverlayTracker(clock.Now);
-        var trackId = Guid.NewGuid();
         tracker.ObserveFrame(1920, 1080, []);
-        tracker.Confirm(Confirmation(trackId, PlateBounds), PlateSighting("AB1234"), PriorVehicleSightings.None);
+        tracker.Confirm(Confirmation(bounds: PlateBounds), PlateSighting("AB1234"), PriorVehicleSightings.None);
 
-        Assert.Equal(DriveOverlayKind.ConfirmedHighlight, tracker.CreateOverlays().Single().Kind);
-
-        AdvancePastHighlight(tracker, clock, trackId);
-
+        // Confirmation is the only state change, so the kind is final as soon as it lands.
         Assert.Equal(DriveOverlayKind.Confirmed, tracker.CreateOverlays().Single().Kind);
     }
 
     [Fact]
-    public void VehiclesSeenOnEarlierTripsBecomeKnownOnceTheHighlightPasses()
+    public void ConfirmingAVehicleSeenOnAnEarlierTripReportsItAsKnownImmediately()
     {
         var clock = new FakeClock(Start);
         var tracker = new ConfirmedOverlayTracker(clock.Now);
-        var trackId = Guid.NewGuid();
         tracker.ObserveFrame(1920, 1080, []);
         tracker.Confirm(
-            Confirmation(trackId, PlateBounds),
+            Confirmation(bounds: PlateBounds),
             PlateSighting("AB1234"),
             new PriorVehicleSightings(3, Start.AddDays(-2)));
-
-        AdvancePastHighlight(tracker, clock, trackId);
 
         var overlay = tracker.CreateOverlays().Single();
         Assert.Equal(DriveOverlayKind.ConfirmedKnown, overlay.Kind);
         Assert.Equal("3× · 2d", overlay.Detail);
-    }
-
-    /// <summary>
-    /// Runs the clock past the highlight window while the track keeps being reported. The linger
-    /// window is shorter than the highlight window, so the plate only survives long enough to change
-    /// colour if its car is still in view — which is the case this models.
-    /// </summary>
-    private static void AdvancePastHighlight(ConfirmedOverlayTracker tracker, FakeClock clock, Guid trackId)
-    {
-        var step = ConfirmedOverlayTracker.LingerWindow / 2;
-        var target = ConfirmedOverlayTracker.HighlightWindow + TimeSpan.FromMilliseconds(1);
-        for (var elapsed = TimeSpan.Zero; elapsed < target; elapsed += step)
-        {
-            clock.Advance(step);
-            tracker.ObserveFrame(1920, 1080, [Track(trackId, PlateBounds, confirmed: true)]);
-        }
     }
 
     [Fact]
@@ -95,7 +72,7 @@ public sealed class ConfirmedOverlayTrackerTests
     }
 
     [Fact]
-    public void CorrectionDoesNotRestartTheHighlight()
+    public void CorrectionReplacesThePlateOnTheSameTrack()
     {
         var clock = new FakeClock(Start);
         var tracker = new ConfirmedOverlayTracker(clock.Now);
@@ -103,12 +80,13 @@ public sealed class ConfirmedOverlayTrackerTests
         tracker.ObserveFrame(1920, 1080, []);
         tracker.Confirm(Confirmation(trackId, PlateBounds), PlateSighting("AB12BE"), PriorVehicleSightings.None);
 
-        clock.Advance(ConfirmedOverlayTracker.HighlightWindow + TimeSpan.FromMilliseconds(1));
+        clock.Advance(ConfirmedOverlayTracker.LingerWindow * 0.5);
         tracker.Confirm(
             Confirmation(trackId, PlateBounds, revision: 1),
             PlateSighting("AB12BG"),
             PriorVehicleSightings.None);
 
+        // One overlay, carrying the corrected text rather than a second box beside the original.
         var overlay = Assert.Single(tracker.CreateOverlays());
         Assert.Equal(DriveOverlayKind.Confirmed, overlay.Kind);
         Assert.Equal("AB-12-BG", overlay.Title);

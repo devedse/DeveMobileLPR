@@ -37,10 +37,7 @@ public enum DriveOverlayKind
     Confirmed,
 
     /// <summary>Confirmed, and seen at least once on an earlier trip.</summary>
-    ConfirmedKnown,
-
-    /// <summary>Confirmed within the highlight window, whether or not the vehicle is known.</summary>
-    ConfirmedHighlight
+    ConfirmedKnown
 }
 
 public sealed record DriveIntervalDiagnostics(string Label, double? IntervalMilliseconds);

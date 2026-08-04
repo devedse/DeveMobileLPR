@@ -73,7 +73,7 @@ public static class DriveOverlayFactory
 
     /// <summary>
     /// Overlays for a single frame of an offline analysis. Unlike live capture there is no linger
-    /// or highlight window, because the frame is paused and every confirmation for it is known.
+    /// window, because the frame is paused and every confirmation for it is already known.
     /// </summary>
     public static IReadOnlyList<DriveOverlay> CreateAnalyzedFrameOverlays(
         AnalyzedVideoFrame frame,
