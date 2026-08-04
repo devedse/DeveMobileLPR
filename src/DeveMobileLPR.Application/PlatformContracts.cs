@@ -81,12 +81,27 @@ public sealed class DriveFrameCountEventArgs(long count) : EventArgs
         : throw new ArgumentOutOfRangeException(nameof(count));
 }
 
+/// <summary>
+/// A position together with the moment it was observed. The timestamp is what lets a consumer tell
+/// a current fix from one the device happens to still be holding, which a bare coordinate cannot.
+/// </summary>
+public readonly record struct LocationFix(GeoPoint Point, DateTimeOffset ObservedAt);
+
 public interface IDriveLocationTracker : IDisposable
 {
-    GeoPoint? Latest { get; }
-    bool IsRunning { get; }
+    LocationFix? Latest { get; }
     Task<bool> StartAsync(CancellationToken cancellationToken);
     void Stop();
+}
+
+/// <summary>
+/// Creates a tracker per drive. A tracker keeps the last fix it saw, so one shared for the lifetime
+/// of the app would carry a position from a previous trip into the next one; a tracker that only
+/// lives as long as its trip has nothing to carry.
+/// </summary>
+public interface IDriveLocationTrackerFactory
+{
+    IDriveLocationTracker Create();
 }
 
 public interface IDeviceExperience

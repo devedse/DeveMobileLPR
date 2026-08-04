@@ -41,10 +41,14 @@ internal sealed class MauiDeviceExperience : IDeviceExperience
         });
 }
 
+internal sealed class NoOpDriveLocationTrackerFactory : IDriveLocationTrackerFactory
+{
+    public IDriveLocationTracker Create() => new NoOpDriveLocationTracker();
+}
+
 internal sealed class NoOpDriveLocationTracker : IDriveLocationTracker
 {
-    public GeoPoint? Latest => null;
-    public bool IsRunning => false;
+    public LocationFix? Latest => null;
     public Task<bool> StartAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

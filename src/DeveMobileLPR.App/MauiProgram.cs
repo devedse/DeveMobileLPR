@@ -33,12 +33,12 @@ public static class MauiProgram
         builder.Services.AddSingleton<IDeviceExperience, MauiDeviceExperience>();
         builder.Services.AddSingleton<IVehicleImageEncoder, ImageSharpVehicleImageEncoder>();
     #if ANDROID
-        builder.Services.AddSingleton<IDriveLocationTracker>(_ =>
-            new AndroidLocationTracker(global::Android.App.Application.Context));
+        builder.Services.AddSingleton<IDriveLocationTrackerFactory>(_ =>
+            new AndroidLocationTrackerFactory(global::Android.App.Application.Context));
         builder.Services.AddSingleton<IRecognitionPipelineProvider, AndroidRecognitionPipelineProvider>();
         builder.Services.AddSingleton<IVideoFileBackend, AndroidVideoFileBackend>();
     #elif WINDOWS
-        builder.Services.AddSingleton<IDriveLocationTracker, NoOpDriveLocationTracker>();
+        builder.Services.AddSingleton<IDriveLocationTrackerFactory, NoOpDriveLocationTrackerFactory>();
         builder.Services.AddSingleton<IRecognitionPipelineProvider, WindowsRecognitionPipelineProvider>();
         builder.Services.AddSingleton<IVideoFileBackend, WindowsVideoFileBackend>();
     #endif

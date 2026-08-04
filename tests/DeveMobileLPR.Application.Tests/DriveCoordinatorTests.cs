@@ -26,7 +26,7 @@ public sealed class DriveCoordinatorTests
             new RecognitionTuningConfiguration(),
             new TestPipelineProvider(pipeline),
             new TestVehicleLookup(),
-            new TestLocationTracker(),
+            new TestLocationFactory(),
             new TestDeviceExperience(),
             new ImmediateDispatcher());
         coordinator.AttachCamera(input);
@@ -65,7 +65,7 @@ public sealed class DriveCoordinatorTests
             new RecognitionTuningConfiguration { StrongPair_Enabled = false },
             new TestPipelineProvider(pipeline),
             new TestVehicleLookup(),
-            new TestLocationTracker(),
+            new TestLocationFactory(),
             device,
             new ImmediateDispatcher());
         coordinator.AttachCamera(input);
@@ -106,7 +106,7 @@ public sealed class DriveCoordinatorTests
             new RecognitionTuningConfiguration(),
             provider,
             new TestVehicleLookup(),
-            new TestLocationTracker(),
+            new TestLocationFactory(),
             device,
             new ImmediateDispatcher());
 
@@ -143,7 +143,7 @@ public sealed class DriveCoordinatorTests
             new RecognitionTuningConfiguration(),
             new TestPipelineProvider(pipeline),
             new TestVehicleLookup(),
-            new TestLocationTracker(),
+            new TestLocationFactory(),
             new TestDeviceExperience(),
             new ImmediateDispatcher());
         coordinator.AttachCamera(input);
@@ -167,7 +167,7 @@ public sealed class DriveCoordinatorTests
     {
         var repository = new FakeRepository();
         var input = new TestVideoInput { StopException = new InvalidOperationException("decoder stop failed") };
-        var location = new TestLocationTracker();
+        var location = new TestLocationFactory();
         var device = new TestDeviceExperience();
         await using var coordinator = await CreateCoordinatorAsync(repository, input, location, device);
 
@@ -182,7 +182,7 @@ public sealed class DriveCoordinatorTests
         Assert.Null(coordinator.ActiveTripId);
         Assert.Equal(1, repository.EndTripCount);
         Assert.Equal(1, input.StopCount);
-        Assert.False(location.IsRunning);
+        Assert.All(location.Created, tracker => Assert.True(tracker.Disposed));
         Assert.False(device.KeepScreenOn);
     }
 
@@ -191,7 +191,7 @@ public sealed class DriveCoordinatorTests
     {
         var repository = new FakeRepository();
         var input = new TestVideoInput { StartException = new InvalidOperationException("decoder start failed") };
-        var location = new TestLocationTracker();
+        var location = new TestLocationFactory();
         var device = new TestDeviceExperience();
         await using var coordinator = await CreateCoordinatorAsync(repository, input, location, device);
 
@@ -205,7 +205,7 @@ public sealed class DriveCoordinatorTests
         Assert.Null(coordinator.ActiveTripId);
         Assert.Equal(1, repository.EndTripCount);
         Assert.Equal(1, input.StopCount);
-        Assert.False(location.IsRunning);
+        Assert.All(location.Created, tracker => Assert.True(tracker.Disposed));
         Assert.False(device.KeepScreenOn);
     }
 
@@ -290,6 +290,85 @@ public sealed class DriveCoordinatorTests
         Assert.Empty(coordinator.Snapshot.Overlays);
     }
 
+    [Fact]
+    public async Task ASecondDriveDoesNotInheritTheFirstDrivesPosition()
+    {
+        // The reported bug: a short drive in one town stamped its cars at the previous drive's
+        // location, because a single shared tracker still held that fix.
+        var ede = new GeoPoint(52.0350, 5.6650, 8);
+        var repository = new FakeRepository();
+        var location = new TestLocationFactory { NextFix = new LocationFix(ede, DateTimeOffset.UtcNow) };
+        var pipeline = new ConfirmingPipeline();
+        await using var coordinator = await StartDrivingAsync(repository, pipeline, location);
+        await SubmitFramesAsync(coordinator, pipeline, 3);
+        await WaitUntilAsync(() => repository.AddCount == 1);
+        await coordinator.StopDriveAsync();
+
+        Assert.Equal(ede, repository.AddedSightingLocations[0]);
+
+        // Second drive, no fix yet — the short trip that exposed this.
+        location.NextFix = null;
+        await coordinator.StartDriveAsync();
+        await SubmitFramesAsync(coordinator, pipeline, 3);
+        await WaitUntilAsync(() => repository.AddCount == 2);
+
+        Assert.Null(repository.AddedSightingLocations[1]);
+        Assert.Null(repository.TripStartLocations[1]);
+        Assert.False(coordinator.Snapshot.HasLocation);
+    }
+
+    [Fact]
+    public async Task AFixOlderThanTheMaximumAgeIsTreatedAsNoFix()
+    {
+        var stale = new GeoPoint(52.0350, 5.6650, 8);
+        var repository = new FakeRepository();
+        var location = new TestLocationFactory
+        {
+            NextFix = new LocationFix(
+                stale,
+                DateTimeOffset.UtcNow - DriveTrip.MaximumLocationAge - TimeSpan.FromSeconds(5))
+        };
+        var pipeline = new ConfirmingPipeline();
+        await using var coordinator = await StartDrivingAsync(repository, pipeline, location);
+        await SubmitFramesAsync(coordinator, pipeline, 3);
+        await WaitUntilAsync(() => repository.AddCount == 1);
+
+        Assert.Null(repository.AddedSightingLocations[0]);
+        Assert.Null(repository.TripStartLocations[0]);
+        Assert.False(coordinator.Snapshot.HasLocation);
+    }
+
+    [Fact]
+    public async Task ACurrentFixIsStampedOnTheSightingAndReportedToTheUi()
+    {
+        var here = new GeoPoint(52.2215, 5.1719, 6);
+        var repository = new FakeRepository();
+        var location = new TestLocationFactory { NextFix = new LocationFix(here, DateTimeOffset.UtcNow) };
+        var pipeline = new ConfirmingPipeline();
+        await using var coordinator = await StartDrivingAsync(repository, pipeline, location);
+        await SubmitFramesAsync(coordinator, pipeline, 3);
+        await WaitUntilAsync(() => repository.AddCount == 1);
+
+        Assert.Equal(here, repository.AddedSightingLocations[0]);
+        Assert.Equal(here, repository.TripStartLocations[0]);
+        Assert.True(coordinator.Snapshot.HasLocation);
+    }
+
+    [Fact]
+    public async Task EachDriveGetsItsOwnTrackerAndDisposesItOnStop()
+    {
+        var repository = new FakeRepository();
+        var location = new TestLocationFactory();
+        var pipeline = new ConfirmingPipeline();
+        await using var coordinator = await StartDrivingAsync(repository, pipeline, location);
+        await coordinator.StopDriveAsync();
+        await coordinator.StartDriveAsync();
+        await coordinator.StopDriveAsync();
+
+        Assert.Equal(2, location.Created.Count);
+        Assert.All(location.Created, tracker => Assert.True(tracker.Disposed));
+    }
+
     private static bool IsConfirmed(DriveOverlay overlay) => overlay.Kind
         is DriveOverlayKind.Confirmed or DriveOverlayKind.ConfirmedKnown;
 
@@ -320,13 +399,14 @@ public sealed class DriveCoordinatorTests
 
     private static async Task<DriveCoordinator> StartDrivingAsync(
         FakeRepository repository,
-        IFrameRecognitionPipeline pipeline)
+        IFrameRecognitionPipeline pipeline,
+        TestLocationFactory? location = null)
     {
         var input = new TestVideoInput();
         var coordinator = await CreateCoordinatorAsync(
             repository,
             input,
-            new TestLocationTracker(),
+            location ?? new TestLocationFactory(),
             new TestDeviceExperience(),
             pipeline);
         await coordinator.InitializeAsync();
@@ -337,7 +417,7 @@ public sealed class DriveCoordinatorTests
     private static async Task<DriveCoordinator> CreateCoordinatorAsync(
         FakeRepository repository,
         TestVideoInput input,
-        TestLocationTracker location,
+        TestLocationFactory location,
         TestDeviceExperience device,
         IFrameRecognitionPipeline? pipeline = null)
     {
@@ -526,13 +606,30 @@ public sealed class DriveCoordinatorTests
         }
     }
 
+    /// <summary>Hands out a tracker per drive and keeps them so a test can inspect their lifetime.</summary>
+    private sealed class TestLocationFactory : IDriveLocationTrackerFactory
+    {
+        public List<TestLocationTracker> Created { get; } = [];
+
+        /// <summary>The fix the next tracker reports. Cleared between drives to model losing GPS.</summary>
+        public LocationFix? NextFix { get; set; }
+
+        public IDriveLocationTracker Create()
+        {
+            var tracker = new TestLocationTracker { Latest = NextFix };
+            Created.Add(tracker);
+            return tracker;
+        }
+    }
+
     private sealed class TestLocationTracker : IDriveLocationTracker
     {
-        public GeoPoint? Latest => null;
-        public bool IsRunning { get; private set; }
-        public Task<bool> StartAsync(CancellationToken cancellationToken) { IsRunning = true; return Task.FromResult(true); }
-        public void Stop() => IsRunning = false;
-        public void Dispose() { }
+        public LocationFix? Latest { get; set; }
+        public bool Started { get; private set; }
+        public bool Disposed { get; private set; }
+        public Task<bool> StartAsync(CancellationToken cancellationToken) { Started = true; return Task.FromResult(true); }
+        public void Stop() { }
+        public void Dispose() => Disposed = true;
     }
 
     private sealed class TestDeviceExperience : IDeviceExperience
@@ -576,6 +673,8 @@ public sealed class DriveCoordinatorTests
         private Sighting? _currentSighting;
         private long _nextSightingId;
         public int AddCount { get; private set; }
+        public List<GeoPoint?> AddedSightingLocations { get; } = [];
+        public List<GeoPoint?> TripStartLocations { get; } = [];
         public TaskCompletionSource<Sighting> SightingAdded { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<Sighting> SightingRevised { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource SnapshotReferenceSet { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -587,13 +686,14 @@ public sealed class DriveCoordinatorTests
         public int SetSnapshotReferenceCount { get; private set; }
         public Task InitializeAsync(CancellationToken cancellationToken) { InitializeCount++; return Task.CompletedTask; }
         public Task<TripSummary> StartTripAsync(DateTimeOffset startedAt, GeoPoint? location, CancellationToken cancellationToken)
-        { StartTripCount++; return Task.FromResult(Trip(1, startedAt, null)); }
+        { StartTripCount++; TripStartLocations.Add(location); return Task.FromResult(Trip(StartTripCount, startedAt, null)); }
         public Task<TripSummary> EndTripAsync(long tripId, DateTimeOffset endedAt, GeoPoint? location, CancellationToken cancellationToken)
         { EndTripCount++; return Task.FromResult(Trip(tripId, endedAt.AddSeconds(-1), endedAt)); }
         public Task AddTripPointAsync(long tripId, DateTimeOffset recordedAt, GeoPoint location, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task<Sighting> AddOrMergeAsync(ConfirmedPlate plate, GeoPoint? location, VehicleRecord? vehicle, long? tripId, CancellationToken cancellationToken)
         {
             AddCount++;
+            AddedSightingLocations.Add(location);
             var sighting = new Sighting(
                 Interlocked.Increment(ref _nextSightingId),
                 plate.Consensus.NormalizedPlate,

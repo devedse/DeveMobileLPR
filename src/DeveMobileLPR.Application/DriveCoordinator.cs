@@ -5,6 +5,11 @@ namespace DeveMobileLPR.Application;
 
 public sealed class DriveCoordinator : IAsyncDisposable
 {
+    private static readonly TimeSpan RouteSampleInterval = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan MinimumRouteInterval = TimeSpan.FromSeconds(30);
+    private const float MaximumRouteAccuracyMeters = 75;
+    private const double MinimumRouteDistanceMeters = 12;
+
     private readonly ISightingRepository _repository;
     private readonly IVehicleImageStore _vehicleImageStore;
     private readonly IDriveSettings _settings;
@@ -12,25 +17,20 @@ public sealed class DriveCoordinator : IAsyncDisposable
     private readonly RecognitionTuningConfiguration _recognitionTuning;
     private readonly IRecognitionPipelineProvider _pipelineProvider;
     private readonly IVehicleLookup _vehicleLookup;
-    private readonly IDriveLocationTracker _location;
+    private readonly IDriveLocationTrackerFactory _locationFactory;
     private readonly IDeviceExperience _deviceExperience;
     private readonly IApplicationDispatcher _dispatcher;
     private readonly SemaphoreSlim _initializeGate = new(1, 1);
     private readonly SemaphoreSlim _driveGate = new(1, 1);
     private readonly object _stateGate = new();
     private readonly DrivePerformanceMonitor _performance = new();
-    private readonly HashSet<string> _uniqueVehicles = new(StringComparer.Ordinal);
-    private readonly Dictionary<long, Sighting> _sessionSightings = [];
-    private readonly List<Sighting> _recentSightings = [];
-    private readonly ConfirmedOverlayTracker _confirmedPlates = new(() => DateTimeOffset.UtcNow);
+    /// <summary>The active drive, or null when idle. Guarded by <c>_stateGate</c>.</summary>
+    private DriveTrip? _trip;
     private RecognitionSession? _recognition;
     private IDriveVideoInput? _camera;
     private Task? _cameraInitialization;
     private CancellationTokenSource? _routeCancellation;
     private Task? _routeWorker;
-    private GeoPoint? _lastRoutePoint;
-    private DateTimeOffset _lastRouteAt;
-    private long _activeTripId;
     private bool _initializing;
     private bool _ready;
     private bool _driving;
@@ -38,10 +38,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
     private bool _disposed;
     private string _status = "Preparing the on-device recognition engine…";
     private bool _hasError;
-    private DateTimeOffset? _startedAt;
     private DriveDiagnosticsSnapshot _diagnostics = DriveDiagnosticsSnapshot.Empty;
-    private Sighting? _mostExpensive;
-    private IReadOnlyList<DriveOverlay> _liveOverlays = [];
     private IReadOnlyList<CameraChoice> _cameraChoices = [new("rear", "Rear cameras · automatic lens")];
     public DriveCoordinator(
         ISightingRepository repository,
@@ -51,7 +48,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
         RecognitionTuningConfiguration recognitionTuning,
         IRecognitionPipelineProvider pipelineProvider,
         IVehicleLookup vehicleLookup,
-        IDriveLocationTracker location,
+        IDriveLocationTrackerFactory locationFactory,
         IDeviceExperience deviceExperience,
         IApplicationDispatcher dispatcher)
     {
@@ -62,7 +59,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
         _recognitionTuning = recognitionTuning;
         _pipelineProvider = pipelineProvider;
         _vehicleLookup = vehicleLookup;
-        _location = location;
+        _locationFactory = locationFactory;
         _deviceExperience = deviceExperience;
         _dispatcher = dispatcher;
         _performance.Sampled += PerformanceSampled;
@@ -72,7 +69,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
     public ISightingRepository Repository => _repository;
     public IVehicleImageStore VehicleImageStore => _vehicleImageStore;
     public DriveSnapshot Snapshot { get { lock (_stateGate) return CreateSnapshot(); } }
-    public long? ActiveTripId { get { var value = Interlocked.Read(ref _activeTripId); return value == 0 ? null : value; } }
+    public long? ActiveTripId { get { lock (_stateGate) return _trip?.TripId; } }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
@@ -108,7 +105,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
                 _vehicleImageStore,
                 _vehicleLookup,
                 () => _settings.SaveVehicleImages,
-                () => _location.Latest,
+                CurrentLocation,
                 () => ActiveTripId);
             _recognition.Progress += RecognitionProgressed;
             _recognition.PlateConfirmed += PlateConfirmed;
@@ -213,27 +210,24 @@ public sealed class DriveCoordinator : IAsyncDisposable
                 return;
             }
 
+            // A tracker per drive: it cannot report a position left over from the previous trip.
+            var location = _locationFactory.Create();
             if (_settings.TrackLocation)
             {
-                await _location.StartAsync(CancellationToken.None).ConfigureAwait(false);
+                await location.StartAsync(CancellationToken.None).ConfigureAwait(false);
             }
 
             var now = DateTimeOffset.UtcNow;
-            var trip = await _repository.StartTripAsync(now, _location.Latest, CancellationToken.None);
-            Interlocked.Exchange(ref _activeTripId, trip.Id);
+            var startLocation = LocationAt(location, now);
+            var row = await _repository.StartTripAsync(now, startLocation, CancellationToken.None);
+            var trip = new DriveTrip(row.Id, now, location);
             _recognition?.ResetTracking();
             lock (_stateGate)
             {
+                _trip = trip;
                 _driving = true;
                 _stopping = false;
-                _startedAt = now;
                 _diagnostics = DriveDiagnosticsSnapshot.Empty;
-                _uniqueVehicles.Clear();
-                _sessionSightings.Clear();
-                _recentSightings.Clear();
-                _mostExpensive = null;
-                _liveOverlays = [];
-                _confirmedPlates.Clear();
                 _hasError = false;
                 _status = "Scanning · video stays on this device";
             }
@@ -242,14 +236,8 @@ public sealed class DriveCoordinator : IAsyncDisposable
             startedCamera = camera;
             await camera.StartAsync();
             camera.SetZoom(_settings.Zoom);
-            if (_location.Latest is { } initial)
-            {
-                await _repository.AddTripPointAsync(trip.Id, now, initial, CancellationToken.None);
-                _lastRoutePoint = initial;
-                _lastRouteAt = now;
-            }
             _routeCancellation = new CancellationTokenSource();
-            _routeWorker = Task.Run(() => RecordRouteAsync(trip.Id, _routeCancellation.Token));
+            _routeWorker = Task.Run(() => RecordRouteAsync(trip, startLocation, now, _routeCancellation.Token));
             _deviceExperience.SetKeepScreenOn(true);
             Publish();
         }
@@ -261,7 +249,6 @@ public sealed class DriveCoordinator : IAsyncDisposable
             {
                 _driving = false;
                 _stopping = false;
-                _startedAt = null;
                 _diagnostics = DriveDiagnosticsSnapshot.Empty;
             }
             SetStatus(
@@ -291,8 +278,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
                 _driving = false;
                 _stopping = true;
                 _status = "Finishing your trip…";
-                _liveOverlays = [];
-                _confirmedPlates.Clear();
+                _trip?.ClearOverlays();
                 _diagnostics = DriveDiagnosticsSnapshot.Empty;
             }
             _performance.Stop();
@@ -303,7 +289,6 @@ public sealed class DriveCoordinator : IAsyncDisposable
             lock (_stateGate)
             {
                 _stopping = false;
-                _startedAt = null;
                 _hasError = failures.Count > 0;
                 _status = failures.Count == 0
                     ? "Trip saved · review it in History"
@@ -357,7 +342,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
                 return;
             }
             _settings.CameraId = camera.SelectedCameraId;
-            ResetInputPerformance(camera);
+            ResetInputPerformance();
             Publish();
         }
         catch (Exception exception)
@@ -369,15 +354,14 @@ public sealed class DriveCoordinator : IAsyncDisposable
         }
     }
 
-    private void ResetInputPerformance(IDriveVideoInput camera)
+    private void ResetInputPerformance()
     {
         _performance.ResetSampleWindow();
         _recognition?.ResetTracking();
         lock (_stateGate)
         {
             _diagnostics = DriveDiagnosticsSnapshot.Empty;
-            _liveOverlays = [];
-            _confirmedPlates.Clear();
+            _trip?.ClearOverlays();
         }
     }
 
@@ -445,17 +429,20 @@ public sealed class DriveCoordinator : IAsyncDisposable
             await Task.Delay(350);
         }
 
-        var tripId = ActiveTripId;
-        if (tripId is not null)
+        DriveTrip? trip;
+        lock (_stateGate) trip = _trip;
+        if (trip is not null)
         {
+            var endedAt = DateTimeOffset.UtcNow;
             await CaptureFailureAsync(
-                () => _repository.EndTripAsync(tripId.Value, DateTimeOffset.UtcNow, _location.Latest, CancellationToken.None),
+                () => _repository.EndTripAsync(trip.TripId, endedAt, trip.LocationAt(endedAt), CancellationToken.None),
                 failures);
         }
 
-        Interlocked.Exchange(ref _activeTripId, 0);
+        // Clearing the field before disposing keeps a late reader from seeing a disposed tracker.
+        lock (_stateGate) _trip = null;
+        CaptureFailure(() => trip?.Dispose(), failures);
         CaptureFailure(() => _recognition?.ResetTracking(), failures);
-        CaptureFailure(_location.Stop, failures);
         CaptureFailure(() => _routeCancellation?.Dispose(), failures);
         _routeCancellation = null;
         _routeWorker = null;
@@ -504,25 +491,43 @@ public sealed class DriveCoordinator : IAsyncDisposable
         }
     }
 
-    private async Task RecordRouteAsync(long tripId, CancellationToken cancellationToken)
+    /// <summary>
+    /// Samples the route for one trip. The last recorded point is a local rather than a field: only
+    /// this loop needs it, and as a field it was both read without the state gate and left behind
+    /// for the next trip to compare against.
+    /// </summary>
+    private async Task RecordRouteAsync(
+        DriveTrip trip,
+        GeoPoint? seedPoint,
+        DateTimeOffset seedAt,
+        CancellationToken cancellationToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(10));
+        var lastPoint = seedPoint;
+        var lastAt = seedAt;
+        if (seedPoint is { } start)
+        {
+            await _repository.AddTripPointAsync(trip.TripId, seedAt, start, cancellationToken).ConfigureAwait(false);
+        }
+
+        using var timer = new PeriodicTimer(RouteSampleInterval);
         while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
         {
-            if (_location.Latest is not { } point || point.AccuracyMeters is > 75)
-            {
-                continue;
-            }
-
             var now = DateTimeOffset.UtcNow;
-            if (_lastRoutePoint is not null && DistanceMeters(_lastRoutePoint.Value, point) < 12 && now - _lastRouteAt < TimeSpan.FromSeconds(30))
+            if (trip.LocationAt(now) is not { } point || point.AccuracyMeters > MaximumRouteAccuracyMeters)
             {
                 continue;
             }
 
-            await _repository.AddTripPointAsync(tripId, now, point, cancellationToken).ConfigureAwait(false);
-            _lastRoutePoint = point;
-            _lastRouteAt = now;
+            if (lastPoint is { } previous
+                && DistanceMeters(previous, point) < MinimumRouteDistanceMeters
+                && now - lastAt < MinimumRouteInterval)
+            {
+                continue;
+            }
+
+            await _repository.AddTripPointAsync(trip.TripId, now, point, cancellationToken).ConfigureAwait(false);
+            lastPoint = point;
+            lastAt = now;
             Publish();
         }
     }
@@ -532,11 +537,16 @@ public sealed class DriveCoordinator : IAsyncDisposable
         var recognition = progress.Recognition;
         lock (_stateGate)
         {
-            _confirmedPlates.ObserveFrame(
+            if (_trip is not { } trip)
+            {
+                return;
+            }
+
+            trip.ConfirmedPlates.ObserveFrame(
                 recognition.SourceWidth,
                 recognition.SourceHeight,
                 progress.Diagnostics.Tracks);
-            _liveOverlays = _settings.TrackingDiagnosticsEnabled
+            trip.LiveOverlays = _settings.TrackingDiagnosticsEnabled
                 ? DriveOverlayFactory.CreateDiagnosticOverlays(
                     progress.Diagnostics,
                     recognition.SourceWidth,
@@ -556,17 +566,14 @@ public sealed class DriveCoordinator : IAsyncDisposable
 
         lock (_stateGate)
         {
-            _sessionSightings[sighting.Id] = sighting;
-            _uniqueVehicles.Clear();
-            _uniqueVehicles.UnionWith(_sessionSightings.Values.Select(static item => item.NormalizedPlate));
-            _recentSightings.RemoveAll(item => item.Id == sighting.Id);
-            _recentSightings.Insert(0, sighting);
-            if (_recentSightings.Count > 5) _recentSightings.RemoveRange(5, _recentSightings.Count - 5);
-            _mostExpensive = _sessionSightings.Values
-                .Where(static item => item.Vehicle?.CatalogPrice is not null)
-                .OrderByDescending(static item => item.Vehicle!.CatalogPrice)
-                .FirstOrDefault();
-            _confirmedPlates.Confirm(result.Confirmation, sighting, result.Prior);
+            // A confirmation can arrive from the in-flight frame just after a drive stopped.
+            if (_trip is not { } trip)
+            {
+                return;
+            }
+
+            trip.AddOrReplaceSighting(sighting);
+            trip.ConfirmedPlates.Confirm(result.Confirmation, sighting, result.Prior);
         }
 
         if (result.Confirmation.Revision == 0 && _settings.ConfirmationHaptic)
@@ -641,13 +648,13 @@ public sealed class DriveCoordinator : IAsyncDisposable
         _stopping,
         _status,
         _hasError,
-        _startedAt,
+        _trip?.StartedAt,
         CreateDiagnosticsSnapshot(),
-        _uniqueVehicles.Count,
-        _recentSightings.ToArray(),
-        _mostExpensive,
+        _trip?.UniqueVehicleCount ?? 0,
+        _trip?.RecentSightings() ?? [],
+        _trip?.MostExpensive,
         CreateOverlays(),
-        _location.Latest is not null,
+        CurrentLocation() is not null,
         _camera?.IsReady == true,
         _camera?.SupportsNetworkStreams == true,
         _cameraChoices.ToArray(),
@@ -661,11 +668,35 @@ public sealed class DriveCoordinator : IAsyncDisposable
     /// overlays, so a new confirmation cannot drop the plates already on screen and a plate still
     /// expires while no further frames arrive. Caller must hold <c>_stateGate</c>.
     /// </summary>
-    private IReadOnlyList<DriveOverlay> CreateOverlays() => _liveOverlays
-        .Where(overlay => overlay.Kind != DriveOverlayKind.Reading
-            || !_confirmedPlates.Suppresses(overlay.Bounds))
-        .Concat(_confirmedPlates.CreateOverlays())
-        .ToArray();
+    private IReadOnlyList<DriveOverlay> CreateOverlays()
+    {
+        if (_trip is not { } trip)
+        {
+            return [];
+        }
+
+        return trip.LiveOverlays
+            .Where(overlay => overlay.Kind != DriveOverlayKind.Reading
+                || !trip.ConfirmedPlates.Suppresses(overlay.Bounds))
+            .Concat(trip.ConfirmedPlates.CreateOverlays())
+            .ToArray();
+    }
+
+    /// <summary>
+    /// The position to stamp on data recorded right now, or null when there is no drive or no fix
+    /// recent enough to trust. Safe to call from any thread.
+    /// </summary>
+    private GeoPoint? CurrentLocation()
+    {
+        DriveTrip? trip;
+        lock (_stateGate) trip = _trip;
+        return trip?.LocationAt(DateTimeOffset.UtcNow);
+    }
+
+    private static GeoPoint? LocationAt(IDriveLocationTracker tracker, DateTimeOffset now) =>
+        tracker.Latest is { } fix && (now - fix.ObservedAt).Duration() <= DriveTrip.MaximumLocationAge
+            ? fix.Point
+            : null;
 
     private DriveDiagnosticsSnapshot CreateDiagnosticsSnapshot() => _diagnostics.WithSourceLabel(
         (_camera?.SelectedCameraId ?? _settings.CameraId) == DriveInputIds.NetworkLlHls
@@ -688,7 +719,6 @@ public sealed class DriveCoordinator : IAsyncDisposable
         _disposed = true;
         // Waiting through StopDriveAsync also serializes disposal with an already-running stop.
         if (_driving || _stopping) await StopDriveAsync();
-        _location.Stop();
         if (_recognition is not null)
         {
             _recognition.Progress -= RecognitionProgressed;
@@ -699,7 +729,6 @@ public sealed class DriveCoordinator : IAsyncDisposable
         _routeCancellation?.Dispose();
         _performance.Sampled -= PerformanceSampled;
         _performance.Dispose();
-        _location.Dispose();
         _initializeGate.Dispose();
         _driveGate.Dispose();
     }
