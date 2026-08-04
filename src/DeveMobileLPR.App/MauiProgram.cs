@@ -25,8 +25,8 @@ public static class MauiProgram
         builder.Services.AddSingleton<RecognitionTuningConfiguration>();
         builder.Services.AddSingleton<RdwDatabaseService>();
         builder.Services.AddSingleton<IVehicleDataStatus>(services => services.GetRequiredService<RdwDatabaseService>());
-        builder.Services.AddSingleton(_ => new SqliteSightingRepository(Path.Combine(FileSystem.AppDataDirectory, "sightings.sqlite")));
-        builder.Services.AddSingleton<ISightingRepository>(services => services.GetRequiredService<SqliteSightingRepository>());
+        builder.Services.AddSingleton(_ => new SightingRepository(Path.Combine(FileSystem.AppDataDirectory, "sightings.sqlite")));
+        builder.Services.AddSingleton<ISightingRepository>(services => services.GetRequiredService<SightingRepository>());
         builder.Services.AddSingleton<IVehicleLookup>(services =>
             new AppVehicleLookup(services.GetRequiredService<RdwDatabaseService>().DatabasePath));
         builder.Services.AddSingleton<IApplicationDispatcher, MauiApplicationDispatcher>();

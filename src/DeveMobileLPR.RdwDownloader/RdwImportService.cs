@@ -61,7 +61,7 @@ internal sealed class RdwImportService(IRdwSource source)
                 cancellationToken).ConfigureAwait(false);
         }
 
-        var lookup = new SqliteRdwVehicleLookup(buildPath);
+        var lookup = new RdwVehicleLookup(buildPath);
         await lookup.ValidateAsync(cancellationToken).ConfigureAwait(false);
         SqliteConnection.ClearAllPools();
         File.Move(buildPath, outputPath, true);

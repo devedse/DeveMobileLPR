@@ -4,14 +4,14 @@ using DeveMobileLPR.Storage;
 
 namespace DeveMobileLPR.Tests;
 
-public sealed class SqliteSightingRepositoryTests : IAsyncLifetime
+public sealed class SightingRepositoryTests : IAsyncLifetime
 {
     private readonly string _databasePath = Path.Combine(Path.GetTempPath(), $"DeveMobileLPR-{Guid.NewGuid():N}.sqlite");
-    private SqliteSightingRepository _repository = null!;
+    private SightingRepository _repository = null!;
 
     public async Task InitializeAsync()
     {
-        _repository = new SqliteSightingRepository(_databasePath);
+        _repository = new SightingRepository(_databasePath);
         await _repository.InitializeAsync(CancellationToken.None);
     }
 
@@ -105,29 +105,19 @@ public sealed class SqliteSightingRepositoryTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task InitializeAsync_UpgradesVersionTwoDatabaseWithNullableSnapshotReference()
+    public async Task InitializeAsync_IsIdempotentAndKeepsExistingHistory()
     {
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        await using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={_databasePath}"))
-        {
-            await connection.OpenAsync();
-            await using var command = connection.CreateCommand();
-            command.CommandText = """
-                ALTER TABLE sightings DROP COLUMN snapshot_reference;
-                PRAGMA user_version = 2;
-                """;
-            await command.ExecuteNonQueryAsync();
-        }
-
-        await _repository.InitializeAsync(CancellationToken.None);
-        var sighting = await _repository.AddOrMergeAsync(
+        var existing = await _repository.AddOrMergeAsync(
             Confirmed("AB1234", DateTimeOffset.UtcNow, 3),
             null,
             null,
             null,
             CancellationToken.None);
 
-        Assert.Null(sighting.SnapshotReference);
+        await _repository.InitializeAsync(CancellationToken.None);
+
+        var sighting = Assert.Single(await _repository.GetAllSightingsAsync(CancellationToken.None));
+        Assert.Equal(existing.Id, sighting.Id);
         Assert.Equal(
             "vehicle-snapshots/1.jpg",
             (await _repository.SetSnapshotReferenceAsync(
@@ -165,7 +155,7 @@ public sealed class SqliteSightingRepositoryTests : IAsyncLifetime
                 await command.ExecuteNonQueryAsync();
             }
 
-            var lookup = new SqliteRdwVehicleLookup(rdwPath);
+            var lookup = new RdwVehicleLookup(rdwPath);
             await lookup.ValidateAsync(CancellationToken.None);
             var vehicle = await lookup.FindAsync("G-694-NT", CancellationToken.None);
             var time = DateTimeOffset.UtcNow;
@@ -330,7 +320,7 @@ public sealed class SqliteSightingRepositoryTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task InitializeAsync_MigratesVersionOneSightingsWithoutDataLoss()
+    public async Task InitializeAsync_ReplacesAPreEfCoreDatabaseWithTheCodeFirstSchema()
     {
         var legacyPath = Path.Combine(Path.GetTempPath(), $"DeveMobileLPR-legacy-{Guid.NewGuid():N}.sqlite");
         try
@@ -353,18 +343,25 @@ public sealed class SqliteSightingRepositoryTests : IAsyncLifetime
                 await command.ExecuteNonQueryAsync();
             }
 
-            var repository = new SqliteSightingRepository(legacyPath);
+            var repository = new SightingRepository(legacyPath);
             await repository.InitializeAsync(CancellationToken.None);
 
-            var sighting = Assert.Single(await repository.GetAllSightingsAsync(CancellationToken.None));
-            Assert.Equal("AB1234", sighting.NormalizedPlate);
-            Assert.Null(sighting.TripId);
-            Assert.Null(sighting.SnapshotReference);
+            // The pre-EF Core history is discarded rather than migrated, and the rebuilt database is
+            // immediately usable and tracked by the migrations history table.
+            Assert.Empty(await repository.GetAllSightingsAsync(CancellationToken.None));
+            var sighting = await repository.AddOrMergeAsync(
+                Confirmed("CD5678", DateTimeOffset.UtcNow, 2),
+                null,
+                null,
+                null,
+                CancellationToken.None);
+            Assert.Equal("CD5678", sighting.NormalizedPlate);
+
             await using var verify = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={legacyPath}");
             await verify.OpenAsync();
-            await using var version = verify.CreateCommand();
-            version.CommandText = "PRAGMA user_version;";
-            Assert.Equal(3L, (long)(await version.ExecuteScalarAsync())!);
+            await using var applied = verify.CreateCommand();
+            applied.CommandText = "SELECT count(*) FROM __EFMigrationsHistory;";
+            Assert.Equal(1L, (long)(await applied.ExecuteScalarAsync())!);
         }
         finally
         {

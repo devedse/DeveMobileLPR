@@ -54,7 +54,9 @@ For OCR results classified as Dutch, a confirmed string must match one of RDW si
 
 Confirmed sightings within three minutes of the same plate and the same trip are merged. The merge keeps the earliest first-seen time, advances the last-seen time, adds observation counts, keeps the strongest confidence, and fills missing GPS/RDW facts. A trip boundary always creates a distinct appearance, even when two drives happen close together.
 
-SQLite uses WAL mode and indexes plate/time, trip/time, route points, and catalog price. Schema version 2 adds trips and filtered GPS route points while migrating version-1 sightings in place. Schema version 3 adds a nullable relative reference for an optional vehicle image. RDW data is intentionally a second SQLite database because it is large and replaceable. `SqliteRdwVehicleLookup` reads through the stable `rdw_vehicles` view so the user's downloader schema remains decoupled from the app.
+The schema is EF Core Code First: `LprDbContext` owns the model and `Migrations/` owns the SQL, so a schema change is a model edit plus `dotnet ef migrations add`. `InitializeAsync` applies pending migrations, switches SQLite to WAL mode, and closes trips that process termination left open. Indexes cover plate/time, trip/time, route points, and catalog price. Timestamps are stored as round-trip UTC text, which is fixed width and therefore sortable, and catalog prices as REAL, because EF Core cannot sort a decimal stored as text in SQLite. A database written before the Code First conversion has no `__EFMigrationsHistory` table; it is discarded and rebuilt rather than migrated, since a later drive recreates the history.
+
+RDW data is intentionally a second SQLite database because it is large and replaceable. It is deliberately not Code First: the downloader produces it, and `RdwVehicleLookup` reads it through a keyless EF Core entity mapped to the stable `rdw_vehicles` view, so the downloader's schema stays decoupled from the app and the app owns no migrations for it.
 
 ## Security and privacy defaults
 
