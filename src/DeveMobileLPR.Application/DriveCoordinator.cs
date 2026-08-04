@@ -644,7 +644,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
         Publish();
     }
 
-    private void RecognitionFailed(object? sender, Exception exception) => SetStatus($"Recognition paused: {exception.Message}", true);
+    private void RecognitionFailed(object? sender, Exception exception) => SetStatus($"Recognition frame skipped: {exception.Message} Scanning continues.", true);
     private void SourceFramesAvailable(object? sender, DriveFrameCountEventArgs args) => _performance.RecordSourceFrames(args.Count);
     private void PreviewFramesPresented(object? sender, DriveFrameCountEventArgs args) => _performance.RecordPreviewFrames(args.Count);
     private void PerformanceSampled(object? sender, DrivePerformanceSample sample)

@@ -33,6 +33,26 @@ public sealed class CctPlateRecognizerTests
         Assert.True(model.IsDisposed);
     }
 
+    [Fact]
+    public async Task RecognizeAsync_SkipsInternalPaddingWithoutDiscardingLaterSlots()
+    {
+        using var frame = CreateFrame();
+        using var recognizer = new CctPlateRecognizer(new FakeRawModel(
+            (0, 'A'),
+            (1, 'B'),
+            (2, '_'),
+            (3, '1'),
+            (4, '2')));
+
+        var result = await recognizer.RecognizeAsync(
+            frame,
+            new BoundingBox(10, 10, 150, 70),
+            CancellationToken.None);
+
+        Assert.Equal("AB12", result.Read.Text);
+        Assert.Equal(4, result.Read.Characters.Count);
+    }
+
     private static Yuv420Frame CreateFrame()
     {
         const int width = 160;
@@ -63,6 +83,14 @@ public sealed class CctPlateRecognizerTests
     private sealed class FakeRawModel : ICctRawModel, IInferenceBackendDiagnostics
     {
         private const string Alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_";
+        private readonly (int Slot, char Character)[] _characters;
+
+        public FakeRawModel(params (int Slot, char Character)[] characters)
+        {
+            _characters = characters.Length == 0
+                ? [(0, 'A'), (1, 'B'), (2, '1'), (3, '2')]
+                : characters;
+        }
 
         public string BackendName => "Test raw OCR";
         public IReadOnlyList<string> BackendDiagnostics => ["Test raw OCR initialized"];
@@ -73,11 +101,14 @@ public sealed class CctPlateRecognizerTests
         {
             InputLength = input.Length;
             var plate = new float[10 * Alphabet.Length];
-            SetCharacter(plate, 0, 'A', 0.9f);
-            SetCharacter(plate, 1, 'B', 0.9f);
-            SetCharacter(plate, 2, '1', 0.9f);
-            SetCharacter(plate, 3, '2', 0.9f);
-            SetCharacter(plate, 4, '_', 1f);
+            for (var slot = 0; slot < 10; slot++)
+            {
+                SetCharacter(plate, slot, '_', 1f);
+            }
+            foreach (var (slot, character) in _characters)
+            {
+                SetCharacter(plate, slot, character, 0.9f);
+            }
 
             var region = new float[66];
             region[43] = 0.8f;
@@ -88,6 +119,7 @@ public sealed class CctPlateRecognizerTests
 
         private static void SetCharacter(float[] plate, int slot, char character, float probability)
         {
+            Array.Clear(plate, slot * Alphabet.Length, Alphabet.Length);
             plate[(slot * Alphabet.Length) + Alphabet.IndexOf(character)] = probability;
         }
     }

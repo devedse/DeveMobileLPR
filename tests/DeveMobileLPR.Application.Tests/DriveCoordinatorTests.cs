@@ -131,6 +131,38 @@ public sealed class DriveCoordinatorTests
     }
 
     [Fact]
+    public async Task RecognitionContinuesWithLatestFrameAfterPipelineFailure()
+    {
+        var pipeline = new FailsOncePipeline();
+        var input = new TestVideoInput();
+        await using var coordinator = new DriveCoordinator(
+            new FakeRepository(),
+            new TestVehicleImageStore(),
+            new TestSettings(),
+            new TestVehicleDataStatus(),
+            new RecognitionTuningConfiguration(),
+            new TestPipelineProvider(pipeline),
+            new TestVehicleLookup(),
+            new TestLocationTracker(),
+            new TestDeviceExperience(),
+            new ImmediateDispatcher());
+        coordinator.AttachCamera(input);
+        await input.Initialized.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await coordinator.InitializeAsync();
+        await coordinator.StartDriveAsync();
+
+        Assert.True(coordinator.SubmitFrame(CreateFrame(1)));
+        await pipeline.FirstAttempted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.True(coordinator.SubmitFrame(CreateFrame(2)));
+
+        var processedSequence = await pipeline.SuccessfulFrame.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(2, processedSequence);
+        Assert.True(coordinator.Snapshot.IsDriving);
+        Assert.True(coordinator.Snapshot.HasError);
+        Assert.Contains("Scanning continues", coordinator.Snapshot.Status);
+    }
+
+    [Fact]
     public async Task StopDriveStillFinalizesTripAndReleasesDeviceResourcesWhenVideoInputStopFails()
     {
         var repository = new FakeRepository();
@@ -263,6 +295,25 @@ public sealed class DriveCoordinatorTests
     {
         public ValueTask<FrameRecognition> ProcessAsync(Yuv420Frame frame, CancellationToken cancellationToken) =>
             ValueTask.FromResult(new FrameRecognition(frame.Sequence, frame.CapturedAt, []));
+    }
+
+    private sealed class FailsOncePipeline : IFrameRecognitionPipeline
+    {
+        private int _attempts;
+        public TaskCompletionSource FirstAttempted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<long> SuccessfulFrame { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ValueTask<FrameRecognition> ProcessAsync(Yuv420Frame frame, CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref _attempts) == 1)
+            {
+                FirstAttempted.TrySetResult();
+                throw new InvalidOperationException("transient inference failure");
+            }
+
+            SuccessfulFrame.TrySetResult(frame.Sequence);
+            return ValueTask.FromResult(new FrameRecognition(frame.Sequence, frame.CapturedAt, []));
+        }
     }
 
     private sealed class ConfirmingPipeline : IFrameRecognitionPipeline

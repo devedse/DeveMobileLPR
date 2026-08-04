@@ -61,9 +61,9 @@ internal sealed class RecognitionSession : IAsyncDisposable
 
     private async Task ProcessLoopAsync()
     {
-        try
+        while (!_cancellation.IsCancellationRequested)
         {
-            while (!_cancellation.IsCancellationRequested)
+            try
             {
                 using var frame = await _frames.ReadAsync(_cancellation.Token).ConfigureAwait(false);
                 if (frame is null)
@@ -132,7 +132,7 @@ internal sealed class RecognitionSession : IAsyncDisposable
                         }
                         catch (Exception exception)
                         {
-                            Failed?.Invoke(this, new InvalidOperationException(
+                            ReportFailure(new InvalidOperationException(
                                 "The vehicle image could not be saved.",
                                 exception));
                         }
@@ -141,13 +141,30 @@ internal sealed class RecognitionSession : IAsyncDisposable
                     PlateConfirmed?.Invoke(this, new RecognitionConfirmation(sighting, confirmation));
                 }
             }
+            catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception exception)
+            {
+                _processor.Reset();
+                _sightingIdsByTrack.Clear();
+                ReportFailure(exception);
+            }
         }
-        catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
+    }
+
+    private void ReportFailure(Exception exception)
+    {
+        foreach (EventHandler<Exception> handler in Failed?.GetInvocationList() ?? [])
         {
-        }
-        catch (Exception exception)
-        {
-            Failed?.Invoke(this, exception);
+            try
+            {
+                handler(this, exception);
+            }
+            catch
+            {
+            }
         }
     }
 

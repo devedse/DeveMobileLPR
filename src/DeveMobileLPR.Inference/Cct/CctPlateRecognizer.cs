@@ -121,7 +121,7 @@ public sealed class CctPlateRecognizer : IPlateRecognizer, IInferenceBackendInfo
             var best = top[0];
             if (best.Character == CctV2Metadata.PaddingCharacter)
             {
-                break;
+                continue;
             }
 
             text.Append(best.Character);
