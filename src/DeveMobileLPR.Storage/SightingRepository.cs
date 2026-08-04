@@ -416,6 +416,26 @@ public sealed class SightingRepository : ISightingRepository
             snapshots.GetValueOrDefault(row.NormalizedPlate)));
     }
 
+    public async Task<PriorVehicleSightings> GetPriorVehicleSightingsAsync(string normalizedPlate, long? excludeTripId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(normalizedPlate);
+        await using var context = _contexts.CreateDbContext();
+        var row = await context.Sightings.AsNoTracking()
+            .Where(sighting => sighting.NormalizedPlate == normalizedPlate
+                && (excludeTripId == null || sighting.TripId != excludeTripId.Value))
+            .GroupBy(sighting => sighting.NormalizedPlate)
+            .Select(group => new
+            {
+                Count = group.Count(),
+                LastSeenAt = group.Max(sighting => sighting.LastSeenAt)
+            })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return row is null
+            ? PriorVehicleSightings.None
+            : new PriorVehicleSightings(row.Count, row.LastSeenAt);
+    }
+
     public async Task<HistoryStatistics> GetStatisticsAsync(DateTimeOffset from, DateTimeOffset until, CancellationToken cancellationToken)
     {
         await using var context = _contexts.CreateDbContext();

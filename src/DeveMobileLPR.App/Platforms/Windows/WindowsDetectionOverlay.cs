@@ -13,9 +13,12 @@ internal sealed class WindowsDetectionOverlay : Canvas
 {
     private static readonly WinUISolidColorBrush ReadingBrush = new(WinUIColor.FromArgb(255, 88, 224, 194));
     private static readonly WinUISolidColorBrush ConfirmedBrush = new(WinUIColor.FromArgb(255, 245, 197, 66));
-    private static readonly WinUISolidColorBrush TrackBrush = new(WinUIColor.FromArgb(255, 215, 123, 255));
+    private static readonly WinUISolidColorBrush ConfirmedKnownBrush = new(WinUIColor.FromArgb(255, 215, 123, 255));
+    private static readonly WinUISolidColorBrush ConfirmedNewBrush = new(WinUIColor.FromArgb(255, 61, 240, 158));
     private static readonly WinUISolidColorBrush ReadingLabelBrush = new(WinUIColor.FromArgb(232, 11, 13, 16));
     private static readonly WinUISolidColorBrush ConfirmedLabelBrush = new(WinUIColor.FromArgb(242, 245, 197, 66));
+    private static readonly WinUISolidColorBrush ConfirmedKnownLabelBrush = new(WinUIColor.FromArgb(242, 42, 22, 63));
+    private static readonly WinUISolidColorBrush ConfirmedNewLabelBrush = new(WinUIColor.FromArgb(242, 12, 41, 26));
     private static readonly WinUISolidColorBrush LightTextBrush = new(WinUIColor.FromArgb(255, 247, 249, 252));
     private static readonly WinUISolidColorBrush DarkTextBrush = new(WinUIColor.FromArgb(255, 20, 17, 5));
     private readonly AspectScaleMode _scaleMode;
@@ -64,7 +67,13 @@ internal sealed class WindowsDetectionOverlay : Canvas
         var width = projected.Width;
         var height = projected.Height;
         var confirmed = overlay.Kind == DriveOverlayKind.Confirmed;
-        var accent = overlay.Kind == DriveOverlayKind.Track ? TrackBrush : confirmed ? ConfirmedBrush : ReadingBrush;
+        var confirmedKnown = overlay.Kind == DriveOverlayKind.ConfirmedKnown;
+        var confirmedNew = overlay.Kind == DriveOverlayKind.ConfirmedNew;
+        var accent = confirmedNew
+            ? ConfirmedNewBrush
+            : confirmedKnown || overlay.Kind == DriveOverlayKind.Track
+                ? ConfirmedKnownBrush
+                : confirmed ? ConfirmedBrush : ReadingBrush;
         var box = new Rectangle
         {
             Width = width,
@@ -72,7 +81,7 @@ internal sealed class WindowsDetectionOverlay : Canvas
             RadiusX = 8,
             RadiusY = 8,
             Stroke = accent,
-            StrokeThickness = confirmed ? 3.5 : 2.25,
+            StrokeThickness = confirmed || confirmedKnown || confirmedNew ? 3.5 : 2.25,
             StrokeDashArray = overlay.Kind == DriveOverlayKind.Track
                 ? new Microsoft.UI.Xaml.Media.DoubleCollection { 5, 3 }
                 : null
@@ -86,13 +95,17 @@ internal sealed class WindowsDetectionOverlay : Canvas
         var labelLeft = Math.Clamp(left, 8, Math.Max(8, ActualWidth - labelWidth - 8));
         var labelTop = top - labelHeight - 5;
         if (labelTop < 8) labelTop = top + height + 5;
-        var textColor = confirmed ? DarkTextBrush : LightTextBrush;
+        var textColor = confirmedNew || confirmedKnown || !confirmed ? LightTextBrush : DarkTextBrush;
         var label = new Microsoft.UI.Xaml.Controls.Border
         {
             Width = labelWidth,
             Height = labelHeight,
             Padding = new Microsoft.UI.Xaml.Thickness(9, 4, 9, 4),
-            Background = confirmed ? ConfirmedLabelBrush : ReadingLabelBrush,
+            Background = confirmedNew
+                ? ConfirmedNewLabelBrush
+                : confirmedKnown
+                    ? ConfirmedKnownLabelBrush
+                    : confirmed ? ConfirmedLabelBrush : ReadingLabelBrush,
             CornerRadius = new Microsoft.UI.Xaml.CornerRadius(7),
             Child = new StackPanel
             {

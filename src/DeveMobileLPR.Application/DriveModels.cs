@@ -24,7 +24,9 @@ public enum DriveOverlayKind
     Candidate,
     Reading,
     Track,
-    Confirmed
+    Confirmed,
+    ConfirmedKnown,
+    ConfirmedNew
 }
 
 public sealed record DriveIntervalDiagnostics(string Label, double? IntervalMilliseconds);

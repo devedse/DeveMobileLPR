@@ -209,6 +209,170 @@ public sealed class DriveCoordinatorTests
         Assert.False(device.KeepScreenOn);
     }
 
+    [Fact]
+    public async Task ConfirmedPlateOverlayPersistsAndSuppressesLiveReadings()
+    {
+        var repository = new FakeRepository();
+        var pipeline = new ConfirmingPipeline();
+        var input = new TestVideoInput();
+        await using var coordinator = new DriveCoordinator(
+            repository,
+            new TestVehicleImageStore(),
+            new TestSettings(),
+            new TestVehicleDataStatus(),
+            new RecognitionTuningConfiguration(),
+            new TestPipelineProvider(pipeline),
+            new TestVehicleLookup(),
+            new TestLocationTracker(),
+            new TestDeviceExperience(),
+            new ImmediateDispatcher());
+        coordinator.AttachCamera(input);
+        await input.Initialized.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await coordinator.InitializeAsync();
+        await coordinator.StartDriveAsync();
+
+        for (var sequence = 1; sequence <= 6; sequence++)
+        {
+            Assert.True(coordinator.SubmitFrame(CreateFrame(sequence)));
+            await pipeline.FrameProcessed.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+
+        await repository.SightingAdded.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await WaitUntilAsync(() => coordinator.Snapshot.Overlays.Any(item =>
+            item.Kind is DriveOverlayKind.Confirmed or DriveOverlayKind.ConfirmedNew));
+
+        var confirmed = coordinator.Snapshot.Overlays.Single(item =>
+            item.Kind is DriveOverlayKind.Confirmed or DriveOverlayKind.ConfirmedNew);
+        Assert.Equal(new BoundingBox(1, 1, 5, 3), confirmed.Bounds);
+        Assert.DoesNotContain(coordinator.Snapshot.Overlays, item => item.Kind == DriveOverlayKind.Reading);
+    }
+
+    [Fact]
+    public async Task ConfirmedPlateOverlayIsHighlightedWhenNew()
+    {
+        var repository = new FakeRepository();
+        var pipeline = new ConfirmingPipeline();
+        var input = new TestVideoInput();
+        await using var coordinator = new DriveCoordinator(
+            repository,
+            new TestVehicleImageStore(),
+            new TestSettings(),
+            new TestVehicleDataStatus(),
+            new RecognitionTuningConfiguration(),
+            new TestPipelineProvider(pipeline),
+            new TestVehicleLookup(),
+            new TestLocationTracker(),
+            new TestDeviceExperience(),
+            new ImmediateDispatcher());
+        coordinator.AttachCamera(input);
+        await input.Initialized.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await coordinator.InitializeAsync();
+        await coordinator.StartDriveAsync();
+
+        for (var sequence = 1; sequence <= 3; sequence++)
+        {
+            Assert.True(coordinator.SubmitFrame(CreateFrame(sequence)));
+            await pipeline.FrameProcessed.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+
+        await repository.SightingAdded.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await WaitUntilAsync(() => coordinator.Snapshot.Overlays.Any(item => item.Kind == DriveOverlayKind.ConfirmedNew));
+
+        var confirmedNew = coordinator.Snapshot.Overlays.Single(item => item.Kind == DriveOverlayKind.ConfirmedNew);
+        Assert.Equal("no RDW details", confirmedNew.Detail);
+    }
+
+    [Fact]
+    public async Task ConfirmedPlateOverlayMarksCarsSeenInEarlierTrips()
+    {
+        var repository = new FakeRepository { Prior = new PriorVehicleSightings(3, DateTimeOffset.UtcNow.AddDays(-2)) };
+        var pipeline = new ConfirmingPipeline();
+        var input = new TestVideoInput();
+        await using var coordinator = new DriveCoordinator(
+            repository,
+            new TestVehicleImageStore(),
+            new TestSettings(),
+            new TestVehicleDataStatus(),
+            new RecognitionTuningConfiguration(),
+            new TestPipelineProvider(pipeline),
+            new TestVehicleLookup(),
+            new TestLocationTracker(),
+            new TestDeviceExperience(),
+            new ImmediateDispatcher());
+        coordinator.AttachCamera(input);
+        await input.Initialized.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await coordinator.InitializeAsync();
+        await coordinator.StartDriveAsync();
+
+        for (var sequence = 1; sequence <= 4; sequence++)
+        {
+            Assert.True(coordinator.SubmitFrame(CreateFrame(sequence)));
+            await pipeline.FrameProcessed.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+
+        await repository.SightingAdded.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await WaitUntilAsync(() => coordinator.Snapshot.Overlays.Any(item => item.Kind == DriveOverlayKind.ConfirmedNew));
+
+        await Task.Delay(TimeSpan.FromSeconds(3.1));
+        Assert.True(coordinator.SubmitFrame(CreateFrame(5)));
+        await pipeline.FrameProcessed.WaitAsync(TimeSpan.FromSeconds(2));
+
+        await WaitUntilAsync(() => coordinator.Snapshot.Overlays.Any(item => item.Kind == DriveOverlayKind.ConfirmedKnown));
+
+        var known = coordinator.Snapshot.Overlays.Single(item => item.Kind == DriveOverlayKind.ConfirmedKnown);
+        Assert.Contains("3×", known.Detail);
+        Assert.Contains("2d", known.Detail);
+    }
+
+    [Fact]
+    public async Task StopDriveRemovesConfirmedOverlays()
+    {
+        var repository = new FakeRepository();
+        var pipeline = new ConfirmingPipeline();
+        var input = new TestVideoInput();
+        await using var coordinator = new DriveCoordinator(
+            repository,
+            new TestVehicleImageStore(),
+            new TestSettings(),
+            new TestVehicleDataStatus(),
+            new RecognitionTuningConfiguration(),
+            new TestPipelineProvider(pipeline),
+            new TestVehicleLookup(),
+            new TestLocationTracker(),
+            new TestDeviceExperience(),
+            new ImmediateDispatcher());
+        coordinator.AttachCamera(input);
+        await input.Initialized.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await coordinator.InitializeAsync();
+        await coordinator.StartDriveAsync();
+
+        for (var sequence = 1; sequence <= 3; sequence++)
+        {
+            Assert.True(coordinator.SubmitFrame(CreateFrame(sequence)));
+            await pipeline.FrameProcessed.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+
+        await repository.SightingAdded.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await WaitUntilAsync(() => coordinator.Snapshot.Overlays.Any(item => item.Kind == DriveOverlayKind.ConfirmedNew));
+
+        await coordinator.StopDriveAsync();
+
+        Assert.Empty(coordinator.Snapshot.Overlays);
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition, int timeoutMilliseconds = 2000)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddMilliseconds(timeoutMilliseconds);
+        while (!condition())
+        {
+            if (DateTimeOffset.UtcNow >= deadline)
+            {
+                throw new TimeoutException("Condition was not met within the timeout.");
+            }
+            await Task.Delay(10);
+        }
+    }
+
     private static async Task<DriveCoordinator> CreateCoordinatorAsync(
         FakeRepository repository,
         TestVideoInput input,
@@ -484,6 +648,8 @@ public sealed class DriveCoordinatorTests
         public Task<IReadOnlyList<TripVehicleSummary>> GetVehiclesForTripAsync(long tripId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<TripVehicleSummary>>([]);
         public Task<IReadOnlyList<TripPoint>> GetTripPointsAsync(long tripId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<TripPoint>>([]);
         public Task<IReadOnlyList<VehicleHistorySummary>> GetVehicleHistoryAsync(VehicleHistoryQuery query, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<VehicleHistorySummary>>([]);
+        public PriorVehicleSightings Prior { get; set; } = PriorVehicleSightings.None;
+        public Task<PriorVehicleSightings> GetPriorVehicleSightingsAsync(string normalizedPlate, long? excludeTripId, CancellationToken cancellationToken) => Task.FromResult(Prior);
         public Task<HistoryStatistics> GetStatisticsAsync(DateTimeOffset from, DateTimeOffset until, CancellationToken cancellationToken) => Task.FromResult(new HistoryStatistics(0, 0, 0, 0, null));
         public Task<IReadOnlyList<Sighting>> GetRecentAsync(int limit, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Sighting>>([]);
         public Task<IReadOnlyList<Sighting>> GetAllSightingsAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Sighting>>([]);

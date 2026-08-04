@@ -105,11 +105,15 @@ internal sealed class DetectionOverlayView : AView
             projected.Right,
             projected.Bottom);
         var confirmed = overlay.Kind == DriveOverlayKind.Confirmed;
-        var accent = overlay.Kind == DriveOverlayKind.Track
-            ? AColor.Rgb(215, 123, 255)
-            : confirmed ? AColor.Rgb(245, 197, 66) : AColor.Rgb(88, 224, 194);
+        var confirmedKnown = overlay.Kind == DriveOverlayKind.ConfirmedKnown;
+        var confirmedNew = overlay.Kind == DriveOverlayKind.ConfirmedNew;
+        var accent = confirmedNew
+            ? AColor.Rgb(61, 240, 158)
+            : confirmedKnown || overlay.Kind == DriveOverlayKind.Track
+                ? AColor.Rgb(215, 123, 255)
+                : confirmed ? AColor.Rgb(245, 197, 66) : AColor.Rgb(88, 224, 194);
         _boxPaint.Color = accent;
-        _boxPaint.StrokeWidth = (confirmed ? 3.5f : 2.25f) * _density;
+        _boxPaint.StrokeWidth = (confirmed || confirmedKnown || confirmedNew ? 3.5f : 2.25f) * _density;
         _boxPaint.SetPathEffect(overlay.Kind == DriveOverlayKind.Track ? _trackPathEffect : null);
         canvas.DrawRoundRect(bounds, 8 * _density, 8 * _density, _boxPaint);
         _boxPaint.SetPathEffect(null);
@@ -132,10 +136,18 @@ internal sealed class DetectionOverlayView : AView
         }
 
         var label = new ARectF(labelLeft, labelTop, labelLeft + labelWidth, labelTop + labelHeight);
-        _labelPaint.Color = confirmed ? AColor.Argb(242, 245, 197, 66) : AColor.Argb(232, 11, 13, 16);
+        _labelPaint.Color = confirmedNew
+            ? AColor.Argb(242, 12, 41, 26)
+            : confirmedKnown
+                ? AColor.Argb(242, 42, 22, 63)
+                : confirmed ? AColor.Argb(242, 245, 197, 66) : AColor.Argb(232, 11, 13, 16);
         canvas.DrawRoundRect(label, 10 * _density, 10 * _density, _labelPaint);
-        _textPaint.Color = confirmed ? AColor.Rgb(20, 17, 5) : AColor.White;
-        _detailPaint.Color = confirmed ? AColor.Rgb(45, 38, 10) : AColor.Rgb(190, 205, 214);
+        _textPaint.Color = confirmedNew || confirmedKnown || !confirmed ? AColor.White : AColor.Rgb(20, 17, 5);
+        _detailPaint.Color = confirmedNew
+            ? AColor.Rgb(190, 255, 220)
+            : confirmedKnown
+                ? AColor.Rgb(214, 190, 255)
+                : confirmed ? AColor.Rgb(45, 38, 10) : AColor.Rgb(190, 205, 214);
         canvas.DrawText(
             Ellipsize(overlay.Title, _textPaint, labelWidth - horizontalPadding * 2),
             labelLeft + horizontalPadding,
