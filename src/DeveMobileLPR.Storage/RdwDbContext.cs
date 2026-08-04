@@ -1,18 +1,7 @@
+using DeveMobileLPR.Storage.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace DeveMobileLPR.Storage;
-
-/// <summary>One row of the downloader's stable <c>rdw_vehicles</c> view.</summary>
-public sealed class RdwVehicleRow
-{
-    public string NormalizedPlate { get; set; } = null!;
-    public string? Make { get; set; }
-    public string? Model { get; set; }
-    public decimal? CatalogPrice { get; set; }
-    public int? RegistrationYear { get; set; }
-    public string? FuelDescription { get; set; }
-    public string? BodyType { get; set; }
-}
 
 /// <summary>
 /// Read-only model over the separate RDW database. It is deliberately not Code First: the file is
@@ -21,23 +10,23 @@ public sealed class RdwVehicleRow
 /// </summary>
 public sealed class RdwDbContext(DbContextOptions<RdwDbContext> options) : DbContext(options)
 {
-    public DbSet<RdwVehicleRow> Vehicles => Set<RdwVehicleRow>();
+    public DbSet<RdwVehicleModel> Vehicles => Set<RdwVehicleModel>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
 
-        modelBuilder.Entity<RdwVehicleRow>(vehicle =>
+        modelBuilder.Entity<RdwVehicleModel>(vehicle =>
         {
             vehicle.HasNoKey();
             vehicle.ToView(RdwVehicleLookup.RequiredView);
-            vehicle.Property(row => row.NormalizedPlate).HasColumnName("normalized_plate");
-            vehicle.Property(row => row.Make).HasColumnName("make");
-            vehicle.Property(row => row.Model).HasColumnName("model");
-            vehicle.Property(row => row.CatalogPrice).HasColumnName("catalog_price").HasConversion<double>();
-            vehicle.Property(row => row.RegistrationYear).HasColumnName("registration_year");
-            vehicle.Property(row => row.FuelDescription).HasColumnName("fuel_description");
-            vehicle.Property(row => row.BodyType).HasColumnName("body_type");
+            vehicle.Property(model => model.NormalizedPlate).HasColumnName("normalized_plate");
+            vehicle.Property(model => model.Make).HasColumnName("make");
+            vehicle.Property(model => model.Model).HasColumnName("model");
+            vehicle.Property(model => model.CatalogPrice).HasColumnName("catalog_price").HasConversion<double>();
+            vehicle.Property(model => model.RegistrationYear).HasColumnName("registration_year");
+            vehicle.Property(model => model.FuelDescription).HasColumnName("fuel_description");
+            vehicle.Property(model => model.BodyType).HasColumnName("body_type");
         });
     }
 }

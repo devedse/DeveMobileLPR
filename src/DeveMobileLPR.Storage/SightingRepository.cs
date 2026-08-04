@@ -1,4 +1,5 @@
 using DeveMobileLPR.Recognition;
+using DeveMobileLPR.Storage.Models;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -55,16 +56,16 @@ public sealed class SightingRepository : ISightingRepository
         await using var context = _contexts.CreateDbContext();
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         var sighting = await context.Sightings
-            .Where(entity => entity.NormalizedPlate == normalizedPlate
-                && entity.LastSeenAt >= cutoff
-                && entity.TripId == tripId)
-            .OrderByDescending(entity => entity.LastSeenAt)
+            .Where(model => model.NormalizedPlate == normalizedPlate
+                && model.LastSeenAt >= cutoff
+                && model.TripId == tripId)
+            .OrderByDescending(model => model.LastSeenAt)
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
 
         if (sighting is null)
         {
-            sighting = new SightingEntity
+            sighting = new SightingModel
             {
                 NormalizedPlate = normalizedPlate,
                 DisplayPlate = consensus.DisplayPlate,
@@ -120,7 +121,7 @@ public sealed class SightingRepository : ISightingRepository
         var consensus = plate.Consensus;
 
         await using var context = _contexts.CreateDbContext();
-        var sighting = await context.Sightings.FirstOrDefaultAsync(entity => entity.Id == sightingId, cancellationToken).ConfigureAwait(false)
+        var sighting = await context.Sightings.FirstOrDefaultAsync(model => model.Id == sightingId, cancellationToken).ConfigureAwait(false)
             ?? throw new KeyNotFoundException($"Sighting {sightingId} does not exist.");
 
         // A revision replaces the reading itself, so the corrected values win outright. Location,
@@ -150,7 +151,7 @@ public sealed class SightingRepository : ISightingRepository
         ArgumentException.ThrowIfNullOrWhiteSpace(snapshotReference);
 
         await using var context = _contexts.CreateDbContext();
-        var sighting = await context.Sightings.FirstOrDefaultAsync(entity => entity.Id == sightingId, cancellationToken).ConfigureAwait(false)
+        var sighting = await context.Sightings.FirstOrDefaultAsync(model => model.Id == sightingId, cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Sighting {sightingId} does not exist.");
         sighting.SnapshotReference = snapshotReference;
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -160,7 +161,7 @@ public sealed class SightingRepository : ISightingRepository
     public async Task<TripSummary> StartTripAsync(DateTimeOffset startedAt, GeoPoint? location, CancellationToken cancellationToken)
     {
         await using var context = _contexts.CreateDbContext();
-        var trip = new TripEntity
+        var trip = new TripModel
         {
             StartedAt = startedAt,
             StartLatitude = location?.Latitude,
@@ -176,7 +177,7 @@ public sealed class SightingRepository : ISightingRepository
     public async Task<TripSummary> EndTripAsync(long tripId, DateTimeOffset endedAt, GeoPoint? location, CancellationToken cancellationToken)
     {
         await using var context = _contexts.CreateDbContext();
-        var trip = await context.Trips.FirstOrDefaultAsync(entity => entity.Id == tripId, cancellationToken).ConfigureAwait(false)
+        var trip = await context.Trips.FirstOrDefaultAsync(model => model.Id == tripId, cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Trip {tripId} does not exist.");
         trip.EndedAt = endedAt;
         trip.EndLatitude = location?.Latitude ?? trip.EndLatitude;
@@ -192,13 +193,13 @@ public sealed class SightingRepository : ISightingRepository
         await using var context = _contexts.CreateDbContext();
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         var previous = await context.TripPoints
-            .Where(entity => entity.TripId == tripId)
-            .OrderByDescending(entity => entity.RecordedAt)
-            .Select(entity => new { entity.Latitude, entity.Longitude })
+            .Where(point => point.TripId == tripId)
+            .OrderByDescending(point => point.RecordedAt)
+            .Select(point => new { point.Latitude, point.Longitude })
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        context.TripPoints.Add(new TripPointEntity
+        context.TripPoints.Add(new TripPointModel
         {
             TripId = tripId,
             RecordedAt = recordedAt,
@@ -209,7 +210,7 @@ public sealed class SightingRepository : ISightingRepository
 
         if (previous is not null)
         {
-            var trip = await context.Trips.FirstOrDefaultAsync(entity => entity.Id == tripId, cancellationToken).ConfigureAwait(false);
+            var trip = await context.Trips.FirstOrDefaultAsync(model => model.Id == tripId, cancellationToken).ConfigureAwait(false);
             if (trip is not null)
             {
                 trip.DistanceMeters += DistanceMeters(previous.Latitude, previous.Longitude, location.Latitude, location.Longitude);
@@ -497,7 +498,7 @@ public sealed class SightingRepository : ISightingRepository
     /// Reduces a candidate set to one row per plate: the most recent one, with the row identifier
     /// breaking ties. Expressed as "no other candidate is newer" so SQLite runs a single NOT EXISTS.
     /// </summary>
-    private static IQueryable<SightingEntity> LatestPerPlate(IQueryable<SightingEntity> candidates) =>
+    private static IQueryable<SightingModel> LatestPerPlate(IQueryable<SightingModel> candidates) =>
         candidates.Where(sighting => !candidates.Any(other =>
             other.NormalizedPlate == sighting.NormalizedPlate
             && (other.LastSeenAt > sighting.LastSeenAt
@@ -506,7 +507,7 @@ public sealed class SightingRepository : ISightingRepository
     // The value is nullable so a plate without any located sighting reads back as null rather than
     // as the default GeoPoint, which would put it off the coast of Africa.
     private static async Task<Dictionary<string, GeoPoint?>> ReadLatestLocationsAsync(
-        IQueryable<SightingEntity> candidates,
+        IQueryable<SightingModel> candidates,
         CancellationToken cancellationToken)
     {
         var rows = await LatestPerPlate(candidates.Where(sighting => sighting.Latitude != null && sighting.Longitude != null))
@@ -520,7 +521,7 @@ public sealed class SightingRepository : ISightingRepository
     }
 
     private static async Task<Dictionary<string, string>> ReadLatestSnapshotsAsync(
-        IQueryable<SightingEntity> candidates,
+        IQueryable<SightingModel> candidates,
         CancellationToken cancellationToken)
     {
         var rows = await LatestPerPlate(candidates.Where(sighting => sighting.SnapshotReference != null))
@@ -538,7 +539,7 @@ public sealed class SightingRepository : ISightingRepository
         return trips.Count == 0 ? null : trips[0];
     }
 
-    private static async Task<IReadOnlyList<TripSummary>> ReadTripsAsync(IQueryable<TripEntity> trips, CancellationToken cancellationToken)
+    private static async Task<IReadOnlyList<TripSummary>> ReadTripsAsync(IQueryable<TripModel> trips, CancellationToken cancellationToken)
     {
         var rows = await trips
             .Select(trip => new
@@ -581,7 +582,7 @@ public sealed class SightingRepository : ISightingRepository
             ToLocation(row.EndLatitude, row.EndLongitude, row.EndAccuracyMeters)));
     }
 
-    private static async Task<IReadOnlyList<Sighting>> ReadSightingsAsync(IQueryable<SightingEntity> sightings, CancellationToken cancellationToken)
+    private static async Task<IReadOnlyList<Sighting>> ReadSightingsAsync(IQueryable<SightingModel> sightings, CancellationToken cancellationToken)
     {
         var rows = await sightings.ToListAsync(cancellationToken).ConfigureAwait(false);
         return rows.ConvertAll(ToSighting);
@@ -629,27 +630,27 @@ public sealed class SightingRepository : ISightingRepository
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private static Sighting ToSighting(SightingEntity entity) => new(
-        entity.Id,
-        entity.NormalizedPlate,
-        entity.DisplayPlate,
-        entity.Region,
-        entity.FirstSeenAt,
-        entity.LastSeenAt,
-        entity.Confidence,
-        entity.ObservationCount,
-        ToLocation(entity.Latitude, entity.Longitude, entity.LocationAccuracyMeters),
+    private static Sighting ToSighting(SightingModel model) => new(
+        model.Id,
+        model.NormalizedPlate,
+        model.DisplayPlate,
+        model.Region,
+        model.FirstSeenAt,
+        model.LastSeenAt,
+        model.Confidence,
+        model.ObservationCount,
+        ToLocation(model.Latitude, model.Longitude, model.LocationAccuracyMeters),
         ToVehicle(
-            entity.NormalizedPlate,
-            entity.Make,
-            entity.Model,
-            entity.CatalogPrice,
-            entity.RegistrationYear,
-            entity.FuelDescription,
-            entity.BodyType))
+            model.NormalizedPlate,
+            model.Make,
+            model.Model,
+            model.CatalogPrice,
+            model.RegistrationYear,
+            model.FuelDescription,
+            model.BodyType))
     {
-        TripId = entity.TripId,
-        SnapshotReference = entity.SnapshotReference
+        TripId = model.TripId,
+        SnapshotReference = model.SnapshotReference
     };
 
     private static VehicleRecord? ToVehicle(

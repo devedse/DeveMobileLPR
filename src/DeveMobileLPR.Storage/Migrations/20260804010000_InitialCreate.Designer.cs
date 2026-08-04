@@ -19,7 +19,7 @@ namespace DeveMobileLPR.Storage.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.10");
 
-            modelBuilder.Entity("DeveMobileLPR.Storage.SightingEntity", b =>
+            modelBuilder.Entity("DeveMobileLPR.Storage.Models.SightingModel", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -118,7 +118,7 @@ namespace DeveMobileLPR.Storage.Migrations
                     b.ToTable("sightings");
                 });
 
-            modelBuilder.Entity("DeveMobileLPR.Storage.TripEntity", b =>
+            modelBuilder.Entity("DeveMobileLPR.Storage.Models.TripModel", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -170,7 +170,7 @@ namespace DeveMobileLPR.Storage.Migrations
                     b.ToTable("trips");
                 });
 
-            modelBuilder.Entity("DeveMobileLPR.Storage.TripPointEntity", b =>
+            modelBuilder.Entity("DeveMobileLPR.Storage.Models.TripPointModel", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -205,9 +205,9 @@ namespace DeveMobileLPR.Storage.Migrations
                     b.ToTable("trip_points");
                 });
 
-            modelBuilder.Entity("DeveMobileLPR.Storage.SightingEntity", b =>
+            modelBuilder.Entity("DeveMobileLPR.Storage.Models.SightingModel", b =>
                 {
-                    b.HasOne("DeveMobileLPR.Storage.TripEntity", "Trip")
+                    b.HasOne("DeveMobileLPR.Storage.Models.TripModel", "Trip")
                         .WithMany("Sightings")
                         .HasForeignKey("TripId")
                         .OnDelete(DeleteBehavior.SetNull);
@@ -215,9 +215,9 @@ namespace DeveMobileLPR.Storage.Migrations
                     b.Navigation("Trip");
                 });
 
-            modelBuilder.Entity("DeveMobileLPR.Storage.TripPointEntity", b =>
+            modelBuilder.Entity("DeveMobileLPR.Storage.Models.TripPointModel", b =>
                 {
-                    b.HasOne("DeveMobileLPR.Storage.TripEntity", "Trip")
+                    b.HasOne("DeveMobileLPR.Storage.Models.TripModel", "Trip")
                         .WithMany("Points")
                         .HasForeignKey("TripId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -226,7 +226,7 @@ namespace DeveMobileLPR.Storage.Migrations
                     b.Navigation("Trip");
                 });
 
-            modelBuilder.Entity("DeveMobileLPR.Storage.TripEntity", b =>
+            modelBuilder.Entity("DeveMobileLPR.Storage.Models.TripModel", b =>
                 {
                     b.Navigation("Points");
 
