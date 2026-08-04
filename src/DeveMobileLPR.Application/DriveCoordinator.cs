@@ -516,7 +516,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
             }
 
             var now = DateTimeOffset.UtcNow;
-            if (_lastRoutePoint is not null && DistanceMeters(_lastRoutePoint.Value, point) < 12 && now - _lastRouteAt < TimeSpan.FromSeconds(30))
+            if (_lastRoutePoint is not null && GeoMath.DistanceMeters(_lastRoutePoint.Value, point) < 12 && now - _lastRouteAt < TimeSpan.FromSeconds(30))
             {
                 continue;
             }
@@ -741,16 +741,6 @@ public sealed class DriveCoordinator : IAsyncDisposable
         >= 1_000 => $"€{value.Value / 1_000:0}k",
         _ => $"€{value.Value:0}"
     };
-
-    private static double DistanceMeters(GeoPoint from, GeoPoint to)
-    {
-        const double radius = 6_371_000;
-        static double Radians(double degrees) => degrees * Math.PI / 180;
-        var latitude = Radians(to.Latitude - from.Latitude);
-        var longitude = Radians(to.Longitude - from.Longitude);
-        var a = Math.Sin(latitude / 2) * Math.Sin(latitude / 2) + Math.Cos(Radians(from.Latitude)) * Math.Cos(Radians(to.Latitude)) * Math.Sin(longitude / 2) * Math.Sin(longitude / 2);
-        return radius * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-    }
 
     public async ValueTask DisposeAsync()
     {

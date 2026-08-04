@@ -105,20 +105,40 @@ public sealed class SqliteSightingRepositoryTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task InitializeAsync_UpgradesVersionTwoDatabaseWithNullableSnapshotReference()
+    public async Task InitializeAsync_RejectsLegacyDatabaseWithoutMigrationHistory()
     {
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        await using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={_databasePath}"))
+        var legacyPath = Path.Combine(Path.GetTempPath(), $"DeveMobileLPR-legacy-{Guid.NewGuid():N}.sqlite");
+        try
         {
-            await connection.OpenAsync();
-            await using var command = connection.CreateCommand();
-            command.CommandText = """
-                ALTER TABLE sightings DROP COLUMN snapshot_reference;
-                PRAGMA user_version = 2;
-                """;
-            await command.ExecuteNonQueryAsync();
-        }
+            await using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={legacyPath}"))
+            {
+                await connection.OpenAsync();
+                await using var command = connection.CreateCommand();
+                command.CommandText = """
+                    CREATE TABLE sightings (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT, normalized_plate TEXT NOT NULL, display_plate TEXT NOT NULL,
+                        region TEXT NULL, first_seen_at TEXT NOT NULL, last_seen_at TEXT NOT NULL, confidence REAL NOT NULL,
+                        observation_count INTEGER NOT NULL, latitude REAL NULL, longitude REAL NULL, location_accuracy_meters REAL NULL,
+                        make TEXT NULL, model TEXT NULL, catalog_price NUMERIC NULL, registration_year INTEGER NULL,
+                        fuel_description TEXT NULL, body_type TEXT NULL);
+                    """;
+                await command.ExecuteNonQueryAsync();
+            }
 
+            var repository = new SqliteSightingRepository(legacyPath);
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => repository.InitializeAsync(CancellationToken.None));
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            if (File.Exists(legacyPath)) File.Delete(legacyPath);
+        }
+    }
+
+    [Fact]
+    public async Task InitializeAsync_IsIdempotent()
+    {
         await _repository.InitializeAsync(CancellationToken.None);
         var sighting = await _repository.AddOrMergeAsync(
             Confirmed("AB1234", DateTimeOffset.UtcNow, 3),
@@ -127,13 +147,8 @@ public sealed class SqliteSightingRepositoryTests : IAsyncLifetime
             null,
             CancellationToken.None);
 
-        Assert.Null(sighting.SnapshotReference);
-        Assert.Equal(
-            "vehicle-snapshots/1.jpg",
-            (await _repository.SetSnapshotReferenceAsync(
-                sighting.Id,
-                "vehicle-snapshots/1.jpg",
-                CancellationToken.None)).SnapshotReference);
+        Assert.Single(await _repository.GetAllSightingsAsync(CancellationToken.None));
+        Assert.NotNull(sighting);
     }
 
     [Fact]
@@ -330,7 +345,7 @@ public sealed class SqliteSightingRepositoryTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task InitializeAsync_MigratesVersionOneSightingsWithoutDataLoss()
+    public async Task InitializeAsync_RejectsVersionOneLegacySchemaWithData()
     {
         var legacyPath = Path.Combine(Path.GetTempPath(), $"DeveMobileLPR-legacy-{Guid.NewGuid():N}.sqlite");
         try
@@ -354,17 +369,8 @@ public sealed class SqliteSightingRepositoryTests : IAsyncLifetime
             }
 
             var repository = new SqliteSightingRepository(legacyPath);
-            await repository.InitializeAsync(CancellationToken.None);
-
-            var sighting = Assert.Single(await repository.GetAllSightingsAsync(CancellationToken.None));
-            Assert.Equal("AB1234", sighting.NormalizedPlate);
-            Assert.Null(sighting.TripId);
-            Assert.Null(sighting.SnapshotReference);
-            await using var verify = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={legacyPath}");
-            await verify.OpenAsync();
-            await using var version = verify.CreateCommand();
-            version.CommandText = "PRAGMA user_version;";
-            Assert.Equal(3L, (long)(await version.ExecuteScalarAsync())!);
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => repository.InitializeAsync(CancellationToken.None));
         }
         finally
         {
