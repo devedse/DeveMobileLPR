@@ -54,7 +54,7 @@ For OCR results classified as Dutch, a confirmed string must match one of RDW si
 
 Confirmed sightings within three minutes of the same plate and the same trip are merged. The merge keeps the earliest first-seen time, advances the last-seen time, adds observation counts, keeps the strongest confidence, and fills missing GPS/RDW facts. A trip boundary always creates a distinct appearance, even when two drives happen close together.
 
-SQLite uses WAL mode and indexes plate/time, trip/time, route points, and catalog price. Schema version 2 adds trips and filtered GPS route points while migrating version-1 sightings in place. Schema version 3 adds a nullable relative reference for an optional vehicle image. RDW data is intentionally a second SQLite database because it is large and replaceable. `SqliteRdwVehicleLookup` reads through the stable `rdw_vehicles` view so the user's downloader schema remains decoupled from the app.
+SQLite uses EF Core Code First with a migration-managed schema: indexes cover plate/time, trip/time, route points, and catalog price. Confirmed sightings, trips, and route points live in one database whose schema is versioned by `__EFMigrationsHistory`; a database created by an older pre-EF Core app is rejected with a clear message rather than migrated in place, because it can be discarded. RDW data is intentionally a second SQLite database because it is large and replaceable. `SqliteRdwVehicleLookup` reads through the stable `rdw_vehicles` view so the user's downloader schema remains decoupled from the app.
 
 ## Security and privacy defaults
 
