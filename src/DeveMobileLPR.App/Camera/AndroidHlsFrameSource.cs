@@ -23,10 +23,12 @@ internal sealed class AndroidHlsFrameSource : Java.Lang.Object, TextureView.ISur
     private readonly Context _context;
     private readonly AndroidVideoTextureView _preview;
     private readonly Func<int> _recognitionFramesPerSecond;
+    private readonly Func<bool> _hasPendingRecognitionFrame;
     private readonly Func<Yuv420Frame, bool> _submitFrame;
     private readonly FrameRateGate _recognitionFrameGate = new(timestampFrequency: 1000);
     private readonly AndroidHlsVideoMetadataListener _metadataListener;
     private readonly AndroidHlsPlayerErrorListener _playerErrorListener;
+    private readonly LiveStreamLatencyPolicy _latencyPolicy = new();
     private IExoPlayer? _player;
     private Surface? _surface;
     private TaskCompletionSource? _firstFrame;
@@ -37,6 +39,8 @@ internal sealed class AndroidHlsFrameSource : Java.Lang.Object, TextureView.ISur
     private int _capturePending;
     private int _sessionVersion;
     private long _reportedDecoderOutputBuffers;
+    private long _nextDecoderReportAt;
+    private Bitmap? _captureBitmap;
     private volatile bool _running;
     private bool _disposed;
 
@@ -45,12 +49,14 @@ internal sealed class AndroidHlsFrameSource : Java.Lang.Object, TextureView.ISur
         AndroidVideoTextureView preview,
         string streamUrl,
         Func<int> recognitionFramesPerSecond,
+        Func<bool> hasPendingRecognitionFrame,
         Func<Yuv420Frame, bool> submitFrame)
     {
         _context = context;
         _preview = preview;
         _streamUrl = streamUrl;
         _recognitionFramesPerSecond = recognitionFramesPerSecond;
+        _hasPendingRecognitionFrame = hasPendingRecognitionFrame;
         _submitFrame = submitFrame;
         _metadataListener = new AndroidHlsVideoMetadataListener(OnVideoFrameDecoded);
         _playerErrorListener = new AndroidHlsPlayerErrorListener(OnPlayerError);
@@ -74,6 +80,7 @@ internal sealed class AndroidHlsFrameSource : Java.Lang.Object, TextureView.ISur
         }
 
         _recognitionFrameGate.Reset();
+        _latencyPolicy.Reset();
         Interlocked.Increment(ref _sessionVersion);
         _firstFrame = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _running = true;
@@ -107,6 +114,7 @@ internal sealed class AndroidHlsFrameSource : Java.Lang.Object, TextureView.ISur
     {
         var player = EnsurePlayer();
         _reportedDecoderOutputBuffers = GetDecoderOutputBufferCount(player);
+        _nextDecoderReportAt = Environment.TickCount64 + 1000;
         player.SetMediaItem(MediaItem.FromUri(uri.AbsoluteUri));
         player.Prepare();
         player.PlayWhenReady = true;
@@ -136,6 +144,7 @@ internal sealed class AndroidHlsFrameSource : Java.Lang.Object, TextureView.ISur
         _running = false;
         Interlocked.Increment(ref _sessionVersion);
         _recognitionFrameGate.Reset();
+        _latencyPolicy.Reset();
         _firstFrame?.TrySetCanceled();
         _firstFrame = null;
         return MainThread.InvokeOnMainThreadAsync(() =>
@@ -199,10 +208,14 @@ internal sealed class AndroidHlsFrameSource : Java.Lang.Object, TextureView.ISur
             return;
         }
 
-        ReportDecodedFrames();
+        ReportDecodedFramesIfDue();
+        RecoverLiveEdgeIfNeeded();
         PreviewFramesPresented?.Invoke(this, new DriveFrameCountEventArgs(1));
         _firstFrame?.TrySetResult();
-        if (!_recognitionFrameGate.TryAcquire(Environment.TickCount64, _recognitionFramesPerSecond())
+        if (!_recognitionFrameGate.TryAcquire(
+                Environment.TickCount64,
+                _recognitionFramesPerSecond(),
+                !_hasPendingRecognitionFrame())
             || Interlocked.CompareExchange(ref _capturePending, 1, 0) != 0)
         {
             return;
@@ -216,34 +229,37 @@ internal sealed class AndroidHlsFrameSource : Java.Lang.Object, TextureView.ISur
             return;
         }
 
-        Bitmap? bitmap = null;
         var pixels = ArrayPool<int>.Shared.Rent(checked(width * height));
         try
         {
-            bitmap = _preview.GetBitmap(width, height)
-                ?? throw new InvalidOperationException("The decoded video texture could not be captured.");
-            bitmap.GetPixels(pixels, 0, width, 0, 0, width, height);
+            if (_captureBitmap is null || _captureBitmap.Width != width || _captureBitmap.Height != height)
+            {
+                _captureBitmap?.Dispose();
+                _captureBitmap = Bitmap.CreateBitmap(width, height, Bitmap.Config.Argb8888!)
+                    ?? throw new InvalidOperationException("A decoded-frame capture bitmap could not be created.");
+            }
+            _preview.GetBitmap(_captureBitmap);
+            _captureBitmap.GetPixels(pixels, 0, width, 0, 0, width, height);
         }
         catch (Exception exception)
         {
-            bitmap?.Dispose();
             ArrayPool<int>.Shared.Return(pixels);
             Volatile.Write(ref _capturePending, 0);
             Diagnostic?.Invoke(this, $"Decoded frame capture failed: {exception.Message}");
             return;
         }
-        bitmap.Dispose();
-
         var sessionVersion = Volatile.Read(ref _sessionVersion);
         _ = Task.Run(() => ConvertAndSubmit(pixels, width, height, sessionVersion));
     }
 
-    private void ReportDecodedFrames()
+    private void ReportDecodedFramesIfDue()
     {
-        if (_player is null)
+        var now = Environment.TickCount64;
+        if (_player is null || now < _nextDecoderReportAt)
         {
             return;
         }
+        _nextDecoderReportAt = now + 1000;
 
         var current = GetDecoderOutputBufferCount(_player);
         var previous = _reportedDecoderOutputBuffers;
@@ -251,6 +267,23 @@ internal sealed class AndroidHlsFrameSource : Java.Lang.Object, TextureView.ISur
         if (current > previous)
         {
             SourceFramesAvailable?.Invoke(this, new DriveFrameCountEventArgs(current - previous));
+        }
+    }
+
+    private void RecoverLiveEdgeIfNeeded()
+    {
+        var player = _player;
+        if (player is null)
+        {
+            return;
+        }
+
+        var offsetMilliseconds = player.CurrentLiveOffset;
+        if (offsetMilliseconds > 0
+            && _latencyPolicy.ShouldResync(TimeSpan.FromMilliseconds(offsetMilliseconds), DateTimeOffset.UtcNow))
+        {
+            player.SeekToDefaultPosition();
+            Diagnostic?.Invoke(this, "OME LL-HLS stream rejoined the live edge");
         }
     }
 
@@ -342,6 +375,8 @@ internal sealed class AndroidHlsFrameSource : Java.Lang.Object, TextureView.ISur
         }
         _surface?.Dispose();
         _surface = null;
+        _captureBitmap?.Dispose();
+        _captureBitmap = null;
         base.Dispose();
     }
 

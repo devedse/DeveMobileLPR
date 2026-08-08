@@ -9,6 +9,7 @@ public sealed class HlsCompletedSegmentCursor(int maximumRememberedUris = 256)
     private readonly Queue<string> _consumedUriOrder = new();
     private long? _lastSequenceNumber;
     private bool _initialized;
+    private bool _skipToLiveEdge;
 
     public HlsMediaSegment? SelectNext(HlsPlaylistSnapshot playlist)
     {
@@ -24,6 +25,15 @@ public sealed class HlsCompletedSegmentCursor(int maximumRememberedUris = 256)
         if (segments.Length == 0)
         {
             return null;
+        }
+
+        if (_skipToLiveEdge)
+        {
+            _skipToLiveEdge = false;
+            var latest = segments[^1];
+            _lastSequenceNumber = playlist.MediaSequence.HasValue ? latest.SequenceNumber : null;
+            RememberUri(latest.Uri);
+            return latest;
         }
 
         if (!_initialized)
@@ -60,6 +70,17 @@ public sealed class HlsCompletedSegmentCursor(int maximumRememberedUris = 256)
 
         return segments.FirstOrDefault(segment => RememberUri(segment.Uri));
     }
+
+    /// <summary>
+    /// Abandons the queue of unconsumed segments so the next selection returns the newest one.
+    /// </summary>
+    /// <remarks>
+    /// Selection is otherwise strictly sequential, which is right for a stream being consumed at
+    /// real time but leaves no way back once a consumer has fallen behind: the backlog only grows.
+    /// A caller that has decided it is too far behind uses this to rejoin the live edge, accepting
+    /// the gap in coverage that skipping segments creates.
+    /// </remarks>
+    public void SkipToLiveEdge() => _skipToLiveEdge = true;
 
     private bool RememberUri(Uri uri)
     {

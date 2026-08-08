@@ -10,7 +10,7 @@ internal sealed record RecognitionProgress(RecognitionStreamResult Result)
     public RecognitionStreamDiagnostics Diagnostics => Result.Diagnostics;
 }
 
-internal sealed record RecognitionConfirmation(Sighting Sighting, ConfirmedPlate Confirmation);
+internal sealed record RecognitionConfirmation(Sighting Sighting, ConfirmedPlate Confirmation, PriorVehicleSightings Prior);
 
 internal sealed class RecognitionSession : IAsyncDisposable
 {
@@ -51,6 +51,8 @@ internal sealed class RecognitionSession : IAsyncDisposable
     public event EventHandler<RecognitionConfirmation>? PlateConfirmed;
     public event EventHandler<Exception>? Failed;
 
+    public bool HasPendingFrame => _frames.HasPendingFrame;
+
     public bool Submit(Yuv420Frame frame) => _frames.TryWrite(frame);
 
     public void ResetTracking()
@@ -88,9 +90,16 @@ internal sealed class RecognitionSession : IAsyncDisposable
                 Progress?.Invoke(this, new RecognitionProgress(result));
                 foreach (var confirmation in result.Confirmations)
                 {
-                    var vehicle = await _vehicleLookup.FindAsync(
+                    var lookup = _vehicleLookup.FindAsync(
                         confirmation.Consensus.NormalizedPlate,
-                        _cancellation.Token).ConfigureAwait(false);
+                        _cancellation.Token).AsTask();
+                    var prior = _repository.GetPriorVehicleSightingsAsync(
+                        confirmation.Consensus.NormalizedPlate,
+                        _tripId(),
+                        _cancellation.Token);
+                    await Task.WhenAll(lookup, prior).ConfigureAwait(false);
+                    var vehicle = await lookup.ConfigureAwait(false);
+                    var priorSightings = await prior.ConfigureAwait(false);
                     Sighting sighting;
                     if (confirmation.Revision > 0
                         && _sightingIdsByTrack.TryGetValue(confirmation.TrackId, out var sightingId))
@@ -138,7 +147,7 @@ internal sealed class RecognitionSession : IAsyncDisposable
                         }
                     }
 
-                    PlateConfirmed?.Invoke(this, new RecognitionConfirmation(sighting, confirmation));
+                    PlateConfirmed?.Invoke(this, new RecognitionConfirmation(sighting, confirmation, priorSightings));
                 }
             }
             catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)

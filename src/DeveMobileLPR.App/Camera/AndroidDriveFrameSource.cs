@@ -30,6 +30,7 @@ internal sealed class AndroidDriveFrameSource : IDriveVideoInput
         AndroidVideoTextureView networkPreview,
         string networkStreamUrl,
         Func<int> recognitionFramesPerSecond,
+        Func<bool> hasPendingRecognitionFrame,
         Func<Yuv420Frame, bool> submitFrame)
     {
         _cameraPreview = cameraPreview;
@@ -45,6 +46,7 @@ internal sealed class AndroidDriveFrameSource : IDriveVideoInput
             networkPreview,
             networkStreamUrl,
             recognitionFramesPerSecond,
+            hasPendingRecognitionFrame,
             submitFrame);
         _cameraChoices = WithNetworkChoice(_camera.CameraChoices);
 

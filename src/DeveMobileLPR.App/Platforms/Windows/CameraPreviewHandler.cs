@@ -13,10 +13,11 @@ namespace DeveMobileLPR.App;
 
 internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, WinUIGrid>
 {
+    /// <summary>Desktop windows are an arbitrary shape, so both webcam and stream frames letterbox.</summary>
     private const AspectScaleMode PreviewScaleMode = AspectScaleMode.Fit;
+
     private WindowsWebcamFrameSource? _source;
     private DriveCoordinator? _coordinator;
-    private WindowsDetectionOverlay? _overlay;
 
     public static readonly IPropertyMapper<CameraPreview, CameraPreviewHandler> Mapper =
         new PropertyMapper<CameraPreview, CameraPreviewHandler>(ViewHandler.ViewMapper);
@@ -45,21 +46,23 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, WinUIGri
             Visibility = Microsoft.UI.Xaml.Visibility.Collapsed
         };
         root.Children.Add(streamPreview);
-        _overlay = new WindowsDetectionOverlay(PreviewScaleMode);
-        root.Children.Add(_overlay);
         _source = new WindowsWebcamFrameSource(
             preview,
             streamPreview,
             settings.NetworkStreamUrl,
             () => settings.RecognitionFramesPerSecond,
+            () => _coordinator.HasPendingRecognitionFrame,
             frame => _coordinator.SubmitFrame(frame));
         _coordinator.AttachCamera(_source);
-        _coordinator.SnapshotChanged += SnapshotChanged;
-        _overlay.Update(_coordinator.Snapshot);
         return root;
     }
 
-    private void SnapshotChanged(object? sender, DriveSnapshot snapshot) => _overlay?.Update(snapshot);
+    protected override void ConnectHandler(WinUIGrid platformView)
+    {
+        base.ConnectHandler(platformView);
+        VirtualView.CameraScaleMode = PreviewScaleMode;
+        VirtualView.StreamScaleMode = PreviewScaleMode;
+    }
 
     private static Microsoft.UI.Xaml.Media.Stretch GetPreviewStretch() => PreviewScaleMode switch
     {
@@ -70,10 +73,6 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, WinUIGri
 
     protected override void DisconnectHandler(WinUIGrid platformView)
     {
-        if (_coordinator is not null)
-        {
-            _coordinator.SnapshotChanged -= SnapshotChanged;
-        }
         if (_source is not null)
         {
             var source = _source;
@@ -82,7 +81,6 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, WinUIGri
             _source = null;
             _ = DisposeSourceAsync(source);
         }
-        _overlay = null;
         _coordinator = null;
         base.DisconnectHandler(platformView);
     }

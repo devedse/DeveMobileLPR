@@ -22,6 +22,7 @@ internal sealed class WindowsWebcamFrameSource : IDriveVideoInput
     private readonly Microsoft.UI.Xaml.Controls.Image _streamPreview;
     private readonly SoftwareBitmapPreviewPresenter _streamPreviewPresenter;
     private readonly Func<int> _recognitionFramesPerSecond;
+    private readonly Func<bool> _hasPendingRecognitionFrame;
     private readonly Func<Yuv420Frame, bool> _submitFrame;
     private readonly FrameRateGate _webcamRecognitionFrameGate = new(timestampFrequency: 1000);
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
@@ -53,6 +54,7 @@ internal sealed class WindowsWebcamFrameSource : IDriveVideoInput
         Microsoft.UI.Xaml.Controls.Image streamPreview,
         string networkStreamUrl,
         Func<int> recognitionFramesPerSecond,
+        Func<bool> hasPendingRecognitionFrame,
         Func<Yuv420Frame, bool> submitFrame)
     {
         _preview = preview;
@@ -62,6 +64,7 @@ internal sealed class WindowsWebcamFrameSource : IDriveVideoInput
         _streamPreview.Unloaded += PreviewUnloaded;
         _networkStreamUrl = networkStreamUrl;
         _recognitionFramesPerSecond = recognitionFramesPerSecond;
+        _hasPendingRecognitionFrame = hasPendingRecognitionFrame;
         _submitFrame = submitFrame;
         _frameWorker = Task.Run(ProcessFramesAsync);
         _streamPreviewWorker = Task.Run(ProcessStreamPreviewAsync);
@@ -364,12 +367,16 @@ internal sealed class WindowsWebcamFrameSource : IDriveVideoInput
         CancellationToken cancellationToken)
     {
         var reader = initialReader;
+        var latencyPolicy = new LiveStreamLatencyPolicy();
+        var streamClock = Stopwatch.StartNew();
+        var playedDuration = TimeSpan.Zero;
         try
         {
             while (!cancellationToken.IsCancellationRequested)
             {
                 var segmentClock = new Stopwatch();
                 long? segmentStartTimestamp = null;
+                long? segmentLastTimestamp = null;
                 var analysisGate = new FrameRateGate(TimeSpan.TicksPerSecond);
                 var skipPreviewForCatchUp = false;
                 while (!cancellationToken.IsCancellationRequested)
@@ -383,6 +390,7 @@ internal sealed class WindowsWebcamFrameSource : IDriveVideoInput
                             previewReserved,
                             analysisGate,
                             _recognitionFramesPerSecond(),
+                            !_hasPendingRecognitionFrame(),
                             Interlocked.Increment(ref _sequence),
                             DateTimeOffset.UtcNow,
                             cancellationToken);
@@ -395,6 +403,7 @@ internal sealed class WindowsWebcamFrameSource : IDriveVideoInput
                         opened.TrySetResult();
 
                         var timestamp = decodedFrame.Timestamp;
+                        segmentLastTimestamp = timestamp;
                         if (segmentStartTimestamp is null)
                         {
                             segmentStartTimestamp = timestamp;
@@ -441,6 +450,18 @@ internal sealed class WindowsWebcamFrameSource : IDriveVideoInput
                 }
 
                 reader.Dispose();
+                if (segmentStartTimestamp is { } start && segmentLastTimestamp is { } end && end > start)
+                {
+                    playedDuration += TimeSpan.FromTicks(end - start);
+                }
+                var drift = streamClock.Elapsed - playedDuration;
+                if (latencyPolicy.ShouldResync(drift, DateTimeOffset.UtcNow))
+                {
+                    feed.SkipToLiveEdge();
+                    streamClock.Restart();
+                    playedDuration = TimeSpan.Zero;
+                    Diagnostic?.Invoke(this, new DriveInputDiagnostic("OME stream rejoined the live edge"));
+                }
                 var next = await feed.GetNextAsync(cancellationToken).ConfigureAwait(false);
                 reader = await WindowsMediaFoundationLiveFrameReader.CreateForSegmentAsync(
                     next.Initialization,

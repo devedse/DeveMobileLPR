@@ -41,6 +41,9 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     public bool CanStart => IsReady && !IsInitializing && _snapshot.IsInputReady;
     public bool ShowNetworkStreamUrl => _snapshot.SupportsNetworkStreams
         && _snapshot.SelectedCameraId == DriveInputIds.NetworkLlHls;
+    public bool IsNetworkStreamPreview => _snapshot.SelectedCameraId == DriveInputIds.NetworkLlHls;
+    public IReadOnlyList<DriveOverlay> Overlays => DriveOverlayLayout.GetVisibleOverlays(_snapshot);
+    public bool ShowRoadGuide => _snapshot.IsDriving && _snapshot.ShowRoadGuide;
     public string Status => _snapshot.Status;
     public Color StatusColor => _snapshot.HasError ? Color.FromArgb("#FF8D8D") : Color.FromArgb("#E8EDF5");
     public string StatusLabel => _snapshot.HasError ? "Attention" : IsDriving ? "Live" : IsReady ? "Ready" : "Loading";
@@ -120,6 +123,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
             nameof(IsInitializing), nameof(IsReady), nameof(IsDriving), nameof(IsStopping), nameof(ShowStartPanel), nameof(ShowDriveControls),
             nameof(CanStart), nameof(ShowNetworkStreamUrl), nameof(Status), nameof(StatusColor), nameof(StatusLabel), nameof(StatusAccent), nameof(StartButtonText), nameof(Duration),
             nameof(Diagnostics), nameof(ShowRecognitionStatistics),
+            nameof(Overlays), nameof(ShowRoadGuide), nameof(IsNetworkStreamPreview),
             nameof(UniqueVehicles), nameof(LocationState), nameof(HasLatest), nameof(LatestPlate),
             nameof(LatestVehicle), nameof(LatestPrice), nameof(TopValue)
         }) OnPropertyChanged(property);

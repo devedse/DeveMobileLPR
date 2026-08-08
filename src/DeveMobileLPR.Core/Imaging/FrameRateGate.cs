@@ -16,6 +16,14 @@ public sealed class FrameRateGate
         _timestampFrequency = timestampFrequency;
     }
 
+    /// <summary>
+    /// Admits a frame only when a consumer can actually take it. Demand is tested before the rate
+    /// schedule on purpose: a frame refused because nobody wants it must not consume the next
+    /// admission slot, or the rate limit would silently halve whenever the consumer is busy.
+    /// </summary>
+    public bool TryAcquire(long timestamp, int maximumFramesPerSecond, bool consumerReady) =>
+        consumerReady && TryAcquire(timestamp, maximumFramesPerSecond);
+
     public bool TryAcquire(long timestamp, int maximumFramesPerSecond)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(maximumFramesPerSecond);

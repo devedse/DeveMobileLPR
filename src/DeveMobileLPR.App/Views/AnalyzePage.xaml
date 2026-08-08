@@ -88,7 +88,7 @@
             <Border BackgroundColor="#000000" Grid.Row="1" Padding="0" Stroke="{DynamicResource Divider}" StrokeShape="RoundRectangle 8">
                 <Grid>
                     <Image Aspect="AspectFit" Source="{Binding CurrentPreview}" />
-                    <controls:AnalysisFrameOverlay AnalysisFrame="{Binding CurrentFrame}" ShowDiagnostics="{Binding RecognitionDebugEnabled}" />
+                    <controls:DriveOverlayView Overlays="{Binding CurrentOverlays}" ScaleMode="Fit" />
                 </Grid>
             </Border>
 
