@@ -51,6 +51,7 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, WinUIGri
             streamPreview,
             settings.NetworkStreamUrl,
             () => settings.RecognitionFramesPerSecond,
+            () => _coordinator.HasPendingRecognitionFrame,
             frame => _coordinator.SubmitFrame(frame));
         _coordinator.AttachCamera(_source);
         return root;

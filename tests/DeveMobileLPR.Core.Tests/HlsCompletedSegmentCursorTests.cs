@@ -44,6 +44,19 @@ public sealed class HlsCompletedSegmentCursorTests
         Assert.Equal("segment-2.m4s", Path.GetFileName(next?.Uri.AbsolutePath));
     }
 
+    [Fact]
+    public void SkipToLiveEdge_DiscardsSequentialBacklog()
+    {
+        var cursor = new HlsCompletedSegmentCursor();
+        _ = cursor.SelectNext(CreatePlaylist(100, 3));
+        _ = cursor.SelectNext(CreatePlaylist(101, 5));
+
+        cursor.SkipToLiveEdge();
+        var next = cursor.SelectNext(CreatePlaylist(101, 5));
+
+        Assert.Equal(105, next?.SequenceNumber);
+    }
+
     private static HlsPlaylistSnapshot CreatePlaylist(long? mediaSequence, int count, int uriOffset = 0)
     {
         var sequenceBase = mediaSequence ?? 0;

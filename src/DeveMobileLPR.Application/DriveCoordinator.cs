@@ -176,6 +176,10 @@ public sealed class DriveCoordinator : IAsyncDisposable
         return _recognition.Submit(frame);
     }
 
+    public bool HasPendingRecognitionFrame => !_driving
+        || _recognition is null
+        || _recognition.HasPendingFrame;
+
     public async Task StartDriveAsync()
     {
         await _driveGate.WaitAsync();

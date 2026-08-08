@@ -12,6 +12,7 @@ public sealed class LatestFrameSlotTests
         var second = Yuv420FrameTests.CreateFrame(2, 2);
 
         Assert.True(slot.TryWrite(first));
+        Assert.True(slot.HasPendingFrame);
         Assert.True(slot.TryWrite(second));
 
         Assert.Throws<ObjectDisposedException>(() => _ = first.YPlane);
@@ -19,6 +20,7 @@ public sealed class LatestFrameSlotTests
         slot.ResetStatistics();
         Assert.Equal(0, slot.ReplacedFrameCount);
         var result = await slot.ReadAsync(CancellationToken.None);
+        Assert.False(slot.HasPendingFrame);
         Assert.Same(second, result);
         result?.Dispose();
     }

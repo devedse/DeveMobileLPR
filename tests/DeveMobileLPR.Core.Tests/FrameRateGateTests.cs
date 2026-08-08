@@ -66,4 +66,13 @@ public sealed class FrameRateGateTests
 
         Assert.True(gate.TryAcquire(timestamp: 0, maximumFramesPerSecond: 4));
     }
+
+    [Fact]
+    public void TryAcquire_ConsumerRefusalDoesNotConsumeRateSlot()
+    {
+        var gate = new FrameRateGate(timestampFrequency: 1000);
+
+        Assert.False(gate.TryAcquire(100, 4, consumerReady: false));
+        Assert.True(gate.TryAcquire(100, 4, consumerReady: true));
+    }
 }

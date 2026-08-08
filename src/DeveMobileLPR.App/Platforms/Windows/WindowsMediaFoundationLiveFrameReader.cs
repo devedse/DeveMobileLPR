@@ -113,6 +113,7 @@ internal sealed class WindowsMediaFoundationLiveFrameReader : IDisposable
         bool includePreview,
         FrameRateGate analysisGate,
         int maximumAnalysisFramesPerSecond,
+        bool analysisConsumerReady,
         long sequence,
         DateTimeOffset capturedAt,
         CancellationToken cancellationToken)
@@ -140,7 +141,10 @@ internal sealed class WindowsMediaFoundationLiveFrameReader : IDisposable
                 continue;
             }
 
-            var includeAnalysis = analysisGate.TryAcquire(timestamp, maximumAnalysisFramesPerSecond);
+            var includeAnalysis = analysisGate.TryAcquire(
+                timestamp,
+                maximumAnalysisFramesPerSecond,
+                analysisConsumerReady);
             if (!includePreview && !includeAnalysis)
             {
                 return new WindowsMediaFoundationLiveFrame(timestamp, null, null);

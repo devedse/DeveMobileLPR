@@ -18,6 +18,12 @@ public sealed class LatestFrameSlot : IAsyncDisposable
 
     public long ReplacedFrameCount => Interlocked.Read(ref _replacedFrameCount);
 
+    /// <summary>
+    /// True while a frame is waiting to be read. A source uses this as demand: writing another
+    /// frame now would replace this one, so whatever the source spent producing it is wasted.
+    /// </summary>
+    public bool HasPendingFrame { get { lock (_gate) return _latest is not null; } }
+
     public bool TryWrite(Yuv420Frame frame)
     {
         ArgumentNullException.ThrowIfNull(frame);

@@ -51,6 +51,8 @@ internal sealed class RecognitionSession : IAsyncDisposable
     public event EventHandler<RecognitionConfirmation>? PlateConfirmed;
     public event EventHandler<Exception>? Failed;
 
+    public bool HasPendingFrame => _frames.HasPendingFrame;
+
     public bool Submit(Yuv420Frame frame) => _frames.TryWrite(frame);
 
     public void ResetTracking()

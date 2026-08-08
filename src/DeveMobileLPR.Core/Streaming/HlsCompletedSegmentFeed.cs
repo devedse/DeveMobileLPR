@@ -49,6 +49,8 @@ public sealed class HlsCompletedSegmentFeed
         }
     }
 
+    public void SkipToLiveEdge() => _cursor.SkipToLiveEdge();
+
     private async Task<HlsPlaylistSnapshot> GetMediaPlaylistAsync(CancellationToken cancellationToken)
     {
         var playlistUri = _mediaPlaylistUri ?? _entryUri;
