@@ -95,9 +95,14 @@ public sealed class SightingRepository : ISightingRepository
             sighting.Confidence = Math.Max(sighting.Confidence, consensus.Confidence);
             sighting.ObservationCount += consensus.ObservationCount;
             sighting.Region = consensus.Region ?? sighting.Region;
-            sighting.Latitude = location?.Latitude ?? sighting.Latitude;
-            sighting.Longitude = location?.Longitude ?? sighting.Longitude;
-            sighting.LocationAccuracyMeters = location?.AccuracyMeters ?? sighting.LocationAccuracyMeters;
+            // Location identifies where this encounter started. Keep the first usable fix instead
+            // of moving the history marker as later confirmations are merged into the encounter.
+            if (sighting.Latitude is null && location is { } firstLocation)
+            {
+                sighting.Latitude = firstLocation.Latitude;
+                sighting.Longitude = firstLocation.Longitude;
+                sighting.LocationAccuracyMeters = firstLocation.AccuracyMeters;
+            }
             sighting.Make = vehicle?.Make ?? sighting.Make;
             sighting.Model = vehicle?.Model ?? sighting.Model;
             sighting.CatalogPrice = vehicle?.CatalogPrice ?? sighting.CatalogPrice;

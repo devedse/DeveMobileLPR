@@ -41,6 +41,20 @@ internal sealed record TripVehicleCardViewModel(
     public bool HasSnapshot => SnapshotSource is not null;
 }
 
+internal sealed record TripMapSightingViewModel(
+    string NormalizedPlate,
+    string DisplayPlate,
+    DateTimeOffset FirstSeenAt,
+    float Confidence,
+    int ObservationCount,
+    GeoPoint Location,
+    string VehicleName,
+    string? SnapshotPath);
+
+internal sealed record TripMapViewModel(
+    IReadOnlyList<TripPoint> Route,
+    IReadOnlyList<TripMapSightingViewModel> Sightings);
+
 internal sealed class TripDetailViewModel(
     ISightingRepository repository,
     IVehicleImageStore vehicleImageStore,
@@ -59,6 +73,7 @@ internal sealed class TripDetailViewModel(
     private string _highlight = "—";
     private string _selectedSort = SortByTime;
     private IReadOnlyList<TripPoint> _points = [];
+    private TripMapViewModel? _map;
     private IReadOnlyList<TripVehicleCardViewModel> _loadedVehicles = [];
 
     public ObservableCollection<TripVehicleCardViewModel> Vehicles { get; } = [];
@@ -79,6 +94,7 @@ internal sealed class TripDetailViewModel(
         }
     }
     public IReadOnlyList<TripPoint> Points { get => _points; private set { if (SetProperty(ref _points, value)) { OnPropertyChanged(nameof(HasRoute)); } } }
+    public TripMapViewModel? Map { get => _map; private set => SetProperty(ref _map, value); }
     public bool HasRoute => Points.Count > 0;
     public GeoPoint? RouteDestination => Points.LastOrDefault()?.Location;
 
@@ -90,7 +106,8 @@ internal sealed class TripDetailViewModel(
             var tripTask = repository.GetTripAsync(tripId, CancellationToken.None);
             var vehiclesTask = repository.GetVehiclesForTripAsync(tripId, CancellationToken.None);
             var pointsTask = repository.GetTripPointsAsync(tripId, CancellationToken.None);
-            await Task.WhenAll(tripTask, vehiclesTask, pointsTask);
+            var sightingsTask = repository.GetSightingsForTripAsync(tripId, CancellationToken.None);
+            await Task.WhenAll(tripTask, vehiclesTask, pointsTask, sightingsTask);
             var trip = tripTask.Result;
             if (trip is null)
             {
@@ -106,6 +123,7 @@ internal sealed class TripDetailViewModel(
             Unique = trip.UniqueVehicleCount.ToString();
             Highlight = trip.MostExpensiveCatalogPrice is null ? "No RDW value" : $"{DisplayFormat.CompactPrice(trip.MostExpensiveCatalogPrice)} · {trip.MostExpensiveDisplayPlate}";
             Points = pointsTask.Result;
+            Map = new TripMapViewModel(Points, CreateMapSightings(sightingsTask.Result));
             _loadedVehicles = vehiclesTask.Result.Select(CreateVehicle).ToArray();
             ApplySort();
         }
@@ -114,6 +132,28 @@ internal sealed class TripDetailViewModel(
             IsBusy = false;
         }
     }
+
+    private IReadOnlyList<TripMapSightingViewModel> CreateMapSightings(IReadOnlyList<Sighting> sightings) =>
+        sightings
+            .GroupBy(sighting => sighting.NormalizedPlate, StringComparer.Ordinal)
+            .Select(group => group.OrderBy(sighting => sighting.FirstSeenAt).First())
+            .Where(sighting => sighting.Location is not null)
+            .OrderBy(sighting => sighting.FirstSeenAt)
+            .Select(sighting =>
+            {
+                var vehicleName = string.Join(' ', new[] { sighting.Vehicle?.Make, sighting.Vehicle?.Model }
+                    .Where(value => !string.IsNullOrWhiteSpace(value)));
+                return new TripMapSightingViewModel(
+                    sighting.NormalizedPlate,
+                    sighting.DisplayPlate,
+                    sighting.FirstSeenAt,
+                    sighting.Confidence,
+                    sighting.ObservationCount,
+                    sighting.Location!.Value,
+                    string.IsNullOrWhiteSpace(vehicleName) ? "Vehicle details unavailable" : vehicleName,
+                    vehicleImageStore.ResolvePath(sighting.SnapshotReference));
+            })
+            .ToArray();
 
     private TripVehicleCardViewModel CreateVehicle(TripVehicleSummary vehicle)
     {

@@ -15,6 +15,7 @@ public static class MauiProgram
     {
         var builder = MauiApp.CreateBuilder();
         builder.UseMauiApp<App>();
+        ConfigureMapWebViewIdentification();
     #if ANDROID
         builder.ConfigureMauiHandlers(handlers => handlers.AddHandler<CameraPreview, CameraPreviewHandler>());
     #elif WINDOWS
@@ -59,5 +60,27 @@ public static class MauiProgram
         builder.Services.AddSingleton(services => new HistoryPage(services.GetRequiredService<HistoryViewModel>()));
         builder.Services.AddSingleton(services => new SettingsPage(services.GetRequiredService<SettingsViewModel>()));
         return builder.Build();
+    }
+
+    private static void ConfigureMapWebViewIdentification()
+    {
+        const string product = "DeveMobileLPR/0.1 (+https://github.com/devedse/DeveMobileLPR)";
+        Microsoft.Maui.Handlers.WebViewHandler.Mapper.AppendToMapping(
+            "TripHistoryMapIdentification",
+            (handler, view) =>
+            {
+                if (view is not WebView { AutomationId: "TripHistoryMap.WebView" }) return;
+            #if ANDROID
+                var existing = handler.PlatformView.Settings.UserAgentString;
+                handler.PlatformView.Settings.UserAgentString = $"{product} {existing}";
+            #elif WINDOWS
+                handler.PlatformView.CoreWebView2Initialized += (_, args) =>
+                {
+                    if (args.Exception is not null || handler.PlatformView.CoreWebView2 is null) return;
+                    var settings = handler.PlatformView.CoreWebView2.Settings;
+                    settings.UserAgent = $"{product} {settings.UserAgent}";
+                };
+            #endif
+            });
     }
 }

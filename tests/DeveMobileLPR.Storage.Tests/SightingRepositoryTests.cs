@@ -105,6 +105,53 @@ public sealed class SightingRepositoryTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AddOrMergeAsync_KeepsTheFirstRecordedLocation()
+    {
+        var time = new DateTimeOffset(2026, 8, 9, 10, 0, 0, TimeSpan.Zero);
+        var first = new GeoPoint(52.0907, 5.1214, 4);
+        var later = new GeoPoint(52.0917, 5.1314, 2);
+
+        var initial = await _repository.AddOrMergeAsync(
+            Confirmed("AB1234", time, 3),
+            first,
+            null,
+            null,
+            CancellationToken.None);
+        var merged = await _repository.AddOrMergeAsync(
+            Confirmed("AB1234", time.AddMinutes(1), 4),
+            later,
+            null,
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(initial.Id, merged.Id);
+        Assert.Equal(first, merged.Location);
+    }
+
+    [Fact]
+    public async Task AddOrMergeAsync_FillsLocationWhenTheFirstConfirmationHadNoFix()
+    {
+        var time = new DateTimeOffset(2026, 8, 9, 10, 0, 0, TimeSpan.Zero);
+        var firstAvailable = new GeoPoint(52.0907, 5.1214, 4);
+
+        var initial = await _repository.AddOrMergeAsync(
+            Confirmed("AB1234", time, 3),
+            null,
+            null,
+            null,
+            CancellationToken.None);
+        var merged = await _repository.AddOrMergeAsync(
+            Confirmed("AB1234", time.AddMinutes(1), 4),
+            firstAvailable,
+            null,
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(initial.Id, merged.Id);
+        Assert.Equal(firstAvailable, merged.Location);
+    }
+
+    [Fact]
     public async Task InitializeAsync_IsIdempotentAndKeepsExistingHistory()
     {
         var existing = await _repository.AddOrMergeAsync(
