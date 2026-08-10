@@ -1,0 +1,17 @@
+{
+  "name": "devemobilelpr-map-web-assets",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sync": "node sync-assets.mjs --write",
+    "verify": "node sync-assets.mjs --verify"
+  },
+  "dependencies": {
+    "leaflet": "1.9.4",
+    "leaflet.markercluster": "1.5.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

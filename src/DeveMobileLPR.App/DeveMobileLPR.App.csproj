@@ -21,6 +21,8 @@
           provided by LiteRT's native GPU/CPU accelerators instead. -->
     <RunAOTCompilation>false</RunAOTCompilation>
     <MauiEnableXamlCBindingWithSourceCompilation>true</MauiEnableXamlCBindingWithSourceCompilation>
+    <!-- Preserve the HybridWebView map bridge if a future publish enables full trimming. -->
+    <MauiHybridWebViewSupported>true</MauiHybridWebViewSupported>
     <AllowUnsafeBlocks Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
@@ -51,6 +53,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" />
     <PackageReference Include="Microsoft.Maui.Essentials" />
+    <PackageReference Include="SixLabors.ImageSharp" />
   </ItemGroup>
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
     <PackageReference Include="Xamarin.Google.AI.Edge.LiteRT" />
@@ -77,6 +80,7 @@
     <MauiSplashScreen Include="Resources\Splash\splash.png" Color="#0B0D10" BaseSize="256,256" />
     <MauiImage Include="Resources\Images\brand_logo.png" />
     <MauiImage Include="Resources\Images\*.svg" />
+    <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
     <AndroidAsset Include="..\..\artifacts\models\yolo-v9-s-608-license-plates-raw_float32.tflite"

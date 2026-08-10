@@ -36,9 +36,14 @@
 
                     <Border Style="{StaticResource Card}">
                         <VerticalStackLayout Style="{StaticResource CardContent}">
-                            <controls:TripRouteView Points="{Binding Points}" />
+                            <controls:HistoryMapView
+                                x:Name="HistoryMap"
+                                HeightRequest="360"
+                                IsInteractive="False"
+                                Map="{Binding Map}"
+                                MapRequested="MapRequested" />
                             <FlexLayout AlignItems="Center" Direction="Row" JustifyContent="Start" Wrap="Wrap">
-                                <Label FlexLayout.Basis="220" FlexLayout.Grow="1" Margin="0,0,12,8" Style="{StaticResource SecondaryText}" Text="Offline route trace · yellow is start, mint is finish" VerticalOptions="Center" />
+                                <Label FlexLayout.Basis="220" FlexLayout.Grow="1" Margin="0,0,12,8" Style="{StaticResource SecondaryText}" Text="Yellow cars are first-time sightings · purple cars were seen before · mint is trip finish" VerticalOptions="Center" />
                                 <Button
                                     Clicked="OpenRouteClicked"
                                     FlexLayout.Basis="220"

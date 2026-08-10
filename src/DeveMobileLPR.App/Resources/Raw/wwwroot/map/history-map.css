@@ -1,0 +1,194 @@
+html,
+body,
+#map {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: #202632;
+}
+
+.leaflet-container {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: #202632;
+}
+
+.leaflet-control-attribution {
+  font-size: 10px;
+}
+
+.photo-pin {
+  --pin-accent: #f5c542;
+  width: 58px;
+  height: 52px;
+}
+
+.photo-pin--known {
+  --pin-accent: #d77bff;
+}
+
+.photo-pin__image,
+.photo-pin__fallback {
+  width: 54px;
+  height: 36px;
+  border: 3px solid var(--pin-accent);
+  border-radius: 9px;
+  box-shadow: 0 3px 10px #0008;
+  background: #151922;
+  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pin-accent);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.photo-pin__plate {
+  position: absolute;
+  top: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--pin-accent);
+  color: #151922;
+  box-shadow: 0 2px 6px #0007;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.photo-pin__price {
+  position: absolute;
+  top: -7px;
+  right: -10px;
+  white-space: nowrap;
+  padding: 3px 6px;
+  border: 2px solid #151922;
+  border-radius: 8px;
+  background: var(--pin-accent);
+  color: #151922;
+  box-shadow: 0 2px 7px #0008;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.endpoint {
+  width: 18px;
+  height: 18px;
+  border: 3px solid #151922;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px #0008;
+}
+
+.endpoint--start {
+  background: #f5c542;
+}
+
+.endpoint--finish {
+  background: #58e0c2;
+}
+
+.leaflet-popup-content-wrapper {
+  max-height: calc(100dvh - 72px);
+  overflow: hidden;
+}
+
+.leaflet-popup-content {
+  max-height: calc(100dvh - 112px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.popup {
+  min-width: min(190px, calc(100vw - 96px));
+  color: #151922;
+}
+
+.popup img {
+  width: 100%;
+  max-height: 120px;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.popup__plate {
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.popup__meta {
+  color: #596273;
+  margin-top: 3px;
+}
+
+.popup button {
+  margin-top: 10px;
+  width: 100%;
+  border: 0;
+  border-radius: 7px;
+  padding: 8px;
+  background: #151922;
+  color: #fff;
+  font-weight: 700;
+}
+
+#tile-warning {
+  display: none;
+  position: absolute;
+  z-index: 1000;
+  left: 12px;
+  right: 12px;
+  top: 12px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: #151922e8;
+  color: #fff;
+  font-size: 12px;
+  text-align: center;
+  box-shadow: 0 3px 12px #0007;
+}
+
+.marker-cluster {
+  border-radius: 50%;
+}
+
+.marker-cluster div {
+  width: calc(100% - 12px);
+  height: calc(100% - 12px);
+  margin: 6px;
+  border-radius: 50%;
+  color: #151922;
+  font-weight: 900;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.marker-cluster--new,
+.marker-cluster--new div {
+  background: #f5c542;
+}
+
+.marker-cluster--new {
+  background: #f5c54266;
+}
+
+.marker-cluster--known,
+.marker-cluster--known div {
+  background: #d77bff;
+}
+
+.marker-cluster--known {
+  background: #d77bff66;
+}
+
+.marker-cluster--mixed {
+  background: linear-gradient(90deg, #f5c54266 0 50%, #d77bff66 50% 100%);
+}
+
+.marker-cluster--mixed div {
+  background: linear-gradient(90deg, #f5c542 0 50%, #d77bff 50% 100%);
+}

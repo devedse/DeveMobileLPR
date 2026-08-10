@@ -60,4 +60,5 @@ public static class MauiProgram
         builder.Services.AddSingleton(services => new SettingsPage(services.GetRequiredService<SettingsViewModel>()));
         return builder.Build();
     }
+
 }

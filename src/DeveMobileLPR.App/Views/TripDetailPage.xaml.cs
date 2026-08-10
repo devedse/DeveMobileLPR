@@ -10,6 +10,7 @@ public partial class TripDetailPage : ContentPage
     private readonly TripDetailViewModel _viewModel;
     private readonly ISightingRepository _repository;
     private readonly IVehicleImageStore _vehicleImageStore;
+    private bool _isOpeningMap;
 
     internal TripDetailPage(HistoryViewModel history, long tripId)
     {
@@ -55,6 +56,25 @@ public partial class TripDetailPage : ContentPage
         if (args.CurrentSelection.FirstOrDefault() is not TripVehicleCardViewModel vehicle) return;
         VehiclesList.SelectedItem = null;
         await Navigation.PushAsync(new VehicleDetailPage(_repository, _vehicleImageStore, vehicle.NormalizedPlate));
+    }
+
+    private async void MapRequested(object? sender, EventArgs args)
+    {
+        if (_isOpeningMap || _viewModel.Map is not { } map) return;
+        _isOpeningMap = true;
+        try
+        {
+            await Navigation.PushAsync(new FullScreenMapPage(
+                _repository,
+                _vehicleImageStore,
+                map,
+                "Trip map",
+                _viewModel.Title));
+        }
+        finally
+        {
+            _isOpeningMap = false;
+        }
     }
 
 }
