@@ -43,7 +43,7 @@
                                 Map="{Binding Map}"
                                 MapRequested="MapRequested" />
                             <FlexLayout AlignItems="Center" Direction="Row" JustifyContent="Start" Wrap="Wrap">
-                                <Label FlexLayout.Basis="220" FlexLayout.Grow="1" Margin="0,0,12,8" Style="{StaticResource SecondaryText}" Text="Yellow is start · mint is finish · car photos show where each vehicle was first spotted" VerticalOptions="Center" />
+                                <Label FlexLayout.Basis="220" FlexLayout.Grow="1" Margin="0,0,12,8" Style="{StaticResource SecondaryText}" Text="Yellow cars are first-time sightings · purple cars were seen before · mint is trip finish" VerticalOptions="Center" />
                                 <Button
                                     Clicked="OpenRouteClicked"
                                     FlexLayout.Basis="220"

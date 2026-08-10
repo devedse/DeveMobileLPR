@@ -45,6 +45,7 @@ internal sealed record TripMapSightingViewModel(
     string NormalizedPlate,
     string DisplayPlate,
     string? Price,
+    bool IsKnown,
     DateTimeOffset FirstSeenAt,
     float Confidence,
     int ObservationCount,
@@ -124,8 +125,9 @@ internal sealed class TripDetailViewModel(
             Unique = trip.UniqueVehicleCount.ToString();
             Highlight = trip.MostExpensiveCatalogPrice is null ? "No RDW value" : $"{DisplayFormat.CompactPrice(trip.MostExpensiveCatalogPrice)} · {trip.MostExpensiveDisplayPlate}";
             Points = pointsTask.Result;
-            Map = new TripMapViewModel(Points, CreateMapSightings(sightingsTask.Result));
-            _loadedVehicles = vehiclesTask.Result.Select(CreateVehicle).ToArray();
+            var vehicleSummaries = vehiclesTask.Result;
+            Map = new TripMapViewModel(Points, CreateMapSightings(sightingsTask.Result, vehicleSummaries));
+            _loadedVehicles = vehicleSummaries.Select(CreateVehicle).ToArray();
             ApplySort();
         }
         finally
@@ -134,8 +136,16 @@ internal sealed class TripDetailViewModel(
         }
     }
 
-    private IReadOnlyList<TripMapSightingViewModel> CreateMapSightings(IReadOnlyList<Sighting> sightings) =>
-        sightings
+    private IReadOnlyList<TripMapSightingViewModel> CreateMapSightings(
+        IReadOnlyList<Sighting> sightings,
+        IReadOnlyList<TripVehicleSummary> vehicles)
+    {
+        var knownPlates = vehicles
+            .Where(vehicle => vehicle.EarlierSightingCount > 0)
+            .Select(vehicle => vehicle.NormalizedPlate)
+            .ToHashSet(StringComparer.Ordinal);
+
+        return sightings
             .GroupBy(sighting => sighting.NormalizedPlate, StringComparer.Ordinal)
             .Select(group => group.OrderBy(sighting => sighting.FirstSeenAt).First())
             .Where(sighting => sighting.Location is not null)
@@ -148,6 +158,7 @@ internal sealed class TripDetailViewModel(
                     sighting.NormalizedPlate,
                     sighting.DisplayPlate,
                     sighting.Vehicle?.CatalogPrice is { } price ? DisplayFormat.CompactPrice(price) : null,
+                    knownPlates.Contains(sighting.NormalizedPlate),
                     sighting.FirstSeenAt,
                     sighting.Confidence,
                     sighting.ObservationCount,
@@ -156,6 +167,7 @@ internal sealed class TripDetailViewModel(
                     vehicleImageStore.ResolvePath(sighting.SnapshotReference));
             })
             .ToArray();
+    }
 
     private TripVehicleCardViewModel CreateVehicle(TripVehicleSummary vehicle)
     {

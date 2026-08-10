@@ -194,6 +194,7 @@ internal sealed class TripHistoryMap : ContentView
                     sighting.NormalizedPlate,
                     sighting.DisplayPlate,
                     sighting.Price,
+                    sighting.IsKnown,
                     sighting.FirstSeenAt.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture),
                     $"{sighting.Confidence:P0} · {sighting.ObservationCount} reads",
                     sighting.VehicleName,
@@ -329,10 +330,11 @@ internal sealed class TripHistoryMap : ContentView
             html, body, #map { width:100%; height:100%; margin:0; background:#202632; }
             .leaflet-container { font-family:system-ui,-apple-system,"Segoe UI",sans-serif; background:#202632; }
             .leaflet-control-attribution { font-size:10px; }
-            .photo-pin { width:58px; height:52px; }
-            .photo-pin__image, .photo-pin__fallback { width:54px; height:36px; border:3px solid #f5c542; border-radius:9px; box-shadow:0 3px 10px #0008; background:#151922; object-fit:cover; display:flex; align-items:center; justify-content:center; color:#f5c542; font-size:10px; font-weight:800; }
-            .photo-pin__plate { position:absolute; top:36px; left:50%; transform:translateX(-50%); white-space:nowrap; padding:2px 5px; border-radius:4px; background:#f5c542; color:#151922; box-shadow:0 2px 6px #0007; font-size:9px; font-weight:900; }
-            .photo-pin__price { position:absolute; top:-7px; right:-10px; white-space:nowrap; padding:3px 6px; border:2px solid #151922; border-radius:8px; background:#58e0c2; color:#151922; box-shadow:0 2px 7px #0008; font-size:9px; font-weight:900; }
+            .photo-pin { --pin-accent:#f5c542; width:58px; height:52px; }
+            .photo-pin--known { --pin-accent:#d77bff; }
+            .photo-pin__image, .photo-pin__fallback { width:54px; height:36px; border:3px solid var(--pin-accent); border-radius:9px; box-shadow:0 3px 10px #0008; background:#151922; object-fit:cover; display:flex; align-items:center; justify-content:center; color:var(--pin-accent); font-size:10px; font-weight:800; }
+            .photo-pin__plate { position:absolute; top:36px; left:50%; transform:translateX(-50%); white-space:nowrap; padding:2px 5px; border-radius:4px; background:var(--pin-accent); color:#151922; box-shadow:0 2px 6px #0007; font-size:9px; font-weight:900; }
+            .photo-pin__price { position:absolute; top:-7px; right:-10px; white-space:nowrap; padding:3px 6px; border:2px solid #151922; border-radius:8px; background:var(--pin-accent); color:#151922; box-shadow:0 2px 7px #0008; font-size:9px; font-weight:900; }
             .endpoint { width:18px; height:18px; border:3px solid #151922; border-radius:50%; box-shadow:0 2px 8px #0008; }
             .endpoint--start { background:#f5c542; }
             .endpoint--finish { background:#58e0c2; }
@@ -376,7 +378,7 @@ internal sealed class TripHistoryMap : ContentView
             }
             const clusters = L.markerClusterGroup({ showCoverageOnHover:false, maxClusterRadius:52, spiderfyOnMaxZoom:interactive, disableClusteringAtZoom:17, removeOutsideVisibleBounds:false });
             payload.sightings.forEach(s => {
-              const root = document.createElement('div'); root.className='photo-pin';
+              const root = document.createElement('div'); root.className=`photo-pin${s.isKnown ? ' photo-pin--known' : ''}`;
               if (s.image) { const img=document.createElement('img'); img.className='photo-pin__image'; img.src=s.image; img.alt=''; root.appendChild(img); }
               else { const fallback=document.createElement('div'); fallback.className='photo-pin__fallback'; fallback.textContent='CAR'; root.appendChild(fallback); }
               const label=document.createElement('div'); label.className='photo-pin__plate'; label.textContent=s.displayPlate; root.appendChild(label);
@@ -387,7 +389,7 @@ internal sealed class TripHistoryMap : ContentView
               const plate=document.createElement('div'); plate.className='popup__plate'; plate.textContent=s.displayPlate; popup.appendChild(plate);
               [s.vehicleName, `First spotted ${s.seen}`, s.confidence, s.accuracyMeters == null ? null : `GPS accuracy ±${Math.round(s.accuracyMeters)} m`].filter(Boolean).forEach(value => { const row=document.createElement('div'); row.className='popup__meta'; row.textContent=value; popup.appendChild(row); });
               const button=document.createElement('button'); button.type='button'; button.textContent='View vehicle history'; button.onclick=()=>location.href=`app://vehicle/${encodeURIComponent(s.normalizedPlate)}`; popup.appendChild(button);
-              if (interactive) marker.bindPopup(popup, { maxWidth:300, maxHeight:Math.max(120, map.getSize().y - 104), autoPan:true, keepInView:true, autoPanPadding:[16,16] });
+              if (interactive) marker.bindPopup(popup, { maxWidth:300, maxHeight:Math.max(120, map.getSize().y - 104), autoPan:true, keepInView:false, autoPanPadding:[16,16] });
               clusters.addLayer(marker); bounds.push([s.latitude,s.longitude]);
             });
             map.addLayer(clusters);
@@ -405,6 +407,7 @@ internal sealed class TripHistoryMap : ContentView
         string NormalizedPlate,
         string DisplayPlate,
         string? Price,
+        bool IsKnown,
         string Seen,
         string Confidence,
         string VehicleName,
