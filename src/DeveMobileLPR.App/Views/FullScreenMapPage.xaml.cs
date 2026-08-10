@@ -5,21 +5,23 @@ using DeveMobileLPR.Storage;
 
 namespace DeveMobileLPR.App.Views;
 
-public partial class FullScreenTripMapPage : ContentPage
+public partial class FullScreenMapPage : ContentPage
 {
     private readonly ISightingRepository _repository;
     private readonly IVehicleImageStore _vehicleImageStore;
 
-    internal FullScreenTripMapPage(
+    internal FullScreenMapPage(
         ISightingRepository repository,
         IVehicleImageStore vehicleImageStore,
-        TripMapViewModel map,
-        string tripTitle)
+        HistoryMapViewModel map,
+        string context,
+        string title)
     {
         InitializeComponent();
         _repository = repository;
         _vehicleImageStore = vehicleImageStore;
-        TripTitle.Text = tripTitle;
+        MapContext.Text = context;
+        MapTitle.Text = title;
         HistoryMap.Map = map;
     }
 

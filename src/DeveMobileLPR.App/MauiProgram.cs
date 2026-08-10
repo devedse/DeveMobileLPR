@@ -66,10 +66,10 @@ public static class MauiProgram
     {
         const string product = "DeveMobileLPR/0.1 (+https://github.com/devedse/DeveMobileLPR)";
         Microsoft.Maui.Handlers.WebViewHandler.Mapper.AppendToMapping(
-            "TripHistoryMapIdentification",
+            "HistoryMapIdentification",
             (handler, view) =>
             {
-                if (view is not WebView { AutomationId: "TripHistoryMap.WebView" }) return;
+                if (view is not WebView { AutomationId: "HistoryMap.WebView" }) return;
             #if ANDROID
                 var existing = handler.PlatformView.Settings.UserAgentString;
                 handler.PlatformView.Settings.UserAgentString = $"{product} {existing}";

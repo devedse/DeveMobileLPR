@@ -8,6 +8,9 @@ namespace DeveMobileLPR.App.Views;
 public partial class VehicleDetailPage : ContentPage
 {
     private readonly VehicleDetailViewModel _viewModel;
+    private readonly ISightingRepository _repository;
+    private readonly IVehicleImageStore _vehicleImageStore;
+    private bool _isOpeningMap;
 
     internal VehicleDetailPage(
         ISightingRepository repository,
@@ -15,6 +18,8 @@ public partial class VehicleDetailPage : ContentPage
         string normalizedPlate)
     {
         InitializeComponent();
+        _repository = repository;
+        _vehicleImageStore = vehicleImageStore;
         BindingContext = _viewModel = new VehicleDetailViewModel(repository, vehicleImageStore, normalizedPlate);
     }
 
@@ -31,6 +36,25 @@ public partial class VehicleDetailPage : ContentPage
         if (sender is Button { CommandParameter: GeoPoint location })
         {
             await this.OpenVehicleMapAsync(location);
+        }
+    }
+
+    private async void MapRequested(object? sender, EventArgs args)
+    {
+        if (_isOpeningMap || _viewModel.Map is not { } map) return;
+        _isOpeningMap = true;
+        try
+        {
+            await Navigation.PushAsync(new FullScreenMapPage(
+                _repository,
+                _vehicleImageStore,
+                map,
+                "Vehicle sightings",
+                _viewModel.DisplayPlate));
+        }
+        finally
+        {
+            _isOpeningMap = false;
         }
     }
 }

@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -9,18 +8,18 @@ using SixLabors.ImageSharp.Processing;
 
 namespace DeveMobileLPR.App.Controls;
 
-internal sealed class TripHistoryMap : ContentView
+internal sealed class HistoryMapView : ContentView
 {
     public static readonly BindableProperty MapProperty = BindableProperty.Create(
         nameof(Map),
-        typeof(TripMapViewModel),
-        typeof(TripHistoryMap),
+        typeof(HistoryMapViewModel),
+        typeof(HistoryMapView),
         propertyChanged: MapChanged);
 
     public static readonly BindableProperty IsInteractiveProperty = BindableProperty.Create(
         nameof(IsInteractive),
         typeof(bool),
-        typeof(TripHistoryMap),
+        typeof(HistoryMapView),
         true,
         propertyChanged: IsInteractiveChanged);
 
@@ -44,11 +43,11 @@ internal sealed class TripHistoryMap : ContentView
     private readonly Grid _root;
     private CancellationTokenSource? _renderCancellation;
 
-    public TripHistoryMap()
+    public HistoryMapView()
     {
         _webView = new WebView
         {
-            AutomationId = "TripHistoryMap.WebView",
+            AutomationId = "HistoryMap.WebView",
             HorizontalOptions = LayoutOptions.Fill,
             VerticalOptions = LayoutOptions.Fill,
             ZIndex = 0
@@ -73,7 +72,7 @@ internal sealed class TripHistoryMap : ContentView
 
         _previewButton = new Button
         {
-            AutomationId = "TripHistoryMap.OpenButton",
+            AutomationId = "HistoryMap.OpenButton",
             BackgroundColor = Colors.Transparent,
             BorderWidth = 0,
             IsVisible = false,
@@ -117,9 +116,9 @@ internal sealed class TripHistoryMap : ContentView
     public event EventHandler<string>? VehicleSelected;
     public event EventHandler? MapRequested;
 
-    public TripMapViewModel? Map
+    public HistoryMapViewModel? Map
     {
-        get => (TripMapViewModel?)GetValue(MapProperty);
+        get => (HistoryMapViewModel?)GetValue(MapProperty);
         set => SetValue(MapProperty, value);
     }
 
@@ -140,11 +139,11 @@ internal sealed class TripHistoryMap : ContentView
     }
 
     private static void MapChanged(BindableObject bindable, object oldValue, object newValue) =>
-        ((TripHistoryMap)bindable).StartRender((TripMapViewModel?)newValue);
+        ((HistoryMapView)bindable).StartRender((HistoryMapViewModel?)newValue);
 
     private static void IsInteractiveChanged(BindableObject bindable, object oldValue, object newValue)
     {
-        var map = (TripHistoryMap)bindable;
+        var map = (HistoryMapView)bindable;
         map.UpdateInteractionState();
         map.StartRender(map.Map);
     }
@@ -161,7 +160,7 @@ internal sealed class TripHistoryMap : ContentView
         if (!IsInteractive && Map is not null) MapRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    private void StartRender(TripMapViewModel? map)
+    private void StartRender(HistoryMapViewModel? map)
     {
         _renderCancellation?.Cancel();
         _renderCancellation?.Dispose();
@@ -169,7 +168,7 @@ internal sealed class TripHistoryMap : ContentView
         _ = RenderAsync(map, _renderCancellation.Token);
     }
 
-    private async Task RenderAsync(TripMapViewModel? map, CancellationToken cancellationToken)
+    private async Task RenderAsync(HistoryMapViewModel? map, CancellationToken cancellationToken)
     {
         _loading.IsVisible = true;
         _loading.IsRunning = true;
@@ -195,7 +194,7 @@ internal sealed class TripHistoryMap : ContentView
                     sighting.DisplayPlate,
                     sighting.Price,
                     sighting.IsKnown,
-                    sighting.FirstSeenAt.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture),
+                    sighting.Seen,
                     $"{sighting.Confidence:P0} · {sighting.ObservationCount} reads",
                     sighting.VehicleName,
                     sighting.Location.Latitude,
@@ -205,11 +204,12 @@ internal sealed class TripHistoryMap : ContentView
             }
 
             var payload = new MapPayload(
-                map.Route.Select(point => new[] { point.Location.Latitude, point.Location.Longitude }).ToArray(),
+                map.Route.Select(point => new[] { point.Latitude, point.Longitude }).ToArray(),
                 sightings,
                 TileUrl,
                 Attribution,
-                IsInteractive);
+                IsInteractive,
+                map.CanOpenVehicleHistory);
             var json = JsonSerializer.Serialize(payload, JsonOptions);
             var encodedPayload = Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
             var html = BuildHtml(assets, encodedPayload);
@@ -387,8 +387,8 @@ internal sealed class TripHistoryMap : ContentView
               const popup=document.createElement('div'); popup.className='popup';
               if (s.image) { const image=document.createElement('img'); image.src=s.image; image.alt='Vehicle snapshot'; popup.appendChild(image); }
               const plate=document.createElement('div'); plate.className='popup__plate'; plate.textContent=s.displayPlate; popup.appendChild(plate);
-              [s.vehicleName, `First spotted ${s.seen}`, s.confidence, s.accuracyMeters == null ? null : `GPS accuracy ±${Math.round(s.accuracyMeters)} m`].filter(Boolean).forEach(value => { const row=document.createElement('div'); row.className='popup__meta'; row.textContent=value; popup.appendChild(row); });
-              const button=document.createElement('button'); button.type='button'; button.textContent='View vehicle history'; button.onclick=()=>location.href=`app://vehicle/${encodeURIComponent(s.normalizedPlate)}`; popup.appendChild(button);
+              [s.vehicleName, s.seen, s.confidence, s.accuracyMeters == null ? null : `GPS accuracy ±${Math.round(s.accuracyMeters)} m`].filter(Boolean).forEach(value => { const row=document.createElement('div'); row.className='popup__meta'; row.textContent=value; popup.appendChild(row); });
+              if (payload.canOpenVehicleHistory) { const button=document.createElement('button'); button.type='button'; button.textContent='View vehicle history'; button.onclick=()=>location.href=`app://vehicle/${encodeURIComponent(s.normalizedPlate)}`; popup.appendChild(button); }
               if (interactive) marker.bindPopup(popup, { maxWidth:300, maxHeight:Math.max(120, map.getSize().y - 104), autoPan:true, keepInView:false, autoPanPadding:[16,16] });
               clusters.addLayer(marker); bounds.push([s.latitude,s.longitude]);
             });
@@ -402,7 +402,7 @@ internal sealed class TripHistoryMap : ContentView
         """;
 
     private sealed record MapAssets(string LeafletCss, string ClusterCss, string ClusterDefaultCss, string LeafletJs, string ClusterJs);
-    private sealed record MapPayload(IReadOnlyList<double[]> Route, IReadOnlyList<MapSighting> Sightings, string TileUrl, string Attribution, bool IsInteractive);
+    private sealed record MapPayload(IReadOnlyList<double[]> Route, IReadOnlyList<MapSighting> Sightings, string TileUrl, string Attribution, bool IsInteractive, bool CanOpenVehicleHistory);
     private sealed record MapSighting(
         string NormalizedPlate,
         string DisplayPlate,

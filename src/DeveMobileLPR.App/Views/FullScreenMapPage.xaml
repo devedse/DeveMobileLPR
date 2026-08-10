@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <ContentPage
-    x:Class="DeveMobileLPR.App.Views.FullScreenTripMapPage"
+    x:Class="DeveMobileLPR.App.Views.FullScreenMapPage"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:controls="clr-namespace:DeveMobileLPR.App.Controls"
@@ -9,13 +9,13 @@
         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
             <Button Clicked="BackClicked" Style="{StaticResource CompactSecondaryButton}" Text="‹  Back" />
             <VerticalStackLayout Grid.Column="1" Spacing="1" VerticalOptions="Center">
-                <Label Style="{StaticResource Eyebrow}" Text="Trip map" />
-                <Label x:Name="TripTitle" Style="{StaticResource DetailTitle}" />
+                <Label x:Name="MapContext" Style="{StaticResource Eyebrow}" />
+                <Label x:Name="MapTitle" Style="{StaticResource DetailTitle}" />
             </VerticalStackLayout>
         </Grid>
 
         <Border Grid.Row="1" Padding="0" Stroke="{DynamicResource Divider}" StrokeShape="RoundRectangle 18" StrokeThickness="1">
-            <controls:TripHistoryMap
+            <controls:HistoryMapView
                 x:Name="HistoryMap"
                 IsInteractive="True"
                 VehicleSelected="MapVehicleSelected" />

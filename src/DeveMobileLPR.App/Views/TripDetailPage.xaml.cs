@@ -64,10 +64,11 @@ public partial class TripDetailPage : ContentPage
         _isOpeningMap = true;
         try
         {
-            await Navigation.PushAsync(new FullScreenTripMapPage(
+            await Navigation.PushAsync(new FullScreenMapPage(
                 _repository,
                 _vehicleImageStore,
                 map,
+                "Trip map",
                 _viewModel.Title));
         }
         finally

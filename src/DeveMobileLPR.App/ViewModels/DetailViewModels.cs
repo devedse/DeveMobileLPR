@@ -41,21 +41,22 @@ internal sealed record TripVehicleCardViewModel(
     public bool HasSnapshot => SnapshotSource is not null;
 }
 
-internal sealed record TripMapSightingViewModel(
+internal sealed record HistoryMapSightingViewModel(
     string NormalizedPlate,
     string DisplayPlate,
     string? Price,
     bool IsKnown,
-    DateTimeOffset FirstSeenAt,
+    string Seen,
     float Confidence,
     int ObservationCount,
     GeoPoint Location,
     string VehicleName,
     string? SnapshotPath);
 
-internal sealed record TripMapViewModel(
-    IReadOnlyList<TripPoint> Route,
-    IReadOnlyList<TripMapSightingViewModel> Sightings);
+internal sealed record HistoryMapViewModel(
+    IReadOnlyList<GeoPoint> Route,
+    IReadOnlyList<HistoryMapSightingViewModel> Sightings,
+    bool CanOpenVehicleHistory);
 
 internal sealed class TripDetailViewModel(
     ISightingRepository repository,
@@ -75,7 +76,7 @@ internal sealed class TripDetailViewModel(
     private string _highlight = "—";
     private string _selectedSort = SortByTime;
     private IReadOnlyList<TripPoint> _points = [];
-    private TripMapViewModel? _map;
+    private HistoryMapViewModel? _map;
     private IReadOnlyList<TripVehicleCardViewModel> _loadedVehicles = [];
 
     public ObservableCollection<TripVehicleCardViewModel> Vehicles { get; } = [];
@@ -96,7 +97,7 @@ internal sealed class TripDetailViewModel(
         }
     }
     public IReadOnlyList<TripPoint> Points { get => _points; private set { if (SetProperty(ref _points, value)) { OnPropertyChanged(nameof(HasRoute)); } } }
-    public TripMapViewModel? Map { get => _map; private set => SetProperty(ref _map, value); }
+    public HistoryMapViewModel? Map { get => _map; private set => SetProperty(ref _map, value); }
     public bool HasRoute => Points.Count > 0;
     public GeoPoint? RouteDestination => Points.LastOrDefault()?.Location;
 
@@ -126,7 +127,10 @@ internal sealed class TripDetailViewModel(
             Highlight = trip.MostExpensiveCatalogPrice is null ? "No RDW value" : $"{DisplayFormat.CompactPrice(trip.MostExpensiveCatalogPrice)} · {trip.MostExpensiveDisplayPlate}";
             Points = pointsTask.Result;
             var vehicleSummaries = vehiclesTask.Result;
-            Map = new TripMapViewModel(Points, CreateMapSightings(sightingsTask.Result, vehicleSummaries));
+            Map = new HistoryMapViewModel(
+                Points.Select(point => point.Location).ToArray(),
+                CreateMapSightings(sightingsTask.Result, vehicleSummaries),
+                true);
             _loadedVehicles = vehicleSummaries.Select(CreateVehicle).ToArray();
             ApplySort();
         }
@@ -136,7 +140,7 @@ internal sealed class TripDetailViewModel(
         }
     }
 
-    private IReadOnlyList<TripMapSightingViewModel> CreateMapSightings(
+    private IReadOnlyList<HistoryMapSightingViewModel> CreateMapSightings(
         IReadOnlyList<Sighting> sightings,
         IReadOnlyList<TripVehicleSummary> vehicles)
     {
@@ -154,12 +158,12 @@ internal sealed class TripDetailViewModel(
             {
                 var vehicleName = string.Join(' ', new[] { sighting.Vehicle?.Make, sighting.Vehicle?.Model }
                     .Where(value => !string.IsNullOrWhiteSpace(value)));
-                return new TripMapSightingViewModel(
+                return new HistoryMapSightingViewModel(
                     sighting.NormalizedPlate,
                     sighting.DisplayPlate,
                     sighting.Vehicle?.CatalogPrice is { } price ? DisplayFormat.CompactPrice(price) : null,
                     knownPlates.Contains(sighting.NormalizedPlate),
-                    sighting.FirstSeenAt,
+                    $"First spotted {sighting.FirstSeenAt.ToLocalTime():HH:mm}",
                     sighting.Confidence,
                     sighting.ObservationCount,
                     sighting.Location!.Value,
@@ -236,6 +240,7 @@ internal sealed class VehicleDetailViewModel(
     private string _lastSeen = "—";
     private string _locationSummary = "No locations recorded";
     private IReadOnlyList<Sighting> _locationSightings = [];
+    private HistoryMapViewModel? _map;
 
     public ObservableCollection<SightingCardViewModel> Sightings { get; } = [];
     public bool IsBusy { get => _isBusy; private set => SetProperty(ref _isBusy, value); }
@@ -248,6 +253,7 @@ internal sealed class VehicleDetailViewModel(
     public string FirstSeen { get => _firstSeen; private set => SetProperty(ref _firstSeen, value); }
     public string LastSeen { get => _lastSeen; private set => SetProperty(ref _lastSeen, value); }
     public string LocationSummary { get => _locationSummary; private set => SetProperty(ref _locationSummary, value); }
+    public HistoryMapViewModel? Map { get => _map; private set => SetProperty(ref _map, value); }
     public IReadOnlyList<Sighting> LocationSightings
     {
         get => _locationSightings;
@@ -310,6 +316,7 @@ internal sealed class VehicleDetailViewModel(
             FirstSeen = DisplayFormat.Relative(results.MinBy(item => item.FirstSeenAt)!.FirstSeenAt);
             LastSeen = DisplayFormat.Relative(results.MaxBy(item => item.LastSeenAt)!.LastSeenAt);
             LocationSightings = chronological.Where(result => result.Location is not null).ToArray();
+            Map = CreateMap(chronological);
             var distinctLocations = LocationSightings
                 .Select(result => result.Location!.Value)
                 .Select(location => (Math.Round(location.Latitude, 5), Math.Round(location.Longitude, 5)))
@@ -324,4 +331,28 @@ internal sealed class VehicleDetailViewModel(
             IsBusy = false;
         }
     }
+
+    private HistoryMapViewModel CreateMap(IReadOnlyList<Sighting> sightings) => new(
+        [],
+        sightings
+            .Select((sighting, index) => (Sighting: sighting, IsKnown: index > 0))
+            .Where(item => item.Sighting.Location is not null)
+            .Select(item =>
+            {
+                var sighting = item.Sighting;
+                var vehicleName = string.Join(' ', new[] { sighting.Vehicle?.Make, sighting.Vehicle?.Model }
+                    .Where(value => !string.IsNullOrWhiteSpace(value)));
+                return new HistoryMapSightingViewModel(
+                    sighting.NormalizedPlate,
+                    sighting.DisplayPlate,
+                    sighting.Vehicle?.CatalogPrice is { } price ? DisplayFormat.CompactPrice(price) : null,
+                    item.IsKnown,
+                    $"Seen {sighting.FirstSeenAt.ToLocalTime():ddd d MMM yyyy · HH:mm}",
+                    sighting.Confidence,
+                    sighting.ObservationCount,
+                    sighting.Location!.Value,
+                    string.IsNullOrWhiteSpace(vehicleName) ? "Vehicle details unavailable" : vehicleName,
+                    vehicleImageStore.ResolvePath(sighting.SnapshotReference));
+            }).ToArray(),
+        false);
 }

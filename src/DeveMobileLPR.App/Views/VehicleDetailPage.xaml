@@ -51,8 +51,13 @@
                                 </VerticalStackLayout>
                                 <Label Grid.Column="1" Style="{StaticResource MutedText}" Text="Older → latest" VerticalOptions="Center" />
                             </Grid>
-                            <controls:VehicleSightingsView Sightings="{Binding LocationSightings}" />
-                            <Label Style="{StaticResource MutedText}" Text="Offline sighting trace · yellow is earlier, mint is latest. Open a row below for the exact map location." />
+                            <controls:HistoryMapView
+                                x:Name="HistoryMap"
+                                HeightRequest="360"
+                                IsInteractive="False"
+                                Map="{Binding Map}"
+                                MapRequested="MapRequested" />
+                            <Label Style="{StaticResource MutedText}" Text="Yellow is the first sighting · purple means the car was already known · tap the map to explore every location." />
                         </VerticalStackLayout>
                     </Border>
 

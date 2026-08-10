@@ -36,7 +36,7 @@
 
                     <Border Style="{StaticResource Card}">
                         <VerticalStackLayout Style="{StaticResource CardContent}">
-                            <controls:TripHistoryMap
+                            <controls:HistoryMapView
                                 x:Name="HistoryMap"
                                 HeightRequest="360"
                                 IsInteractive="False"
