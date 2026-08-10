@@ -41,6 +41,7 @@ internal sealed class TripHistoryMap : ContentView
     private readonly Label _fallback;
     private readonly Button _previewButton;
     private readonly Border _previewHint;
+    private readonly Grid _root;
     private CancellationTokenSource? _renderCancellation;
 
     public TripHistoryMap()
@@ -49,9 +50,11 @@ internal sealed class TripHistoryMap : ContentView
         {
             AutomationId = "TripHistoryMap.WebView",
             HorizontalOptions = LayoutOptions.Fill,
-            VerticalOptions = LayoutOptions.Fill
+            VerticalOptions = LayoutOptions.Fill,
+            ZIndex = 0
         };
         _webView.Navigating += Navigating;
+        _webView.HandlerChanged += (_, _) => UpdateInteractionState();
 
         _loading = new ActivityIndicator
         {
@@ -74,10 +77,11 @@ internal sealed class TripHistoryMap : ContentView
             BackgroundColor = Colors.Transparent,
             BorderWidth = 0,
             IsVisible = false,
-            Text = string.Empty
+            Text = string.Empty,
+            ZIndex = 10
         };
         SemanticProperties.SetDescription(_previewButton, "Open the interactive trip map");
-        _previewButton.Clicked += (_, _) => MapRequested?.Invoke(this, EventArgs.Empty);
+        _previewButton.Clicked += (_, _) => RequestMap();
 
         _previewHint = new Border
         {
@@ -87,6 +91,7 @@ internal sealed class TripHistoryMap : ContentView
             Padding = new Thickness(12, 8),
             HorizontalOptions = LayoutOptions.Center,
             VerticalOptions = LayoutOptions.End,
+            ZIndex = 11,
             StrokeThickness = 0,
             StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 9 },
             Content = new Label
@@ -99,10 +104,14 @@ internal sealed class TripHistoryMap : ContentView
         };
         _previewHint.BackgroundColor = Microsoft.Maui.Graphics.Color.FromArgb("#E6151922");
 
-        Content = new Grid
+        _root = new Grid
         {
             Children = { _webView, _loading, _fallback, _previewButton, _previewHint }
         };
+        var previewTap = new TapGestureRecognizer();
+        previewTap.Tapped += (_, _) => RequestMap();
+        _root.GestureRecognizers.Add(previewTap);
+        Content = _root;
     }
 
     public event EventHandler<string>? VehicleSelected;
@@ -133,8 +142,24 @@ internal sealed class TripHistoryMap : ContentView
     private static void MapChanged(BindableObject bindable, object oldValue, object newValue) =>
         ((TripHistoryMap)bindable).StartRender((TripMapViewModel?)newValue);
 
-    private static void IsInteractiveChanged(BindableObject bindable, object oldValue, object newValue) =>
-        ((TripHistoryMap)bindable).StartRender(((TripHistoryMap)bindable).Map);
+    private static void IsInteractiveChanged(BindableObject bindable, object oldValue, object newValue)
+    {
+        var map = (TripHistoryMap)bindable;
+        map.UpdateInteractionState();
+        map.StartRender(map.Map);
+    }
+
+    private void UpdateInteractionState()
+    {
+        _webView.InputTransparent = !IsInteractive;
+        _previewButton.IsVisible = !IsInteractive && Map is not null;
+        _previewHint.IsVisible = !IsInteractive && Map is not null;
+    }
+
+    private void RequestMap()
+    {
+        if (!IsInteractive && Map is not null) MapRequested?.Invoke(this, EventArgs.Empty);
+    }
 
     private void StartRender(TripMapViewModel? map)
     {
@@ -150,8 +175,7 @@ internal sealed class TripHistoryMap : ContentView
         _loading.IsRunning = true;
         _fallback.IsVisible = false;
         _webView.IsVisible = true;
-        _previewButton.IsVisible = !IsInteractive;
-        _previewHint.IsVisible = !IsInteractive;
+        UpdateInteractionState();
 
         if (map is null || (map.Route.Count == 0 && map.Sightings.Count == 0))
         {
