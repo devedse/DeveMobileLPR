@@ -346,8 +346,13 @@ internal sealed class HistoryMapView : ContentView
             .popup__meta { color:#596273; margin-top:3px; }
             .popup button { margin-top:10px; width:100%; border:0; border-radius:7px; padding:8px; background:#151922; color:#fff; font-weight:700; }
             #tile-warning { display:none; position:absolute; z-index:1000; left:12px; right:12px; top:12px; padding:9px 12px; border-radius:8px; background:#151922e8; color:#fff; font-size:12px; text-align:center; box-shadow:0 3px 12px #0007; }
-            .marker-cluster-small div, .marker-cluster-medium div, .marker-cluster-large div { background:#f5c542; color:#151922; font-weight:900; }
-            .marker-cluster-small, .marker-cluster-medium, .marker-cluster-large { background:#f5c54266; }
+            .marker-cluster div { color:#151922; font-weight:900; }
+            .marker-cluster--new, .marker-cluster--new div { background:#f5c542; }
+            .marker-cluster--new { background:#f5c54266; }
+            .marker-cluster--known, .marker-cluster--known div { background:#d77bff; }
+            .marker-cluster--known { background:#d77bff66; }
+            .marker-cluster--mixed { background:linear-gradient(90deg,#f5c54266 0 50%,#d77bff66 50% 100%); }
+            .marker-cluster--mixed div { background:linear-gradient(90deg,#f5c542 0 50%,#d77bff 50% 100%); }
           </style>
         </head>
         <body>
@@ -376,14 +381,26 @@ internal sealed class HistoryMapView : ContentView
               const finish=L.marker(payload.route[payload.route.length-1], { icon:endpoint('finish'), zIndexOffset:500 }).addTo(map);
               if (interactive) { start.bindTooltip('Trip start'); finish.bindTooltip('Trip finish'); }
             }
-            const clusters = L.markerClusterGroup({ showCoverageOnHover:false, maxClusterRadius:52, spiderfyOnMaxZoom:interactive, disableClusteringAtZoom:17, removeOutsideVisibleBounds:false });
+            const clusterIcon = cluster => {
+              const count=cluster.getChildCount();
+              const knownCount=cluster.getAllChildMarkers().filter(marker => marker.options.isKnown).length;
+              const tone=knownCount === 0 ? 'new' : knownCount === count ? 'known' : 'mixed';
+              const size=count < 10 ? 'small' : count < 100 ? 'medium' : 'large';
+              const diameter=size === 'small' ? 40 : size === 'medium' ? 50 : 60;
+              return L.divIcon({
+                html:`<div><span>${count}</span></div>`,
+                className:`marker-cluster marker-cluster-${size} marker-cluster--${tone}`,
+                iconSize:L.point(diameter,diameter)
+              });
+            };
+            const clusters = L.markerClusterGroup({ showCoverageOnHover:false, maxClusterRadius:52, spiderfyOnMaxZoom:interactive, removeOutsideVisibleBounds:false, iconCreateFunction:clusterIcon });
             payload.sightings.forEach(s => {
               const root = document.createElement('div'); root.className=`photo-pin${s.isKnown ? ' photo-pin--known' : ''}`;
               if (s.image) { const img=document.createElement('img'); img.className='photo-pin__image'; img.src=s.image; img.alt=''; root.appendChild(img); }
               else { const fallback=document.createElement('div'); fallback.className='photo-pin__fallback'; fallback.textContent='CAR'; root.appendChild(fallback); }
               const label=document.createElement('div'); label.className='photo-pin__plate'; label.textContent=s.displayPlate; root.appendChild(label);
               if (s.price) { const price=document.createElement('div'); price.className='photo-pin__price'; price.textContent=s.price; root.appendChild(price); }
-              const marker=L.marker([s.latitude,s.longitude], { icon:L.divIcon({ className:'', html:root, iconSize:[58,52], iconAnchor:[29,45], popupAnchor:[0,-44] }) });
+              const marker=L.marker([s.latitude,s.longitude], { isKnown:s.isKnown, icon:L.divIcon({ className:'', html:root, iconSize:[58,52], iconAnchor:[29,45], popupAnchor:[0,-44] }) });
               const popup=document.createElement('div'); popup.className='popup';
               if (s.image) { const image=document.createElement('img'); image.src=s.image; image.alt='Vehicle snapshot'; popup.appendChild(image); }
               const plate=document.createElement('div'); plate.className='popup__plate'; plate.textContent=s.displayPlate; popup.appendChild(plate);
