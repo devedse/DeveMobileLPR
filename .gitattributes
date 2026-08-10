@@ -20,3 +20,6 @@
 *.tflite binary
 *.webp binary
 *.zip binary
+
+# npm-generated runtime assets are verified byte-for-byte against package contents.
+src/DeveMobileLPR.App/Resources/Raw/wwwroot/map/vendor/** binary

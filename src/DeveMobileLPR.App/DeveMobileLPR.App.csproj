@@ -21,6 +21,8 @@
           provided by LiteRT's native GPU/CPU accelerators instead. -->
     <RunAOTCompilation>false</RunAOTCompilation>
     <MauiEnableXamlCBindingWithSourceCompilation>true</MauiEnableXamlCBindingWithSourceCompilation>
+    <!-- Preserve the HybridWebView map bridge if a future publish enables full trimming. -->
+    <MauiHybridWebViewSupported>true</MauiHybridWebViewSupported>
     <AllowUnsafeBlocks Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">

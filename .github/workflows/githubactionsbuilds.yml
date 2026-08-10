@@ -70,6 +70,19 @@ jobs:
         with:
           global-json-file: global.json
 
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: src/DeveMobileLPR.App/MapWeb/package-lock.json
+
+      - name: Restore and verify map web assets
+        working-directory: src/DeveMobileLPR.App/MapWeb
+        run: |
+          npm ci --ignore-scripts
+          npm run verify
+
       - name: Restore workloads
         shell: pwsh
         run: dotnet workload install maui-android maui-windows --skip-manifest-update
