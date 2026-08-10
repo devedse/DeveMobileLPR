@@ -44,6 +44,7 @@ internal sealed record TripVehicleCardViewModel(
 internal sealed record TripMapSightingViewModel(
     string NormalizedPlate,
     string DisplayPlate,
+    string? Price,
     DateTimeOffset FirstSeenAt,
     float Confidence,
     int ObservationCount,
@@ -146,6 +147,7 @@ internal sealed class TripDetailViewModel(
                 return new TripMapSightingViewModel(
                     sighting.NormalizedPlate,
                     sighting.DisplayPlate,
+                    sighting.Vehicle?.CatalogPrice is { } price ? DisplayFormat.CompactPrice(price) : null,
                     sighting.FirstSeenAt,
                     sighting.Confidence,
                     sighting.ObservationCount,

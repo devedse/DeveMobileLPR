@@ -169,6 +169,7 @@ internal sealed class TripHistoryMap : ContentView
                 sightings.Add(new MapSighting(
                     sighting.NormalizedPlate,
                     sighting.DisplayPlate,
+                    sighting.Price,
                     sighting.FirstSeenAt.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture),
                     $"{sighting.Confidence:P0} · {sighting.ObservationCount} reads",
                     sighting.VehicleName,
@@ -307,6 +308,7 @@ internal sealed class TripHistoryMap : ContentView
             .photo-pin { width:58px; height:52px; }
             .photo-pin__image, .photo-pin__fallback { width:54px; height:36px; border:3px solid #f5c542; border-radius:9px; box-shadow:0 3px 10px #0008; background:#151922; object-fit:cover; display:flex; align-items:center; justify-content:center; color:#f5c542; font-size:10px; font-weight:800; }
             .photo-pin__plate { position:absolute; top:36px; left:50%; transform:translateX(-50%); white-space:nowrap; padding:2px 5px; border-radius:4px; background:#f5c542; color:#151922; box-shadow:0 2px 6px #0007; font-size:9px; font-weight:900; }
+            .photo-pin__price { position:absolute; top:-7px; right:-10px; white-space:nowrap; padding:3px 6px; border:2px solid #151922; border-radius:8px; background:#58e0c2; color:#151922; box-shadow:0 2px 7px #0008; font-size:9px; font-weight:900; }
             .endpoint { width:18px; height:18px; border:3px solid #151922; border-radius:50%; box-shadow:0 2px 8px #0008; }
             .endpoint--start { background:#f5c542; }
             .endpoint--finish { background:#58e0c2; }
@@ -354,6 +356,7 @@ internal sealed class TripHistoryMap : ContentView
               if (s.image) { const img=document.createElement('img'); img.className='photo-pin__image'; img.src=s.image; img.alt=''; root.appendChild(img); }
               else { const fallback=document.createElement('div'); fallback.className='photo-pin__fallback'; fallback.textContent='CAR'; root.appendChild(fallback); }
               const label=document.createElement('div'); label.className='photo-pin__plate'; label.textContent=s.displayPlate; root.appendChild(label);
+              if (s.price) { const price=document.createElement('div'); price.className='photo-pin__price'; price.textContent=s.price; root.appendChild(price); }
               const marker=L.marker([s.latitude,s.longitude], { icon:L.divIcon({ className:'', html:root, iconSize:[58,52], iconAnchor:[29,45], popupAnchor:[0,-44] }) });
               const popup=document.createElement('div'); popup.className='popup';
               if (s.image) { const image=document.createElement('img'); image.src=s.image; image.alt='Vehicle snapshot'; popup.appendChild(image); }
@@ -377,6 +380,7 @@ internal sealed class TripHistoryMap : ContentView
     private sealed record MapSighting(
         string NormalizedPlate,
         string DisplayPlate,
+        string? Price,
         string Seen,
         string Confidence,
         string VehicleName,
