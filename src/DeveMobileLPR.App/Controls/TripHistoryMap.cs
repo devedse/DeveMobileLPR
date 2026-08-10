@@ -17,6 +17,13 @@ internal sealed class TripHistoryMap : ContentView
         typeof(TripHistoryMap),
         propertyChanged: MapChanged);
 
+    public static readonly BindableProperty IsInteractiveProperty = BindableProperty.Create(
+        nameof(IsInteractive),
+        typeof(bool),
+        typeof(TripHistoryMap),
+        true,
+        propertyChanged: IsInteractiveChanged);
+
     private const string TileUrl = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     private const string Attribution = "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors";
     private const int ThumbnailWidth = 144;
@@ -32,13 +39,12 @@ internal sealed class TripHistoryMap : ContentView
     private readonly WebView _webView;
     private readonly ActivityIndicator _loading;
     private readonly Label _fallback;
+    private readonly Button _previewButton;
+    private readonly Border _previewHint;
     private CancellationTokenSource? _renderCancellation;
 
     public TripHistoryMap()
     {
-        HeightRequest = 360;
-        MinimumHeightRequest = 280;
-
         _webView = new WebView
         {
             AutomationId = "TripHistoryMap.WebView",
@@ -62,18 +68,56 @@ internal sealed class TripHistoryMap : ContentView
             TextColor = Microsoft.Maui.Graphics.Color.FromArgb("#747E8E")
         };
 
+        _previewButton = new Button
+        {
+            AutomationId = "TripHistoryMap.OpenButton",
+            BackgroundColor = Colors.Transparent,
+            BorderWidth = 0,
+            IsVisible = false,
+            Text = string.Empty
+        };
+        SemanticProperties.SetDescription(_previewButton, "Open the interactive trip map");
+        _previewButton.Clicked += (_, _) => MapRequested?.Invoke(this, EventArgs.Empty);
+
+        _previewHint = new Border
+        {
+            IsVisible = false,
+            InputTransparent = true,
+            Margin = 12,
+            Padding = new Thickness(12, 8),
+            HorizontalOptions = LayoutOptions.Center,
+            VerticalOptions = LayoutOptions.End,
+            StrokeThickness = 0,
+            StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 9 },
+            Content = new Label
+            {
+                Text = "Tap to open full map",
+                FontAttributes = FontAttributes.Bold,
+                FontSize = 13,
+                TextColor = Colors.White
+            }
+        };
+        _previewHint.BackgroundColor = Microsoft.Maui.Graphics.Color.FromArgb("#E6151922");
+
         Content = new Grid
         {
-            Children = { _webView, _loading, _fallback }
+            Children = { _webView, _loading, _fallback, _previewButton, _previewHint }
         };
     }
 
     public event EventHandler<string>? VehicleSelected;
+    public event EventHandler? MapRequested;
 
     public TripMapViewModel? Map
     {
         get => (TripMapViewModel?)GetValue(MapProperty);
         set => SetValue(MapProperty, value);
+    }
+
+    public bool IsInteractive
+    {
+        get => (bool)GetValue(IsInteractiveProperty);
+        set => SetValue(IsInteractiveProperty, value);
     }
 
     protected override void OnParentSet()
@@ -89,6 +133,9 @@ internal sealed class TripHistoryMap : ContentView
     private static void MapChanged(BindableObject bindable, object oldValue, object newValue) =>
         ((TripHistoryMap)bindable).StartRender((TripMapViewModel?)newValue);
 
+    private static void IsInteractiveChanged(BindableObject bindable, object oldValue, object newValue) =>
+        ((TripHistoryMap)bindable).StartRender(((TripHistoryMap)bindable).Map);
+
     private void StartRender(TripMapViewModel? map)
     {
         _renderCancellation?.Cancel();
@@ -103,6 +150,8 @@ internal sealed class TripHistoryMap : ContentView
         _loading.IsRunning = true;
         _fallback.IsVisible = false;
         _webView.IsVisible = true;
+        _previewButton.IsVisible = !IsInteractive;
+        _previewHint.IsVisible = !IsInteractive;
 
         if (map is null || (map.Route.Count == 0 && map.Sightings.Count == 0))
         {
@@ -133,7 +182,8 @@ internal sealed class TripHistoryMap : ContentView
                 map.Route.Select(point => new[] { point.Location.Latitude, point.Location.Longitude }).ToArray(),
                 sightings,
                 TileUrl,
-                Attribution);
+                Attribution,
+                IsInteractive);
             var json = JsonSerializer.Serialize(payload, JsonOptions);
             var encodedPayload = Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
             var html = BuildHtml(assets, encodedPayload);
@@ -180,6 +230,8 @@ internal sealed class TripHistoryMap : ContentView
         _loading.IsRunning = false;
         _loading.IsVisible = false;
         _webView.IsVisible = false;
+        _previewButton.IsVisible = false;
+        _previewHint.IsVisible = false;
         _fallback.Text = message;
         _fallback.IsVisible = true;
     }
@@ -258,7 +310,9 @@ internal sealed class TripHistoryMap : ContentView
             .endpoint { width:18px; height:18px; border:3px solid #151922; border-radius:50%; box-shadow:0 2px 8px #0008; }
             .endpoint--start { background:#f5c542; }
             .endpoint--finish { background:#58e0c2; }
-            .popup { min-width:190px; color:#151922; }
+            .leaflet-popup-content-wrapper { max-height:calc(100dvh - 72px); overflow:hidden; }
+            .leaflet-popup-content { max-height:calc(100dvh - 112px); overflow-y:auto; overscroll-behavior:contain; }
+            .popup { min-width:min(190px, calc(100vw - 96px)); color:#151922; }
             .popup img { width:100%; max-height:120px; object-fit:cover; border-radius:8px; margin-bottom:8px; }
             .popup__plate { font-size:17px; font-weight:900; }
             .popup__meta { color:#596273; margin-top:3px; }
@@ -275,7 +329,12 @@ internal sealed class TripHistoryMap : ContentView
           <script>
           (() => {
             const payload = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob('{{encodedPayload}}'), c => c.charCodeAt(0))));
-            const map = L.map('map', { zoomControl:true, preferCanvas:true, attributionControl:true });
+            const interactive = payload.isInteractive;
+            const map = L.map('map', {
+              zoomControl:interactive, preferCanvas:true, attributionControl:true,
+              dragging:interactive, scrollWheelZoom:interactive, doubleClickZoom:interactive,
+              boxZoom:interactive, keyboard:interactive, touchZoom:interactive
+            });
             let tileErrors = 0;
             L.tileLayer(payload.tileUrl, { maxZoom:19, attribution:payload.attribution, crossOrigin:true, updateWhenIdle:true, keepBuffer:2 })
               .on('tileerror', () => { if (++tileErrors === 3) document.getElementById('tile-warning').style.display='block'; })
@@ -285,10 +344,11 @@ internal sealed class TripHistoryMap : ContentView
               payload.route.forEach(p => bounds.push(p));
               L.polyline(payload.route, { color:'#20b99a', weight:6, opacity:.95, lineCap:'round', lineJoin:'round' }).addTo(map);
               const endpoint = (kind) => L.divIcon({ className:'', html:`<div class="endpoint endpoint--${kind}"></div>`, iconSize:[24,24], iconAnchor:[12,12] });
-              L.marker(payload.route[0], { icon:endpoint('start'), zIndexOffset:500 }).addTo(map).bindTooltip('Trip start');
-              L.marker(payload.route[payload.route.length-1], { icon:endpoint('finish'), zIndexOffset:500 }).addTo(map).bindTooltip('Trip finish');
+              const start=L.marker(payload.route[0], { icon:endpoint('start'), zIndexOffset:500 }).addTo(map);
+              const finish=L.marker(payload.route[payload.route.length-1], { icon:endpoint('finish'), zIndexOffset:500 }).addTo(map);
+              if (interactive) { start.bindTooltip('Trip start'); finish.bindTooltip('Trip finish'); }
             }
-            const clusters = L.markerClusterGroup({ showCoverageOnHover:false, maxClusterRadius:52, spiderfyOnMaxZoom:true, disableClusteringAtZoom:17 });
+            const clusters = L.markerClusterGroup({ showCoverageOnHover:false, maxClusterRadius:52, spiderfyOnMaxZoom:interactive, disableClusteringAtZoom:17, removeOutsideVisibleBounds:false });
             payload.sightings.forEach(s => {
               const root = document.createElement('div'); root.className='photo-pin';
               if (s.image) { const img=document.createElement('img'); img.className='photo-pin__image'; img.src=s.image; img.alt=''; root.appendChild(img); }
@@ -300,7 +360,8 @@ internal sealed class TripHistoryMap : ContentView
               const plate=document.createElement('div'); plate.className='popup__plate'; plate.textContent=s.displayPlate; popup.appendChild(plate);
               [s.vehicleName, `First spotted ${s.seen}`, s.confidence, s.accuracyMeters == null ? null : `GPS accuracy ±${Math.round(s.accuracyMeters)} m`].filter(Boolean).forEach(value => { const row=document.createElement('div'); row.className='popup__meta'; row.textContent=value; popup.appendChild(row); });
               const button=document.createElement('button'); button.type='button'; button.textContent='View vehicle history'; button.onclick=()=>location.href=`app://vehicle/${encodeURIComponent(s.normalizedPlate)}`; popup.appendChild(button);
-              marker.bindPopup(popup); clusters.addLayer(marker); bounds.push([s.latitude,s.longitude]);
+              if (interactive) marker.bindPopup(popup, { maxWidth:300, maxHeight:Math.max(120, map.getSize().y - 104), autoPan:true, keepInView:true, autoPanPadding:[16,16] });
+              clusters.addLayer(marker); bounds.push([s.latitude,s.longitude]);
             });
             map.addLayer(clusters);
             if (bounds.length === 1) map.setView(bounds[0], 16); else map.fitBounds(bounds, { padding:[38,38], maxZoom:17 });
@@ -312,7 +373,7 @@ internal sealed class TripHistoryMap : ContentView
         """;
 
     private sealed record MapAssets(string LeafletCss, string ClusterCss, string ClusterDefaultCss, string LeafletJs, string ClusterJs);
-    private sealed record MapPayload(IReadOnlyList<double[]> Route, IReadOnlyList<MapSighting> Sightings, string TileUrl, string Attribution);
+    private sealed record MapPayload(IReadOnlyList<double[]> Route, IReadOnlyList<MapSighting> Sightings, string TileUrl, string Attribution, bool IsInteractive);
     private sealed record MapSighting(
         string NormalizedPlate,
         string DisplayPlate,

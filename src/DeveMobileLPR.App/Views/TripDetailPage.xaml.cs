@@ -57,7 +57,14 @@ public partial class TripDetailPage : ContentPage
         await Navigation.PushAsync(new VehicleDetailPage(_repository, _vehicleImageStore, vehicle.NormalizedPlate));
     }
 
-    private async void MapVehicleSelected(object? sender, string normalizedPlate) =>
-        await Navigation.PushAsync(new VehicleDetailPage(_repository, _vehicleImageStore, normalizedPlate));
+    private async void MapRequested(object? sender, EventArgs args)
+    {
+        if (_viewModel.Map is not { } map) return;
+        await Navigation.PushAsync(new FullScreenTripMapPage(
+            _repository,
+            _vehicleImageStore,
+            map,
+            _viewModel.Title));
+    }
 
 }
