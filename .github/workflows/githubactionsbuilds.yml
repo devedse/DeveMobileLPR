@@ -61,7 +61,7 @@ jobs:
     needs: generate_version_number
     # .NET 10's iOS 26 workload requires Xcode 26; macOS 15 still defaults to Xcode 16.4.
     runs-on: macos-26
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       DOTNET_NOLOGO: true
       DOTNET_CLI_TELEMETRY_OPTOUT: true
