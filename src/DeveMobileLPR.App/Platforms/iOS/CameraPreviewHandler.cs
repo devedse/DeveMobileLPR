@@ -1,4 +1,5 @@
 using AVFoundation;
+using CoreAnimation;
 using CoreGraphics;
 using DeveMobileLPR.App.Controls;
 using DeveMobileLPR.App.Services;
@@ -29,7 +30,8 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, IosCamer
             view,
             () => settings.RecognitionFramesPerSecond,
             () => _coordinator.HasPendingRecognitionFrame,
-            frame => _coordinator.SubmitFrame(frame));
+            frame => _coordinator.SubmitFrame(frame),
+            settings.NetworkStreamUrl);
         _coordinator.AttachCamera(_source);
         return view;
     }
@@ -62,17 +64,30 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, IosCamer
 
 internal sealed class IosCameraPreviewView : UIView
 {
-    private AVCaptureVideoPreviewLayer? _preview;
+    private CALayer? _preview;
 
     public IosCameraPreviewView() => BackgroundColor = UIColor.FromRGB(11, 13, 16);
 
     public void Attach(AVCaptureSession session)
     {
+        var preview = AVCaptureVideoPreviewLayer.FromSession(session);
+        preview.VideoGravity = AVLayerVideoGravity.ResizeAspectFill;
+        Attach(preview);
+    }
+
+    public void Attach(AVPlayer player)
+    {
+        var preview = AVPlayerLayer.FromPlayer(player);
+        preview.VideoGravity = AVLayerVideoGravity.ResizeAspect;
+        Attach(preview);
+    }
+
+    private void Attach(CALayer preview)
+    {
         _preview?.RemoveFromSuperLayer();
         _preview?.Dispose();
-        _preview = AVCaptureVideoPreviewLayer.FromSession(session);
-        _preview.VideoGravity = AVLayerVideoGravity.ResizeAspectFill;
-        Layer.InsertSublayer(_preview, 0);
+        _preview = preview;
+        Layer.InsertSublayer(preview, 0);
         SetNeedsLayout();
     }
 

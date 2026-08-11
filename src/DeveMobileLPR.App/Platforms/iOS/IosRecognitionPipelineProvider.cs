@@ -1,6 +1,8 @@
 using DeveMobileLPR.Application;
+using DeveMobileLPR.Inference;
+using DeveMobileLPR.Inference.Cct;
 using DeveMobileLPR.Inference.Models;
-using DeveMobileLPR.Inference.Onnx;
+using DeveMobileLPR.Inference.Yolo;
 using DeveMobileLPR.Recognition;
 
 namespace DeveMobileLPR.App.Services;
@@ -13,13 +15,31 @@ internal sealed class IosRecognitionPipelineProvider(
         CancellationToken cancellationToken)
     {
         var directory = Path.Combine(FileSystem.AppDataDirectory, "models");
-        var detector = await InstallAsync(ModelCatalog.Detector, directory, cancellationToken).ConfigureAwait(false);
-        var recognizer = await InstallAsync(ModelCatalog.Recognizer, directory, cancellationToken).ConfigureAwait(false);
-        return OnnxPlateRecognitionPipelineFactory.Create(
-            detector,
-            recognizer,
-            diagnostic,
-            recognitionTuning);
+        var detectorPath = await InstallAsync(ModelCatalog.LiteRtDetector, directory, cancellationToken).ConfigureAwait(false);
+        var recognizerPath = await InstallAsync(ModelCatalog.LiteRtRecognizer, directory, cancellationToken).ConfigureAwait(false);
+        var rawModel = new IosLiteRtYoloV9RawModel(detectorPath, diagnostic);
+        YoloV9RawPlateDetector? detector = null;
+        CctPlateRecognizer? recognizer = null;
+        try
+        {
+            detector = new YoloV9RawPlateDetector(rawModel, recognitionTuning);
+            recognizer = new CctPlateRecognizer(new IosLiteRtCctRawModel(recognizerPath, diagnostic));
+            diagnostic?.Invoke($"Detector backend selected: {rawModel.BackendName}");
+            return new PlateRecognitionPipeline(detector, recognizer, recognitionTuning);
+        }
+        catch
+        {
+            recognizer?.Dispose();
+            if (detector is null)
+            {
+                rawModel.Dispose();
+            }
+            else
+            {
+                detector.Dispose();
+            }
+            throw;
+        }
     }
 
     private static async Task<string> InstallAsync(
