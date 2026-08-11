@@ -4,6 +4,8 @@ namespace DeveMobileLPR.App.Views;
 
 public partial class SettingsPage : ContentPage
 {
+    private const double PairedCardMinimumWidth = 656;
+    private const double RdwSideBySideMinimumWidth = 466;
     private readonly SettingsViewModel _viewModel;
 
     internal SettingsPage(SettingsViewModel viewModel)
@@ -47,5 +49,41 @@ public partial class SettingsPage : ContentPage
     {
         var confirmed = await DisplayAlertAsync("Delete all history?", "This permanently deletes every trip, route point, and sighting. The RDW vehicle database and preferences are kept.", "Delete", "Cancel");
         if (confirmed) await _viewModel.DeleteHistoryAsync();
+    }
+
+    private static void ResponsiveCardPairSizeChanged(object? sender, EventArgs args)
+    {
+        if (sender is not FlexLayout { Children.Count: > 0 } layout)
+        {
+            return;
+        }
+
+        var rightGap = layout.Width >= PairedCardMinimumWidth ? 16 : 0;
+        if (layout.Children[0] is View firstCard)
+        {
+            var margin = new Thickness(0, 0, rightGap, 16);
+            if (firstCard.Margin != margin)
+            {
+                firstCard.Margin = margin;
+            }
+        }
+    }
+
+    private static void ResponsiveRdwLayoutSizeChanged(object? sender, EventArgs args)
+    {
+        if (sender is not FlexLayout { Children.Count: > 0 } layout)
+        {
+            return;
+        }
+
+        var rightGap = layout.Width >= RdwSideBySideMinimumWidth ? 16 : 0;
+        if (layout.Children[0] is View rdwSummary)
+        {
+            var margin = new Thickness(0, 0, rightGap, 12);
+            if (rdwSummary.Margin != margin)
+            {
+                rdwSummary.Margin = margin;
+            }
+        }
     }
 }
