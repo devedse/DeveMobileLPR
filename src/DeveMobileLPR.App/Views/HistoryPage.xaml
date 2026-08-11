@@ -65,26 +65,26 @@
                         <Label Style="{StaticResource SectionTitle}" Text="Today" />
                         <Label Style="{StaticResource SecondaryText}" Text="A quick overview of today's activity." />
                     </VerticalStackLayout>
-                    <FlexLayout AlignItems="Stretch" Direction="Row" JustifyContent="Start" Wrap="Wrap">
-                        <Border FlexLayout.Basis="145" FlexLayout.Grow="1" Margin="6,0,6,12" Style="{StaticResource CompactCard}">
+                    <controls:ResponsiveMetricGrid>
+                        <Border Style="{StaticResource CompactCard}">
                             <VerticalStackLayout Spacing="2">
                                 <Label Style="{StaticResource MetricValue}" Text="{Binding TodayTrips}" />
                                 <Label Style="{StaticResource MetricLabel}" Text="Drives today" />
                             </VerticalStackLayout>
                         </Border>
-                        <Border FlexLayout.Basis="145" FlexLayout.Grow="1" Margin="6,0,6,12" Style="{StaticResource CompactCard}">
+                        <Border Style="{StaticResource CompactCard}">
                             <VerticalStackLayout Spacing="2">
                                 <Label Style="{StaticResource MetricValue}" Text="{Binding TodayUnique}" />
                                 <Label Style="{StaticResource MetricLabel}" Text="Unique cars" />
                             </VerticalStackLayout>
                         </Border>
-                        <Border FlexLayout.Basis="145" FlexLayout.Grow="1" Margin="6,0,6,12" Style="{StaticResource CompactCard}">
+                        <Border Style="{StaticResource CompactCard}">
                             <VerticalStackLayout Spacing="2">
                                 <Label Style="{StaticResource MetricValue}" Text="{Binding TodayDistance}" />
                                 <Label Style="{StaticResource MetricLabel}" Text="Route distance" />
                             </VerticalStackLayout>
                         </Border>
-                        <Border FlexLayout.Basis="145" FlexLayout.Grow="1" Margin="6,0,6,12" Style="{StaticResource CompactHighlightCard}">
+                        <Border Style="{StaticResource CompactHighlightCard}">
                             <VerticalStackLayout Spacing="3">
                                 <Label FontAttributes="Bold" FontSize="25" Text="{Binding TodayTopValue}" TextColor="{DynamicResource ValueAccent}" />
                                 <Label FontSize="12" Text="Most expensive today" TextColor="{DynamicResource HighlightText}" />
@@ -93,7 +93,7 @@
                                 </Border>
                             </VerticalStackLayout>
                         </Border>
-                    </FlexLayout>
+                    </controls:ResponsiveMetricGrid>
                 </VerticalStackLayout>
             </ScrollView>
         </RefreshView>
@@ -212,7 +212,7 @@
                     <DataTemplate x:DataType="vm:VehicleCardViewModel">
                         <Border Style="{StaticResource CompactCard}">
                             <Grid RowDefinitions="Auto,Auto" RowSpacing="10">
-                                <Grid ColumnDefinitions="Auto,*,72" ColumnSpacing="16">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
                                     <Border MinimumWidthRequest="112" Style="{StaticResource PlateBadge}">
                                         <Label Style="{StaticResource PlateBadgeText}" Text="{Binding DisplayPlate}" />
                                     </Border>
