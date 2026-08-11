@@ -5,6 +5,7 @@ using DeveMobileLPR.Application;
 using DeveMobileLPR.Imaging;
 using DeveMobileLPR.Recognition;
 using Foundation;
+using ObjCRuntime;
 using UIKit;
 
 namespace DeveMobileLPR.App.Services;
@@ -36,7 +37,7 @@ internal sealed class IosVideoFileBackend : IVideoFileBackend
 
 internal sealed class IosVideoFrameSource : IVideoFrameSource
 {
-    private readonly AVUrlAsset _asset;
+    private readonly AVAsset _asset;
     private readonly AVAssetImageGenerator _generator;
 
     public IosVideoFrameSource(string sourcePath)
@@ -49,9 +50,9 @@ internal sealed class IosVideoFrameSource : IVideoFrameSource
             RequestedTimeToleranceAfter = CMTime.Zero
         };
         var duration = TimeSpan.FromSeconds(Math.Max(0.001, _asset.Duration.Seconds));
-        var track = _asset.TracksWithMediaType(AVMediaTypes.Video).FirstOrDefault();
+        var track = _asset.TracksWithMediaType(AVMediaTypes.Video.GetConstant()!).FirstOrDefault();
         var frameRate = track?.NominalFrameRate is > 0 ? track.NominalFrameRate : 30;
-        Timeline = VideoFrameTimeline.Create(duration, frameRate);
+        Timeline = VideoFrameTimeline.Create(duration, frameRate, null);
     }
 
     public VideoFrameTimeline Timeline { get; }
@@ -76,7 +77,9 @@ internal sealed class IosVideoFrameSource : IVideoFrameSource
     private static CGImage CopyImage(AVAssetImageGenerator generator, TimeSpan position)
     {
         var requested = CMTime.FromSeconds(position.TotalSeconds, 600);
+#pragma warning disable CA1422 // The synchronous API remains available on the supported iOS versions.
         var image = generator.CopyCGImageAtTime(requested, out _, out var error);
+#pragma warning restore CA1422
         if (image is null) throw new InvalidDataException($"The selected video frame could not be decoded: {error?.LocalizedDescription}");
         return image;
     }

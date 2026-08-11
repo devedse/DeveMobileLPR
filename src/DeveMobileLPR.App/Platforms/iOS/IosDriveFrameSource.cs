@@ -206,9 +206,9 @@ internal sealed class IosDriveFrameSource : IDriveVideoInput
             var height = checked((int)pixelBuffer.Height);
             var yStride = checked((int)pixelBuffer.GetBytesPerRowOfPlane(0));
             var uvStride = checked((int)pixelBuffer.GetBytesPerRowOfPlane(1));
-            var y = new ReadOnlySpan<byte>((void*)pixelBuffer.GetBaseAddressOfPlane(0), checked(yStride * height));
+            var y = new ReadOnlySpan<byte>((void*)pixelBuffer.GetBaseAddress(0), checked(yStride * height));
             var uvHeight = (height + 1) / 2;
-            var uv = new ReadOnlySpan<byte>((void*)pixelBuffer.GetBaseAddressOfPlane(1), checked(uvStride * uvHeight));
+            var uv = new ReadOnlySpan<byte>((void*)pixelBuffer.GetBaseAddress(1), checked(uvStride * uvHeight));
             _onFrame(BiPlanarNv12FrameFactory.Create(
                 y, yStride, uv, uvStride, width, height,
                 Interlocked.Increment(ref _sequence), DateTimeOffset.UtcNow));
