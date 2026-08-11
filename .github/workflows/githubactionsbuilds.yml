@@ -65,6 +65,7 @@ jobs:
       DOTNET_NOLOGO: true
       DOTNET_CLI_TELEMETRY_OPTOUT: true
       DEVEMOBILELPR_MODEL_DIR: ${{ github.workspace }}/artifacts/models
+      DEVELOPER_DIR: /Applications/Xcode_26.0.app/Contents/Developer
     steps:
       - name: Check out source
         uses: actions/checkout@v7
