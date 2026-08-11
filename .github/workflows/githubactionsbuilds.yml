@@ -3,6 +3,7 @@ name: GitHubActionsBuilds
 
 on:
   push:
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -47,6 +48,39 @@ jobs:
             artifacts/models/cct_s_v2_global_float32.tflite
           if-no-files-found: error
           retention-days: 1
+
+  build_ios:
+    name: Build iPhone app
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      DEVEMOBILELPR_MODEL_DIR: ${{ github.workspace }}/artifacts/models
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Install iOS workload
+        shell: pwsh
+        run: dotnet workload install maui-ios --skip-manifest-update
+
+      - name: Download and verify ONNX models
+        shell: pwsh
+        run: ./eng/Download-Models.ps1
+
+      - name: Restore iPhone target
+        shell: pwsh
+        run: dotnet restore src/DeveMobileLPR.App/DeveMobileLPR.App.csproj -p:TargetFrameworks=net10.0-ios
+
+      - name: Build unsigned iPhone simulator app
+        shell: pwsh
+        run: ./eng/Build-iOS.ps1 -Configuration Release
 
   build:
     needs: [generate_version_number, generate_litert_model]

@@ -4,7 +4,7 @@
 
 # DeveMobileLPR
 
-DeveMobileLPR is an offline-first .NET MAUI app for Dutch license-plate recognition on Android and Windows. It supports live camera recognition, recorded-video analysis, trip history, optional location, and local RDW vehicle lookup. Recognition and storage stay on the device; raw frames and plate crops are not persisted.
+DeveMobileLPR is an offline-first .NET MAUI app for Dutch license-plate recognition on Android, iPhone, and Windows. It supports live camera recognition, recorded-video analysis, trip history, optional location, and local RDW vehicle lookup. Recognition and storage stay on the device; raw frames and plate crops are not persisted.
 
 ## Highlights
 
@@ -12,6 +12,7 @@ DeveMobileLPR is an offline-first .NET MAUI app for Dutch license-plate recognit
 - YOLOv9-S plate detection and CCT-S V2 OCR.
 - Android LiteRT GPU inference with explicit CPU fallback.
 - Windows ONNX Runtime with DirectML and CPU fallback.
+- iPhone AVFoundation capture and ONNX Runtime CPU inference.
 - Multi-frame tracking and consensus with Dutch sidecode validation.
 - Recorded-video analysis using the same recognition pipeline as live capture.
 - Local SQLite history, trips, optional routes, CSV export, and RDW enrichment.
@@ -25,6 +26,14 @@ Requirements:
 - The .NET MAUI Android and Windows workloads: `dotnet workload install maui-android maui-windows`.
 - PowerShell 7.
 - Docker when generating Android LiteRT models.
+
+Building the iPhone target additionally requires macOS, the Xcode version supported by the pinned .NET SDK, and `dotnet workload install maui-ios`. The unsigned simulator build used by CI is:
+
+```powershell
+./eng/Build-iOS.ps1 -Configuration Release
+```
+
+Installing on a physical iPhone also requires an Apple Development certificate and provisioning profile.
 
 Run the complete Release build, tests, model verification, and publishing pipeline:
 
