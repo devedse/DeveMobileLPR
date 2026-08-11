@@ -12,12 +12,28 @@ namespace DeveMobileLPR.App;
                            ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density)]
 public sealed class MainActivity : MauiAppCompatActivity
 {
+    protected override void OnStart()
+    {
+        base.OnStart();
+        IPlatformApplication.Current?.Services.GetService<AndroidCameraLifecycleOwner>()?.SetActivityActive(true);
+    }
+
     protected override void OnStop()
     {
-        if (!IsChangingConfigurations && IPlatformApplication.Current?.Services.GetService<DeveMobileLPR.Application.DriveCoordinator>() is { Snapshot.IsDriving: true } coordinator)
+        var services = IPlatformApplication.Current?.Services;
+        if (!IsChangingConfigurations && services?.GetService<DeveMobileLPR.Application.DriveCoordinator>() is { Snapshot.IsDriving: true } coordinator)
         {
-            _ = coordinator.StopDriveAsync();
+            var settings = services.GetRequiredService<Services.AppSettings>();
+            if (settings.ContinueScanningInBackground)
+            {
+                services.GetRequiredService<Services.IBackgroundScanningManager>().Start();
+            }
+            else
+            {
+                _ = coordinator.StopDriveAsync();
+            }
         }
+        services?.GetService<AndroidCameraLifecycleOwner>()?.SetActivityActive(false);
         base.OnStop();
     }
 }

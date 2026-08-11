@@ -53,6 +53,13 @@
                             Description="A light tap when a plate reaches temporal consensus."
                             IsToggled="{Binding ConfirmationHaptic}"
                             Title="Confirmation haptic" />
+                        <BoxView IsVisible="{Binding IsBackgroundScanningAvailable}" Style="{StaticResource DividerLine}" />
+                        <controls:SettingsToggleRow
+                            Description="Keeps the active drive and camera recognition running behind other apps. Android shows a persistent notification until the drive stops."
+                            IsToggled="{Binding ContinueScanningInBackground}"
+                            IsVisible="{Binding IsBackgroundScanningAvailable}"
+                            Toggled="BackgroundScanningToggled"
+                            Title="Continue in background" />
                     </VerticalStackLayout>
                 </Border>
 

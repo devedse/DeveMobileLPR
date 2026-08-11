@@ -14,6 +14,7 @@
         <Switch
             Grid.Column="1"
             IsToggled="{Binding IsToggled, Mode=TwoWay, Source={x:Reference Root}}"
+            Toggled="SwitchToggled"
             SemanticProperties.Description="{Binding Title, Source={x:Reference Root}}" />
     </Grid>
 </ContentView>

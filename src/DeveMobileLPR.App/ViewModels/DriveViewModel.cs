@@ -9,6 +9,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
 {
     private readonly DriveCoordinator _coordinator;
     private readonly AppSettings _settings;
+    private readonly IBackgroundScanningManager _backgroundScanning;
     private readonly Dictionary<string, string> _cameraIds = new(StringComparer.Ordinal);
     private readonly Timer _durationTimer;
     private DriveSnapshot _snapshot;
@@ -16,10 +17,14 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     private string _networkStreamUrl;
     private double _zoom;
 
-    public DriveViewModel(DriveCoordinator coordinator, AppSettings settings)
+    public DriveViewModel(
+        DriveCoordinator coordinator,
+        AppSettings settings,
+        IBackgroundScanningManager backgroundScanning)
     {
         _coordinator = coordinator;
         _settings = settings;
+        _backgroundScanning = backgroundScanning;
         _snapshot = coordinator.Snapshot;
         _networkStreamUrl = settings.NetworkStreamUrl;
         _zoom = settings.Zoom;
@@ -103,7 +108,45 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
 
     public Task InitializeAsync() => _coordinator.InitializeAsync();
 
-    private Task ToggleDriveAsync() => IsDriving ? _coordinator.StopDriveAsync() : _coordinator.StartDriveAsync();
+    private async Task ToggleDriveAsync()
+    {
+        if (IsDriving)
+        {
+            await _coordinator.StopDriveAsync();
+            _backgroundScanning.Stop();
+            return;
+        }
+
+        var keepRunning = _backgroundScanning.IsSupported && _settings.ContinueScanningInBackground;
+        if (keepRunning)
+        {
+            if (!_backgroundScanning.HasRequiredPermissions
+                && !await _backgroundScanning.RequestPermissionsAsync())
+            {
+                throw new UnauthorizedAccessException(
+                    "Camera access is required to continue recognition in the background.");
+            }
+            _backgroundScanning.Start();
+        }
+
+        try
+        {
+            await _coordinator.StartDriveAsync();
+            if (!_coordinator.Snapshot.IsDriving)
+            {
+                _backgroundScanning.Stop();
+            }
+            else if (keepRunning)
+            {
+                _backgroundScanning.Start();
+            }
+        }
+        catch
+        {
+            _backgroundScanning.Stop();
+            throw;
+        }
+    }
 
     private void SnapshotChanged(object? sender, DriveSnapshot snapshot)
     {
