@@ -50,7 +50,9 @@ internal sealed class IosVideoFrameSource : IVideoFrameSource
             RequestedTimeToleranceAfter = CMTime.Zero
         };
         var duration = TimeSpan.FromSeconds(Math.Max(0.001, _asset.Duration.Seconds));
+#pragma warning disable CA1422 // Retained for synchronous construction; supported iOS versions still provide it.
         var track = _asset.TracksWithMediaType(AVMediaTypes.Video.GetConstant()!).FirstOrDefault();
+#pragma warning restore CA1422
         var frameRate = track?.NominalFrameRate is > 0 ? track.NominalFrameRate : 30;
         Timeline = VideoFrameTimeline.Create(duration, frameRate, null);
     }
