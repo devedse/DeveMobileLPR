@@ -1,7 +1,10 @@
 [CmdletBinding()]
 param(
     [ValidateSet('Debug', 'Release')]
-    [string]$Configuration = 'Release'
+    [string]$Configuration = 'Release',
+    [string]$Version = '0.1.0',
+    [ValidateRange(1, 2147483647)]
+    [int]$ApplicationVersion = 1
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,4 +22,7 @@ dotnet build $project `
     -p:EnableCodeSigning=false `
     -p:ValidateXcodeVersion=false `
     -p:IosOnly=true `
+    -p:Version=$Version `
+    -p:ApplicationVersion=$ApplicationVersion `
+    -p:ApplicationDisplayVersion=$Version `
     -p:ContinuousIntegrationBuild=true
