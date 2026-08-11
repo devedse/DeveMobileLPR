@@ -14,7 +14,7 @@ $project = Join-Path $PSScriptRoot '..\src\DeveMobileLPR.App\DeveMobileLPR.App.c
 dotnet build $project `
     --framework net10.0-ios `
     --configuration $Configuration `
-    --runtime iossimulator-arm64 `
+    --runtime ios-arm64 `
     --no-restore `
     -p:EnableCodeSigning=false `
     -p:IosOnly=true `

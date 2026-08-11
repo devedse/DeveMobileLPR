@@ -27,7 +27,7 @@ Requirements:
 - PowerShell 7.
 - Docker when generating Android LiteRT models.
 
-Building the iPhone target additionally requires macOS, the Xcode version supported by the pinned .NET SDK, and `dotnet workload install maui-ios`. The unsigned simulator build used by CI is:
+Building the iPhone target additionally requires macOS, the Xcode version supported by the pinned .NET SDK, and `dotnet workload install maui-ios`. The unsigned arm64 device build used by CI is:
 
 ```powershell
 ./eng/Build-iOS.ps1 -Configuration Release

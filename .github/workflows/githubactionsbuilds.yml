@@ -87,7 +87,7 @@ jobs:
         shell: pwsh
         run: dotnet restore src/DeveMobileLPR.App/DeveMobileLPR.App.csproj -p:IosOnly=true
 
-      - name: Build unsigned iPhone simulator app
+      - name: Build unsigned iPhone device app
         shell: pwsh
         run: ./eng/Build-iOS.ps1 -Configuration Release
 
