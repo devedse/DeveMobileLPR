@@ -17,5 +17,6 @@ dotnet build $project `
     --runtime ios-arm64 `
     --no-restore `
     -p:EnableCodeSigning=false `
+    -p:_IgnoreXcodeVersionCheck=true `
     -p:IosOnly=true `
     -p:ContinuousIntegrationBuild=true
