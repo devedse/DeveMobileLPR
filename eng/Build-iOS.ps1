@@ -17,5 +17,5 @@ dotnet build $project `
     --runtime iossimulator-arm64 `
     --no-restore `
     -p:EnableCodeSigning=false `
-    -p:TargetFrameworks=net10.0-ios `
+    -p:IosOnly=true `
     -p:ContinuousIntegrationBuild=true

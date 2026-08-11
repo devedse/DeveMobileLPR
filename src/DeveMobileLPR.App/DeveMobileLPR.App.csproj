@@ -2,6 +2,7 @@
   <PropertyGroup>
     <TargetFrameworks>net10.0-android36.0;net10.0-windows10.0.19041.0</TargetFrameworks>
     <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('osx'))">$(TargetFrameworks);net10.0-ios</TargetFrameworks>
+    <TargetFrameworks Condition="'$(IosOnly)' == 'true'">net10.0-ios</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <AssemblyName>DeveMobileLPR</AssemblyName>
     <RootNamespace>DeveMobileLPR.App</RootNamespace>
