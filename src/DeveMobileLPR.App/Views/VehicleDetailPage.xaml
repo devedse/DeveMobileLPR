@@ -21,13 +21,13 @@
                 <VerticalStackLayout Style="{StaticResource DetailScrollContent}">
                     <Border Style="{StaticResource Card}">
                         <VerticalStackLayout Spacing="14">
-                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="18">
-                                <Border Style="{StaticResource HeroPlateBadge}"><Label Style="{StaticResource HeroPlateBadgeText}" Text="{Binding DisplayPlate}" /></Border>
-                                <VerticalStackLayout Grid.Column="1" Spacing="3" VerticalOptions="Center">
+                            <FlexLayout AlignItems="Center" Direction="Row" JustifyContent="Start" Wrap="Wrap">
+                                <Border Margin="0,0,18,12" Style="{StaticResource HeroPlateBadge}"><Label Style="{StaticResource HeroPlateBadgeText}" Text="{Binding DisplayPlate}" /></Border>
+                                <VerticalStackLayout FlexLayout.Basis="280" FlexLayout.Grow="1" Margin="0,0,0,12" Spacing="3" VerticalOptions="Center">
                                     <Label FontAttributes="Bold" FontSize="23" Text="{Binding VehicleName}" />
                                     <Label Style="{StaticResource SecondaryText}" Text="{Binding Metadata}" />
                                 </VerticalStackLayout>
-                            </Grid>
+                            </FlexLayout>
                             <VerticalStackLayout Spacing="3" VerticalOptions="Center">
                                 <Label FontAttributes="Bold" FontSize="25" Text="{Binding Price}" TextColor="{DynamicResource ValueAccent}" />
                                 <Label Style="{StaticResource SecondaryText}" Text="Original catalog price" />
@@ -35,12 +35,12 @@
                         </VerticalStackLayout>
                     </Border>
 
-                    <FlexLayout AlignItems="Stretch" Direction="Row" JustifyContent="Start" Wrap="Wrap">
-                        <Border FlexLayout.Basis="145" FlexLayout.Grow="1" Margin="6,0,6,12" Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding Appearances}" /><Label Style="{StaticResource MetricLabel}" Text="Appearances" /></VerticalStackLayout></Border>
-                        <Border FlexLayout.Basis="145" FlexLayout.Grow="1" Margin="6,0,6,12" Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding Trips}" /><Label Style="{StaticResource MetricLabel}" Text="Trips" /></VerticalStackLayout></Border>
-                        <Border FlexLayout.Basis="145" FlexLayout.Grow="1" Margin="6,0,6,12" Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label FontAttributes="Bold" FontSize="15" Text="{Binding FirstSeen}" /><Label Style="{StaticResource MetricLabel}" Text="First seen" /></VerticalStackLayout></Border>
-                        <Border FlexLayout.Basis="145" FlexLayout.Grow="1" Margin="6,0,6,12" Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label FontAttributes="Bold" FontSize="15" Text="{Binding LastSeen}" /><Label Style="{StaticResource MetricLabel}" Text="Last seen" /></VerticalStackLayout></Border>
-                    </FlexLayout>
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12" RowDefinitions="Auto,Auto" RowSpacing="12">
+                        <Border Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding Appearances}" /><Label Style="{StaticResource MetricLabel}" Text="Appearances" /></VerticalStackLayout></Border>
+                        <Border Grid.Column="1" Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding Trips}" /><Label Style="{StaticResource MetricLabel}" Text="Trips" /></VerticalStackLayout></Border>
+                        <Border Grid.Row="1" Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label FontAttributes="Bold" FontSize="15" Text="{Binding FirstSeen}" /><Label Style="{StaticResource MetricLabel}" Text="First seen" /></VerticalStackLayout></Border>
+                        <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label FontAttributes="Bold" FontSize="15" Text="{Binding LastSeen}" /><Label Style="{StaticResource MetricLabel}" Text="Last seen" /></VerticalStackLayout></Border>
+                    </Grid>
 
                     <Border IsVisible="{Binding HasLocations}" Style="{StaticResource Card}">
                         <VerticalStackLayout Style="{StaticResource CardContent}">
