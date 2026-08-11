@@ -82,6 +82,9 @@
   </ItemGroup>
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
     <PackageReference Include="Microsoft.ML.OnnxRuntime" />
+    <Compile Remove="Camera\**\*.cs" />
+    <Compile Remove="Infrastructure\AndroidLocationTracker.cs" />
+    <Compile Remove="Infrastructure\AndroidModelInstaller.cs" />
   </ItemGroup>
   <ItemGroup>
     <MauiIcon Include="Resources\AppIcon\appicon.png" BaseSize="256,256" />
