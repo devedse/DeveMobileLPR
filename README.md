@@ -4,14 +4,15 @@
 
 # DeveMobileLPR
 
-DeveMobileLPR is an offline-first .NET MAUI app for Dutch license-plate recognition on Android and Windows. It supports live camera recognition, recorded-video analysis, trip history, optional location, and local RDW vehicle lookup. Recognition and storage stay on the device; raw frames and plate crops are not persisted.
+DeveMobileLPR is an offline-first .NET MAUI app for Dutch license-plate recognition on Android, iPhone, and Windows. It supports live camera recognition, recorded-video analysis, trip history, optional location, and local RDW vehicle lookup. Recognition and storage stay on the device; raw frames and plate crops are not persisted.
 
 ## Highlights
 
-- Android CameraX and Windows webcam capture with latest-frame backpressure.
+- Android CameraX, iPhone AVFoundation, and Windows webcam capture with latest-frame backpressure.
 - YOLOv9-S plate detection and CCT-S V2 OCR.
-- Android LiteRT GPU inference with explicit CPU fallback.
+- Android LiteRT GPU inference and iPhone LiteRT Metal inference, both with explicit CPU fallback.
 - Windows ONNX Runtime with DirectML and CPU fallback.
+- OME LL-HLS drive input on Android, iPhone, and Windows.
 - Multi-frame tracking and consensus with Dutch sidecode validation.
 - Recorded-video analysis using the same recognition pipeline as live capture.
 - Local SQLite history, trips, optional routes, CSV export, and RDW enrichment.
@@ -24,7 +25,15 @@ Requirements:
 - The .NET SDK selected by `global.json`.
 - The .NET MAUI Android and Windows workloads: `dotnet workload install maui-android maui-windows`.
 - PowerShell 7.
-- Docker when generating Android LiteRT models.
+- Docker when generating the Android and iPhone LiteRT models.
+
+Building the iPhone target additionally requires macOS, the Xcode version supported by the pinned .NET SDK, and `dotnet workload install maui-ios`. The unsigned arm64 device build used by CI is:
+
+```powershell
+./eng/Build-iOS.ps1 -Configuration Release
+```
+
+Installing on a physical iPhone also requires an Apple Development certificate and provisioning profile.
 
 Run the complete Release build, tests, model verification, and publishing pipeline:
 
@@ -38,7 +47,7 @@ Skip Android model generation and packaging when working only on portable or Win
 ./build.ps1 -Configuration Release -SkipAndroid
 ```
 
-Published outputs are written under `artifacts/android`, `artifacts/windows/win-x64`, and `artifacts/rdw-downloader`. CI publishes one arm64 Android APK containing both LiteRT models. Android uses CoreCLR because it substantially improves managed detector preprocessing on the tested Pixel 9; .NET 10 still classifies CoreCLR on Android as experimental and not intended for production use. The published APK does not support x64 emulators.
+Published outputs are written under `artifacts/android`, `artifacts/ios`, `artifacts/windows/win-x64`, and `artifacts/rdw-downloader`. CI publishes one arm64 Android APK and one unsigned arm64 iPhone IPA containing both LiteRT models. Android uses CoreCLR because it substantially improves managed detector preprocessing on the tested Pixel 9; .NET 10 still classifies CoreCLR on Android as experimental and not intended for production use. The published APK does not support x64 emulators.
 
 ## RDW database
 

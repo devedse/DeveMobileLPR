@@ -46,6 +46,12 @@ public static class MauiProgram
             handlers.AddHandler<CameraPreview, CameraPreviewHandler>();
             handlers.AddHandler<TripCardView, Microsoft.Maui.Handlers.BorderHandler>();
         });
+#elif IOS
+        builder.ConfigureMauiHandlers(handlers =>
+        {
+            handlers.AddHandler<CameraPreview, CameraPreviewHandler>();
+            handlers.AddHandler<TripCardView, Microsoft.Maui.Handlers.BorderHandler>();
+        });
 #endif
         builder.Services.AddSingleton<AppSettings>();
         builder.Services.AddSingleton<AppLogService>();
@@ -83,6 +89,16 @@ public static class MauiProgram
         builder.Services.AddSingleton<IAppPreferenceWriter, MauiAppPreferenceWriter>();
         builder.Services.AddSingleton<IDriveDisplayMode, PassiveDriveDisplayMode>();
         builder.Services.AddSingleton<ICameraCapabilitiesLauncher, UnsupportedCameraCapabilitiesLauncher>();
+#elif IOS
+        builder.Services.AddSingleton<IDriveSourceCatalog, IosDriveSourceCatalog>();
+        builder.Services.AddSingleton<IBackgroundScanningManager, UnsupportedBackgroundScanningManager>();
+        builder.Services.AddSingleton<IDriveLocationTrackerFactory, IosLocationTrackerFactory>();
+        builder.Services.AddSingleton<IRecognitionPipelineProvider, IosRecognitionPipelineProvider>();
+        builder.Services.AddSingleton<IVideoFileBackend, IosVideoFileBackend>();
+        builder.Services.AddSingleton<IPlatformSettingsInfo, IosPlatformSettingsInfo>();
+        builder.Services.AddSingleton<IAppPreferenceWriter, MauiAppPreferenceWriter>();
+        builder.Services.AddSingleton<IDriveDisplayMode, PassiveDriveDisplayMode>();
+        builder.Services.AddSingleton<ICameraCapabilitiesLauncher, UnsupportedCameraCapabilitiesLauncher>();
 #endif
         builder.Services.AddSingleton<IVehicleImageStore>(services => new VehicleImageStore(
             FileSystem.AppDataDirectory,
@@ -93,6 +109,8 @@ public static class MauiProgram
         builder.Services.AddSingleton<AndroidDriveVideoInputFactory>();
 #elif WINDOWS
         builder.Services.AddSingleton<WindowsDriveVideoInputFactory>();
+#elif IOS
+        builder.Services.AddSingleton<IosDriveVideoInputFactory>();
 #endif
         builder.Services.AddSingleton<VideoAnalysisService>();
         builder.Services.AddSingleton(_ => new JsonVideoAnalysisRepository(Path.Combine(FileSystem.AppDataDirectory, "video-analyses")));
