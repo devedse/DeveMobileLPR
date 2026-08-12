@@ -47,6 +47,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<IRecognitionPipelineProvider, WindowsRecognitionPipelineProvider>();
         builder.Services.AddSingleton<IVideoFileBackend, WindowsVideoFileBackend>();
     #elif IOS
+        builder.Services.AddSingleton<IBackgroundScanningManager, IosNoOpBackgroundScanningManager>();
         builder.Services.AddSingleton<IDriveLocationTrackerFactory, IosLocationTrackerFactory>();
         builder.Services.AddSingleton<IRecognitionPipelineProvider, IosRecognitionPipelineProvider>();
         builder.Services.AddSingleton<IVideoFileBackend, IosVideoFileBackend>();
