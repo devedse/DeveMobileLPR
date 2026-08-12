@@ -8,6 +8,7 @@ using Windows.Graphics.Imaging;
 using Windows.Media.Capture;
 using Windows.Media.Capture.Frames;
 using Windows.Media.Core;
+using Windows.Media.Devices;
 using Windows.Media.MediaProperties;
 using Windows.Media.Playback;
 
@@ -32,6 +33,9 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable, IDriveFrameSo
     private MediaFrameReader? _reader;
     private SoftwareBitmap? _latestBitmap;
     private DeviceInformation[] _cameras = [];
+    private float _requestedZoomRatio = 1f;
+    private float? _lastAppliedZoomRatio;
+    private bool _zoomUnsupportedReported;
     private bool _disposed;
     private int _previewDeactivated;
     private int _previewLoaded;
@@ -95,7 +99,8 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable, IDriveFrameSo
             await capture.InitializeAsync(new MediaCaptureInitializationSettings
             {
                 VideoDeviceId = selected.Id,
-                SharingMode = MediaCaptureSharingMode.SharedReadOnly,
+                // Camera controls such as zoom cannot be changed in SharedReadOnly mode.
+                SharingMode = MediaCaptureSharingMode.ExclusiveControl,
                 StreamingCaptureMode = StreamingCaptureMode.Video,
                 MemoryPreference = MediaCaptureMemoryPreference.Cpu
             });
@@ -119,10 +124,13 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable, IDriveFrameSo
             _frameSource = source;
             _player = player;
             SelectedCameraId = selected.Id;
+            _lastAppliedZoomRatio = null;
+            _zoomUnsupportedReported = false;
             if (IsPreviewActive)
             {
                 _preview.SetMediaPlayer(player);
                 player.Play();
+                ApplyRequestedZoom();
             }
             Diagnostic?.Invoke(this, new DriveInputDiagnostic($"Camera ready · {selected.Name}"));
         }
@@ -174,6 +182,7 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable, IDriveFrameSo
             throw new InvalidOperationException($"The webcam frame reader could not start ({status}).");
         }
 
+        ApplyRequestedZoom();
         Diagnostic?.Invoke(this, new DriveInputDiagnostic("Camera active · processing stays on this device"));
     }
 
@@ -197,8 +206,11 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable, IDriveFrameSo
         SelectedCameraId = string.Empty;
     }
 
-    // A Windows zoom implementation has not yet been added to this adapter.
-    public void SetZoom(float zoomRatio) { }
+    public void SetZoom(float zoomRatio)
+    {
+        Volatile.Write(ref _requestedZoomRatio, Math.Clamp(zoomRatio, 1f, 4f));
+        ApplyRequestedZoom();
+    }
 
     public void DeactivatePreview()
     {
@@ -236,6 +248,7 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable, IDriveFrameSo
         {
             _preview.SetMediaPlayer(_player);
             _player.Play();
+            ApplyRequestedZoom();
         }
     }
 
@@ -301,6 +314,64 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable, IDriveFrameSo
         _frameSource = null;
         _capture?.Dispose();
         _capture = null;
+        _lastAppliedZoomRatio = null;
+        _zoomUnsupportedReported = false;
+    }
+
+    private void ApplyRequestedZoom()
+    {
+        var capture = _capture;
+        if (capture is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var control = capture.VideoDeviceController.ZoomControl;
+            if (!control.Supported)
+            {
+                if (!_zoomUnsupportedReported)
+                {
+                    _zoomUnsupportedReported = true;
+                    Diagnostic?.Invoke(this, new DriveInputDiagnostic(
+                        "Camera zoom is not supported by this webcam."));
+                }
+                return;
+            }
+
+            var requested = Volatile.Read(ref _requestedZoomRatio);
+            var target = Math.Clamp(requested, control.Min, control.Max);
+            if (control.Step > 0)
+            {
+                var steps = MathF.Round((target - control.Min) / control.Step);
+                target = Math.Clamp(control.Min + (steps * control.Step), control.Min, control.Max);
+            }
+
+            var mode = control.SupportedModes.Contains(ZoomTransitionMode.Direct)
+                ? ZoomTransitionMode.Direct
+                : ZoomTransitionMode.Auto;
+            control.Configure(new ZoomSettings
+            {
+                Mode = mode,
+                Value = target
+            });
+
+            if (_lastAppliedZoomRatio is null || Math.Abs(_lastAppliedZoomRatio.Value - target) > 0.001f)
+            {
+                _lastAppliedZoomRatio = target;
+                Diagnostic?.Invoke(this, new DriveInputDiagnostic(
+                    $"Camera zoom applied: {target:0.0}× " +
+                    $"(requested {requested:0.0}×; supported {control.Min:0.0}–{control.Max:0.0}×)."));
+            }
+        }
+        catch (Exception exception)
+        {
+            Debug.WriteLine($"Could not apply Windows webcam zoom: {exception}");
+            Diagnostic?.Invoke(this, new DriveInputDiagnostic(
+                $"Camera zoom could not be applied: {exception.Message}",
+                true));
+        }
     }
 
     public async ValueTask DisposeAsync()
