@@ -53,6 +53,13 @@
                             Description="A light tap when a plate reaches temporal consensus."
                             IsToggled="{Binding ConfirmationHaptic}"
                             Title="Confirmation haptic" />
+                        <BoxView Style="{StaticResource DividerLine}" />
+                        <Label Style="{StaticResource SettingTitle}" Text="Known vehicle sound" />
+                        <Picker
+                            ItemsSource="{Binding KnownVehicleSoundOptions}"
+                            SelectedItem="{Binding SelectedKnownVehicleSound}"
+                            Title="Choose a sound" />
+                        <Label Style="{StaticResource SettingDescription}" Text="{Binding KnownVehicleSoundDetail, StringFormat='{}{0}. Selecting a sound plays a preview.'}" />
                         <BoxView IsVisible="{Binding IsBackgroundScanningAvailable}" Style="{StaticResource DividerLine}" />
                         <controls:SettingsToggleRow
                             Description="{Binding BackgroundScanningDescription}"

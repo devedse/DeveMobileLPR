@@ -13,6 +13,14 @@ internal sealed record RecognitionFrameRateOption(
     public override string ToString() => Name;
 }
 
+internal sealed record KnownVehicleSoundOption(
+    string Name,
+    string Detail,
+    KnownVehicleSound Sound)
+{
+    public override string ToString() => Name;
+}
+
 internal sealed record RecognitionTuningValue(
     string Name,
     string Value,
@@ -31,6 +39,7 @@ internal sealed class SettingsViewModel : ViewModelBase
     private readonly HistoryExportService _export;
     private readonly IBackgroundScanningManager _backgroundScanning;
     private readonly IPlatformSettingsInfo _platform;
+    private readonly IDeviceExperience _deviceExperience;
     private bool _isBusy;
     private string _statusMessage = string.Empty;
     private string _rdwTitle = "RDW data not installed";
@@ -38,6 +47,7 @@ internal sealed class SettingsViewModel : ViewModelBase
     private string _historyDetail = "Loading local history…";
     private string _permissionsDetail = "Checking platform permissions…";
     private RecognitionFrameRateOption _selectedRecognitionFrameRate;
+    private KnownVehicleSoundOption _selectedKnownVehicleSound;
 
     public SettingsViewModel(
         AppSettings settings,
@@ -46,7 +56,8 @@ internal sealed class SettingsViewModel : ViewModelBase
         HistoryExportService export,
         RecognitionTuningConfiguration recognitionTuning,
         IBackgroundScanningManager backgroundScanning,
-        IPlatformSettingsInfo platform)
+        IPlatformSettingsInfo platform,
+        IDeviceExperience deviceExperience)
     {
         _settings = settings;
         _coordinator = coordinator;
@@ -54,6 +65,7 @@ internal sealed class SettingsViewModel : ViewModelBase
         _export = export;
         _backgroundScanning = backgroundScanning;
         _platform = platform;
+        _deviceExperience = deviceExperience;
         recognitionTuning.Validate();
         RecognitionTuningSections = CreateRecognitionTuningSections(recognitionTuning);
         RecognitionFrameRateOptions =
@@ -64,9 +76,18 @@ internal sealed class SettingsViewModel : ViewModelBase
             new("12 FPS", "High · more CPU/GPU use for fast-moving traffic", 12),
             new("Unlimited", "Maximum throughput · submits every available analysis frame and drops stale queued frames", 0)
         ];
+        KnownVehicleSoundOptions =
+        [
+            new("None", "No sound when a previously seen vehicle is confirmed", KnownVehicleSound.None),
+            new("Chime", "A short two-note confirmation", KnownVehicleSound.Chime),
+            new("Radar", "A compact electronic double ping", KnownVehicleSound.Radar),
+            new("Sparkle", "A bright three-note flourish", KnownVehicleSound.Sparkle)
+        ];
         _selectedRecognitionFrameRate = RecognitionFrameRateOptions.FirstOrDefault(
                 option => option.MaximumFramesPerSecond == _settings.RecognitionFramesPerSecond)
             ?? RecognitionFrameRateOptions[1];
+        _selectedKnownVehicleSound = KnownVehicleSoundOptions.First(
+            option => option.Sound == _settings.KnownVehicleSound);
     }
 
     public bool IsBusy { get => _isBusy; private set => SetProperty(ref _isBusy, value); }
@@ -83,6 +104,7 @@ internal sealed class SettingsViewModel : ViewModelBase
     public string PlatformDescription => _platform.PlatformDescription;
     public string RecognitionEngineDescription => _platform.RecognitionEngineDescription;
     public IReadOnlyList<RecognitionFrameRateOption> RecognitionFrameRateOptions { get; }
+    public IReadOnlyList<KnownVehicleSoundOption> KnownVehicleSoundOptions { get; }
     public IReadOnlyList<RecognitionTuningSection> RecognitionTuningSections { get; }
     public bool IsBackgroundScanningAvailable => _backgroundScanning.IsSupported;
 
@@ -124,6 +146,22 @@ internal sealed class SettingsViewModel : ViewModelBase
     }
 
     public string RecognitionFrameRateDetail => SelectedRecognitionFrameRate.Detail;
+
+    public KnownVehicleSoundOption SelectedKnownVehicleSound
+    {
+        get => _selectedKnownVehicleSound;
+        set
+        {
+            if (SetProperty(ref _selectedKnownVehicleSound, value))
+            {
+                _settings.KnownVehicleSound = value.Sound;
+                _deviceExperience.NotifyKnownVehicle(value.Sound);
+                OnPropertyChanged(nameof(KnownVehicleSoundDetail));
+            }
+        }
+    }
+
+    public string KnownVehicleSoundDetail => SelectedKnownVehicleSound.Detail;
 
     public bool TrackLocation
     {

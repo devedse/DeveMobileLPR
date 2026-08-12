@@ -257,6 +257,46 @@ public sealed class DriveCoordinatorTests
         Assert.Contains("2d", confirmed.Detail);
     }
 
+    [Theory]
+    [InlineData(0, KnownVehicleSound.Chime, 0)]
+    [InlineData(3, KnownVehicleSound.None, 0)]
+    [InlineData(3, KnownVehicleSound.Radar, 1)]
+    public async Task KnownVehicleSoundPlaysOnlyForPreviouslySeenVehicles(
+        int priorSightingCount,
+        KnownVehicleSound selectedSound,
+        int expectedSoundCount)
+    {
+        var repository = new FakeRepository
+        {
+            Prior = new PriorVehicleSightings(priorSightingCount, DateTimeOffset.UtcNow.AddDays(-2))
+        };
+        var pipeline = new ConfirmingPipeline();
+        var device = new TestDeviceExperience();
+        var settings = new TestSettings { KnownVehicleSound = selectedSound };
+        await using var coordinator = await StartDrivingAsync(repository, pipeline, device: device, settings: settings);
+        var confirmationPublished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        coordinator.SnapshotChanged += (_, snapshot) =>
+        {
+            if (snapshot.Overlays.Any(overlay => priorSightingCount > 0
+                    ? overlay.Kind == DriveOverlayKind.ConfirmedKnown
+                    : overlay.Detail == "no RDW details"))
+            {
+                confirmationPublished.TrySetResult();
+            }
+        };
+
+        await SubmitFramesAsync(coordinator, pipeline, 3);
+        await repository.SightingAdded.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await confirmationPublished.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(1, device.NotificationCount);
+        Assert.Equal(expectedSoundCount, device.KnownVehicleSounds.Count);
+        if (expectedSoundCount > 0)
+        {
+            Assert.Equal(selectedSound, device.KnownVehicleSounds.Single());
+        }
+    }
+
     [Fact]
     public async Task ConfirmingASecondPlateKeepsTheFirstOverlayOnScreen()
     {
@@ -400,15 +440,18 @@ public sealed class DriveCoordinatorTests
     private static async Task<DriveCoordinator> StartDrivingAsync(
         FakeRepository repository,
         IFrameRecognitionPipeline pipeline,
-        TestLocationFactory? location = null)
+        TestLocationFactory? location = null,
+        TestDeviceExperience? device = null,
+        TestSettings? settings = null)
     {
         var input = new TestVideoInput();
         var coordinator = await CreateCoordinatorAsync(
             repository,
             input,
             location ?? new TestLocationFactory(),
-            new TestDeviceExperience(),
-            pipeline);
+            device ?? new TestDeviceExperience(),
+            pipeline,
+            settings);
         await coordinator.InitializeAsync();
         await coordinator.StartDriveAsync();
         return coordinator;
@@ -419,12 +462,13 @@ public sealed class DriveCoordinatorTests
         TestVideoInput input,
         TestLocationFactory location,
         TestDeviceExperience device,
-        IFrameRecognitionPipeline? pipeline = null)
+        IFrameRecognitionPipeline? pipeline = null,
+        TestSettings? settings = null)
     {
         var coordinator = new DriveCoordinator(
             repository,
             new TestVehicleImageStore(),
-            new TestSettings(),
+            settings ?? new TestSettings(),
             new TestVehicleDataStatus(),
             new RecognitionTuningConfiguration(),
             new TestPipelineProvider(pipeline),
@@ -442,6 +486,7 @@ public sealed class DriveCoordinatorTests
         public bool TrackLocation { get; set; } = true;
         public bool SaveVehicleImages { get; set; }
         public bool ConfirmationHaptic { get; set; } = true;
+        public KnownVehicleSound KnownVehicleSound { get; set; } = KnownVehicleSound.Chime;
         public float Zoom { get; set; } = 1;
         public string CameraId { get; set; } = "rear";
         public int RecognitionFramesPerSecond { get; set; } = 2;
@@ -636,8 +681,10 @@ public sealed class DriveCoordinatorTests
     {
         public bool KeepScreenOn { get; private set; }
         public int NotificationCount { get; private set; }
+        public List<KnownVehicleSound> KnownVehicleSounds { get; } = [];
         public void SetKeepScreenOn(bool enabled) => KeepScreenOn = enabled;
         public void NotifyPlateConfirmed() => NotificationCount++;
+        public void NotifyKnownVehicle(KnownVehicleSound sound) => KnownVehicleSounds.Add(sound);
     }
 
     private sealed class ImmediateDispatcher : IApplicationDispatcher

@@ -6,6 +6,7 @@ using DeveMobileLPR.Storage;
 using DeveMobileLPR.Recognition;
 using DeveMobileLPR.App.ViewModels;
 using DeveMobileLPR.App.Infrastructure;
+using Plugin.Maui.Audio;
 #if ANDROID
 using DeveMobileLPR.App.Platforms.Android.Background;
 using DeveMobileLPR.App.Platforms.Android.Camera;
@@ -29,6 +30,7 @@ public static class MauiProgram
     {
         var builder = MauiApp.CreateBuilder();
         builder.UseMauiApp<App>();
+        builder.AddAudio();
 #if ANDROID
         builder.ConfigureMauiHandlers(handlers => handlers.AddHandler<CameraPreview, CameraPreviewHandler>());
 #elif WINDOWS

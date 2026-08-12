@@ -9,6 +9,7 @@ public interface IDriveSettings
     bool TrackLocation { get; set; }
     bool SaveVehicleImages { get; set; }
     bool ConfirmationHaptic { get; set; }
+    KnownVehicleSound KnownVehicleSound { get; set; }
     float Zoom { get; set; }
     string CameraId { get; set; }
     int RecognitionFramesPerSecond { get; set; }
@@ -16,6 +17,14 @@ public interface IDriveSettings
     bool RecognitionStatisticsEnabled { get; set; }
     bool ShowRoadGuide { get; set; }
     string NetworkStreamUrl { get; set; }
+}
+
+public enum KnownVehicleSound
+{
+    None,
+    Chime,
+    Radar,
+    Sparkle
 }
 
 public interface IVehicleImageEncoder
@@ -108,6 +117,7 @@ public interface IDeviceExperience
 {
     void SetKeepScreenOn(bool enabled);
     void NotifyPlateConfirmed();
+    void NotifyKnownVehicle(KnownVehicleSound sound);
 }
 
 public interface IApplicationDispatcher
