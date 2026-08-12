@@ -311,30 +311,7 @@ internal sealed class HistoryMapView : ContentView
 
     private void ConfigurePlatformWebView()
     {
-    #if ANDROID
-        if (_webView.Handler?.PlatformView is global::Android.Webkit.WebView androidView)
-        {
-            var existing = androidView.Settings.UserAgentString ?? string.Empty;
-            if (!existing.StartsWith(MapUserAgent, StringComparison.Ordinal))
-            {
-                androidView.Settings.UserAgentString = $"{MapUserAgent} {existing}";
-            }
-        }
-    #elif WINDOWS
-        if (_webView.Handler?.PlatformView is Microsoft.Maui.Platform.MauiHybridWebView windowsView)
-        {
-            windowsView.RunAfterInitialize(() =>
-            {
-                var settings = windowsView.CoreWebView2?.Settings;
-                if (settings is null || settings.UserAgent.StartsWith(MapUserAgent, StringComparison.Ordinal))
-                {
-                    return;
-                }
-
-                settings.UserAgent = $"{MapUserAgent} {settings.UserAgent}";
-            });
-        }
-    #endif
+        PlatformMapWebViewConfigurator.Configure(_webView, MapUserAgent);
     }
 
     private void ShowFallback(string message)

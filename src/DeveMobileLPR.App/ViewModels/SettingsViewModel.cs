@@ -30,12 +30,13 @@ internal sealed class SettingsViewModel : ViewModelBase
     private readonly RdwDatabaseService _rdw;
     private readonly HistoryExportService _export;
     private readonly IBackgroundScanningManager _backgroundScanning;
+    private readonly IPlatformSettingsInfo _platform;
     private bool _isBusy;
     private string _statusMessage = string.Empty;
     private string _rdwTitle = "RDW data not installed";
     private string _rdwDetail = "Import the generated rdw.sqlite file to add make, model, value, fuel, year, and body type.";
     private string _historyDetail = "Loading local history…";
-    private string _permissionsDetail = "Checking Android permissions…";
+    private string _permissionsDetail = "Checking platform permissions…";
     private RecognitionFrameRateOption _selectedRecognitionFrameRate;
 
     public SettingsViewModel(
@@ -44,13 +45,15 @@ internal sealed class SettingsViewModel : ViewModelBase
         RdwDatabaseService rdw,
         HistoryExportService export,
         RecognitionTuningConfiguration recognitionTuning,
-        IBackgroundScanningManager backgroundScanning)
+        IBackgroundScanningManager backgroundScanning,
+        IPlatformSettingsInfo platform)
     {
         _settings = settings;
         _coordinator = coordinator;
         _rdw = rdw;
         _export = export;
         _backgroundScanning = backgroundScanning;
+        _platform = platform;
         recognitionTuning.Validate();
         RecognitionTuningSections = CreateRecognitionTuningSections(recognitionTuning);
         RecognitionFrameRateOptions =
@@ -75,6 +78,10 @@ internal sealed class SettingsViewModel : ViewModelBase
     public string HistoryDetail { get => _historyDetail; private set => SetProperty(ref _historyDetail, value); }
     public string PermissionsDetail { get => _permissionsDetail; private set => SetProperty(ref _permissionsDetail, value); }
     public string Version => $"DeveMobileLPR {AppInfo.Current.VersionString} ({AppInfo.Current.BuildString})";
+    public string BackgroundScanningDescription => _platform.BackgroundScanningDescription;
+    public string OpenSettingsLabel => _platform.OpenSettingsLabel;
+    public string PlatformDescription => _platform.PlatformDescription;
+    public string RecognitionEngineDescription => _platform.RecognitionEngineDescription;
     public IReadOnlyList<RecognitionFrameRateOption> RecognitionFrameRateOptions { get; }
     public IReadOnlyList<RecognitionTuningSection> RecognitionTuningSections { get; }
     public bool IsBackgroundScanningAvailable => _backgroundScanning.IsSupported;
@@ -183,10 +190,10 @@ internal sealed class SettingsViewModel : ViewModelBase
         RefreshRdw();
         var stats = await _coordinator.Repository.GetStatisticsAsync(DateTimeOffset.UnixEpoch, DateTimeOffset.UtcNow.AddDays(1), CancellationToken.None);
         HistoryDetail = $"{stats.TripCount} trips · {stats.SightingCount} sightings · {stats.UniqueVehicleCount} unique cars · {DisplayFormat.Distance(stats.DistanceMeters)}";
-        var camera = await Permissions.CheckStatusAsync<Permissions.Camera>();
-        var location = await Permissions.CheckStatusAsync<Permissions.LocationWhenInUse>();
-        PermissionsDetail = $"Camera: {PermissionName(camera)} · Location: {PermissionName(location)}";
+        PermissionsDetail = await _platform.GetPermissionsDetailAsync();
     }
+
+    public void OpenAppSettings() => _platform.OpenAppSettings();
 
     public async Task ImportRdwAsync(FileResult file)
     {
@@ -260,7 +267,6 @@ internal sealed class SettingsViewModel : ViewModelBase
         OnPropertyChanged(nameof(RdwColor));
     }
 
-    private static string PermissionName(PermissionStatus status) => status switch { PermissionStatus.Granted => "allowed", PermissionStatus.Denied => "not allowed", _ => "not requested" };
     private static string FormatBytes(long bytes) => bytes >= 1024L * 1024 * 1024 ? $"{bytes / (1024d * 1024 * 1024):0.0} GB" : $"{bytes / (1024d * 1024):0} MB";
 
     private static IReadOnlyList<RecognitionTuningSection> CreateRecognitionTuningSections(
