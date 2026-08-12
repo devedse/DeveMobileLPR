@@ -34,8 +34,7 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, FrameLay
     protected override FrameLayout CreatePlatformView()
     {
         var context = MauiContext?.Context ?? throw new InvalidOperationException("Android context is unavailable.");
-        var activity = Platform.CurrentActivity as ILifecycleOwner
-            ?? throw new InvalidOperationException("The active Android activity is not a CameraX lifecycle owner.");
+        var lifecycleOwner = MauiContext!.Services.GetRequiredService<AndroidCameraLifecycleOwner>();
         _coordinator = MauiContext!.Services.GetRequiredService<DriveCoordinator>();
         var settings = MauiContext.Services.GetRequiredService<AppSettings>();
         var root = new FrameLayout(context);
@@ -58,7 +57,7 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, FrameLay
         });
         _source = new AndroidDriveFrameSource(
             context,
-            activity,
+            lifecycleOwner,
             preview,
             streamPreview,
             settings.NetworkStreamUrl,

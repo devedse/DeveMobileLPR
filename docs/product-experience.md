@@ -17,7 +17,7 @@ This split follows Android's automotive guidance to keep in-motion text short, i
 - As a driver, I want confirmed boxes to add make/model, catalog value, and body type when RDW is installed.
 - As a driver, I want duration, unique-car count, most expensive car, GPS state, and the latest confirmation without opening another screen.
 - As a driver, I want one large stop-and-save action and no reachable navigation tabs while processing.
-- As a privacy-conscious user, I want processing to stop when the app leaves the foreground and raw frames never to be persisted.
+- As a privacy-conscious user, I want processing to stop when the app leaves the foreground by default, with an explicit toggle and persistent Android notification when I choose to continue scanning in the background; raw frames must never be persisted.
 - As a privacy-conscious user, I want vehicle images to require explicit opt-in, stay on-device, and be deleted with history.
 
 ### Reviewing the day

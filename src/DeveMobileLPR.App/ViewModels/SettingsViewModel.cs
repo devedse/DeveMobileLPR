@@ -29,6 +29,7 @@ internal sealed class SettingsViewModel : ViewModelBase
     private readonly DriveCoordinator _coordinator;
     private readonly RdwDatabaseService _rdw;
     private readonly HistoryExportService _export;
+    private readonly IBackgroundScanningManager _backgroundScanning;
     private bool _isBusy;
     private string _statusMessage = string.Empty;
     private string _rdwTitle = "RDW data not installed";
@@ -42,12 +43,14 @@ internal sealed class SettingsViewModel : ViewModelBase
         DriveCoordinator coordinator,
         RdwDatabaseService rdw,
         HistoryExportService export,
-        RecognitionTuningConfiguration recognitionTuning)
+        RecognitionTuningConfiguration recognitionTuning,
+        IBackgroundScanningManager backgroundScanning)
     {
         _settings = settings;
         _coordinator = coordinator;
         _rdw = rdw;
         _export = export;
+        _backgroundScanning = backgroundScanning;
         recognitionTuning.Validate();
         RecognitionTuningSections = CreateRecognitionTuningSections(recognitionTuning);
         RecognitionFrameRateOptions =
@@ -74,6 +77,31 @@ internal sealed class SettingsViewModel : ViewModelBase
     public string Version => $"DeveMobileLPR {AppInfo.Current.VersionString} ({AppInfo.Current.BuildString})";
     public IReadOnlyList<RecognitionFrameRateOption> RecognitionFrameRateOptions { get; }
     public IReadOnlyList<RecognitionTuningSection> RecognitionTuningSections { get; }
+    public bool IsBackgroundScanningAvailable => _backgroundScanning.IsSupported;
+
+    public bool ContinueScanningInBackground
+    {
+        get => _settings.ContinueScanningInBackground;
+        set
+        {
+            if (_settings.ContinueScanningInBackground != value)
+            {
+                _settings.ContinueScanningInBackground = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public async Task<bool> PrepareBackgroundScanningAsync()
+    {
+        if (await _backgroundScanning.RequestPermissionsAsync())
+        {
+            return true;
+        }
+
+        ContinueScanningInBackground = false;
+        return false;
+    }
 
     public RecognitionFrameRateOption SelectedRecognitionFrameRate
     {

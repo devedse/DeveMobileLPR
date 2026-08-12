@@ -28,6 +28,17 @@ public partial class SettingsPage : ContentPage
 
     private static void OpenPermissionsClicked(object? sender, EventArgs args) => AppInfo.Current.ShowSettingsUI();
 
+    private async void BackgroundScanningToggled(object? sender, ToggledEventArgs args)
+    {
+        if (args.Value && !await _viewModel.PrepareBackgroundScanningAsync())
+        {
+            await DisplayAlertAsync(
+                "Camera permission required",
+                "Background recognition needs camera access. The setting has remained off.",
+                "OK");
+        }
+    }
+
     private async void ExportClicked(object? sender, EventArgs args)
     {
         var path = await _viewModel.CreateExportAsync();

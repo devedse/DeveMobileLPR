@@ -37,4 +37,4 @@ jobs:
         run: ./eng/Generate-LiteRt-Models.ps1
 
       - name: Restore dependencies
-        run: dotnet restore DeveMobileLPR.slnx --locked-mode -p:EnableWindowsTargeting=true
+        run: dotnet restore DeveMobileLPR.slnx -p:EnableWindowsTargeting=true

@@ -36,15 +36,15 @@ if ($missingWorkloads.Count -ne 0) {
 
 if ($SkipAndroid) {
     $windowsProject = Join-Path $root 'src\DeveMobileLPR.App\DeveMobileLPR.App.csproj'
-    dotnet restore (Join-Path $root 'DeveMobileLPR.slnx') --locked-mode
+    dotnet restore (Join-Path $root 'DeveMobileLPR.slnx')
     dotnet build $windowsProject --framework net10.0-windows10.0.19041.0 --configuration $Configuration --runtime win-x64 --no-restore
     foreach ($project in $testProjects) {
-        dotnet restore $project --locked-mode
+        dotnet restore $project
         dotnet build $project --configuration $Configuration --no-restore
     }
 }
 else {
-    dotnet restore (Join-Path $root 'DeveMobileLPR.slnx') --locked-mode
+    dotnet restore (Join-Path $root 'DeveMobileLPR.slnx')
     dotnet build (Join-Path $root 'DeveMobileLPR.slnx') --configuration $Configuration --no-restore
 }
 

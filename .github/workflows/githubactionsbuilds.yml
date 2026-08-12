@@ -103,7 +103,7 @@ jobs:
 
       - name: Restore dependencies
         shell: pwsh
-        run: dotnet restore DeveMobileLPR.slnx --locked-mode
+        run: dotnet restore DeveMobileLPR.slnx
 
       - name: Build
         shell: pwsh
