@@ -10,7 +10,11 @@ public static class DriveInputIds
     public const string RearCamera = "rear";
     public const string FrontCamera = "front";
     public const string ExternalCamera = "external";
+    public const string UsbUvcCameraPrefix = "usb:uvc:";
     public const string NetworkLlHls = "network:llhls";
+
+    public static bool IsUsbUvcCamera(string cameraId) =>
+        cameraId.StartsWith(UsbUvcCameraPrefix, StringComparison.Ordinal);
 }
 
 public sealed record DriveOverlay(

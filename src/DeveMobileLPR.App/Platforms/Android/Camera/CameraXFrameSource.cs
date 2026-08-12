@@ -356,7 +356,7 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
         }
         if (provider.HasCamera(ExternalCameraSelector))
         {
-            choices.Add(new CameraChoice(DriveInputIds.ExternalCamera, "USB/UVC camera"));
+            choices.Add(new CameraChoice(DriveInputIds.ExternalCamera, "External camera · Android camera service"));
         }
         if (choices.Count == 0)
         {
