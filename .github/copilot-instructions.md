@@ -42,11 +42,36 @@ Put code in the lowest reusable layer that owns the behavior:
 	- Shared MAUI pages, controls, view models, app services, navigation, and presentation state.
 	- Keep business rules out of code-behind. Code-behind should bridge UI events only.
 6. `Platforms/Android` and Android-only adapters
-	- CameraX, Android permissions, Android location, Android media decoding, and model asset installation.
+	- CameraX, Media3, Android permissions/location/display, LiteRT composition, map configuration, and model asset installation.
 7. `Platforms/Windows` and Windows-only adapters
-	- MediaCapture/webcam, WinUI handlers, MediaComposition decoding, and Windows frame conversion.
+	- MediaCapture/webcam, Media Foundation live input, WinUI handlers, WebView2 configuration, and Windows frame conversion.
 
 If Android and Windows need the same behavior, define one shared contract/implementation and keep only API adaptation platform-specific. Do not copy a coordinator or algorithm merely because the input API differs. When conditional compilation currently selects platform-specific files with the same service name, preserve the shared public behavior and move newly reusable logic downward.
+
+## Required platform structure
+
+All new platform-dependent code must follow this layout:
+
+```text
+src/DeveMobileLPR.App/
+  Services/                         # Shared implementations and unsupported/passive defaults
+  Platforms/
+    Android/<Capability>/           # Android-native app adapter only
+    Windows/<Capability>/           # Windows-native app adapter only
+src/DeveMobileLPR.Video.Android/    # Reusable Android recorded-video decoder
+src/DeveMobileLPR.Video.Windows/    # Reusable Windows recorded-video decoder
+```
+
+- Group native app code by platform and capability: `Background`, `Camera`, `Display`, `Inference`, `Location`, `Map`, `Settings`, or `Video`.
+- Create a platform capability folder only when it contains real native behavior. Do not create matching folders containing no-op implementations.
+- Put generic behavior, shared helpers, and unsupported/passive fallbacks in `Services` or the lowest reusable project.
+- Define platform-neutral contracts in shared code. Contracts must not expose Android, WinRT, WinUI, or MAUI-native types.
+- Keep native adapters small: translate native lifecycle, permissions, buffers, or controls into shared contracts; keep workflows and algorithms shared.
+- Give paired native adapters matching responsibilities and names, for example `AndroidDriveVideoInput` and `WindowsDriveVideoInput`.
+- Put reusable recorded-video decoding in the paired `DeveMobileLPR.Video.<Platform>` projects, not in MAUI pages or view models.
+- Keep platform selection and `#if ANDROID` / `#elif WINDOWS` registration in `MauiProgram.cs`. Do not branch on the platform inside shared workflows or view models.
+- Before adding platform code, check whether MAUI or an existing library already provides a generic abstraction, such as `FilePickerFileType.Videos`.
+- If only one platform supports a capability, register a shared explicit fallback for the other platform and document the limitation.
 
 ## Cross-platform design rules
 
