@@ -73,4 +73,6 @@ Import the resulting file from Settings. Recognition and history continue to wor
 
 Mount the phone securely, configure the app before driving, and do not interact with it while the vehicle is moving. Location is optional.
 
+Android stops an active drive when the app leaves the foreground by default. The opt-in **Continue in background** setting keeps camera recognition running through a foreground service and a persistent notification until the drive is stopped. Raw camera frames are still discarded after processing.
+
 License plates and travel history can be personal data. Protect the device, retain only necessary data, and determine the lawful basis for use in your jurisdiction. This project is not legal advice.

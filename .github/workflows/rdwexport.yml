@@ -43,7 +43,7 @@ jobs:
 
       - name: Restore downloader dependencies
         shell: pwsh
-        run: dotnet restore src/DeveMobileLPR.RdwDownloader/DeveMobileLPR.RdwDownloader.csproj --locked-mode
+        run: dotnet restore src/DeveMobileLPR.RdwDownloader/DeveMobileLPR.RdwDownloader.csproj
 
       - name: Build downloader
         shell: pwsh

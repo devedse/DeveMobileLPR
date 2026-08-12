@@ -2,6 +2,8 @@ namespace DeveMobileLPR.App.Controls;
 
 public partial class SettingsToggleRow : ContentView
 {
+    public event EventHandler<ToggledEventArgs>? Toggled;
+
     public static readonly BindableProperty TitleProperty = BindableProperty.Create(
         nameof(Title), typeof(string), typeof(SettingsToggleRow), string.Empty);
 
@@ -30,4 +32,6 @@ public partial class SettingsToggleRow : ContentView
         get => (bool)GetValue(IsToggledProperty);
         set => SetValue(IsToggledProperty, value);
     }
+
+    private void SwitchToggled(object? sender, ToggledEventArgs args) => Toggled?.Invoke(this, args);
 }

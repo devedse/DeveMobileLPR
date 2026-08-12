@@ -70,6 +70,7 @@ RDW data is intentionally a second SQLite database because it is large and repla
 - Models are verified by byte length and SHA-256 before use on Android, iPhone, and Windows.
 - RDW imports are copied to a temporary file, schema-validated, and atomically moved.
 - Location is optional and a missing permission does not block recognition.
+- Android background recognition is disabled by default. When explicitly enabled for a drive, a camera foreground service keeps CameraX analysis active and exposes a persistent notification with a stop action; the normal foreground-only lifecycle remains unchanged when disabled.
 
 ## Device-validation plan
 

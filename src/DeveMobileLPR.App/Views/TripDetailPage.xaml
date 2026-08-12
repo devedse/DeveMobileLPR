@@ -27,12 +27,12 @@
                 <VerticalStackLayout Style="{StaticResource DetailScrollContent}">
                     <Label Style="{StaticResource SecondaryText}" Text="{Binding Subtitle}" />
 
-                    <FlexLayout AlignItems="Stretch" Direction="Row" JustifyContent="Start" Wrap="Wrap">
-                        <Border FlexLayout.Basis="145" FlexLayout.Grow="1" Margin="6,0,6,12" Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding Duration}" /><Label Style="{StaticResource MetricLabel}" Text="Duration" /></VerticalStackLayout></Border>
-                        <Border FlexLayout.Basis="145" FlexLayout.Grow="1" Margin="6,0,6,12" Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding Distance}" /><Label Style="{StaticResource MetricLabel}" Text="Distance" /></VerticalStackLayout></Border>
-                        <Border FlexLayout.Basis="145" FlexLayout.Grow="1" Margin="6,0,6,12" Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding Unique}" /><Label Style="{StaticResource MetricLabel}" Text="Unique cars" /></VerticalStackLayout></Border>
-                        <Border FlexLayout.Basis="145" FlexLayout.Grow="1" Margin="6,0,6,12" Style="{StaticResource CompactHighlightCard}"><VerticalStackLayout Spacing="3"><Label FontAttributes="Bold" FontSize="22" Text="{Binding Highlight}" TextColor="{DynamicResource ValueAccent}" /><Label FontSize="12" Text="Trip highlight" TextColor="{DynamicResource HighlightText}" /></VerticalStackLayout></Border>
-                    </FlexLayout>
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12" RowDefinitions="Auto,Auto" RowSpacing="12">
+                        <Border Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding Duration}" /><Label Style="{StaticResource MetricLabel}" Text="Duration" /></VerticalStackLayout></Border>
+                        <Border Grid.Column="1" Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding Distance}" /><Label Style="{StaticResource MetricLabel}" Text="Distance" /></VerticalStackLayout></Border>
+                        <Border Grid.Row="1" Style="{StaticResource CompactCard}"><VerticalStackLayout Spacing="2"><Label Style="{StaticResource MetricValue}" Text="{Binding Unique}" /><Label Style="{StaticResource MetricLabel}" Text="Unique cars" /></VerticalStackLayout></Border>
+                        <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource CompactHighlightCard}"><VerticalStackLayout Spacing="3"><Label FontAttributes="Bold" FontSize="22" Text="{Binding Highlight}" TextColor="{DynamicResource ValueAccent}" /><Label FontSize="12" Text="Trip highlight" TextColor="{DynamicResource HighlightText}" /></VerticalStackLayout></Border>
+                    </Grid>
 
                     <Border Style="{StaticResource Card}">
                         <VerticalStackLayout Style="{StaticResource CardContent}">
@@ -75,7 +75,7 @@
                 <DataTemplate x:DataType="vm:TripVehicleCardViewModel">
                     <Border Style="{StaticResource CompactCard}">
                         <Grid RowDefinitions="Auto,Auto" RowSpacing="10">
-                            <Grid ColumnDefinitions="Auto,*,72" ColumnSpacing="16">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
                                 <Border MinimumWidthRequest="112" Style="{StaticResource PlateBadge}"><Label Style="{StaticResource PlateBadgeText}" Text="{Binding DisplayPlate}" /></Border>
                                 <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
                                     <Label FontAttributes="Bold" Text="{Binding VehicleName}" />

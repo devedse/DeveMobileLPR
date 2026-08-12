@@ -11,7 +11,7 @@
             <controls:PageHeader Eyebrow="Make it yours" IsBusy="{Binding IsBusy}" Title="Settings" />
 
             <Border Style="{StaticResource HighlightCard}">
-                <FlexLayout AlignItems="Center" Direction="Row" JustifyContent="Start" Wrap="Wrap">
+                <FlexLayout AlignItems="Center" Direction="Row" JustifyContent="Start" SizeChanged="ResponsiveRdwLayoutSizeChanged" Wrap="Wrap">
                     <Grid FlexLayout.Basis="280" FlexLayout.Grow="1" ColumnDefinitions="Auto,*" ColumnSpacing="14" Margin="0,0,16,12" VerticalOptions="Center">
                         <Ellipse Fill="{Binding RdwColor}" HeightRequest="12" VerticalOptions="Center" WidthRequest="12" />
                         <VerticalStackLayout Grid.Column="1" Spacing="3">
@@ -35,7 +35,7 @@
 
             <!-- AlignItems must not be Stretch: this wraps inside a ScrollView, so the cross axis is
                  unbounded and stretching clips each card to a height that ignores its content. -->
-            <FlexLayout AlignItems="Start" Direction="Row" JustifyContent="Start" Wrap="Wrap">
+            <FlexLayout AlignItems="Start" Direction="Row" JustifyContent="Start" SizeChanged="ResponsiveCardPairSizeChanged" Wrap="Wrap">
                 <Border FlexLayout.Basis="320" FlexLayout.Grow="1" Margin="0,0,16,16" Style="{StaticResource Card}">
                     <VerticalStackLayout Style="{StaticResource CardContent}">
                         <Label Style="{StaticResource SectionTitle}" Text="Drive experience" />
@@ -53,6 +53,13 @@
                             Description="A light tap when a plate reaches temporal consensus."
                             IsToggled="{Binding ConfirmationHaptic}"
                             Title="Confirmation haptic" />
+                        <BoxView IsVisible="{Binding IsBackgroundScanningAvailable}" Style="{StaticResource DividerLine}" />
+                        <controls:SettingsToggleRow
+                            Description="Keeps the active drive and camera recognition running behind other apps. Android shows a persistent notification until the drive stops."
+                            IsToggled="{Binding ContinueScanningInBackground}"
+                            IsVisible="{Binding IsBackgroundScanningAvailable}"
+                            Toggled="BackgroundScanningToggled"
+                            Title="Continue in background" />
                     </VerticalStackLayout>
                 </Border>
 
@@ -89,7 +96,7 @@
 
             <!-- AlignItems must not be Stretch: this wraps inside a ScrollView, so the cross axis is
                  unbounded and stretching clips each card to a height that ignores its content. -->
-            <FlexLayout AlignItems="Start" Direction="Row" JustifyContent="Start" Wrap="Wrap">
+            <FlexLayout AlignItems="Start" Direction="Row" JustifyContent="Start" SizeChanged="ResponsiveCardPairSizeChanged" Wrap="Wrap">
                 <Border FlexLayout.Basis="320" FlexLayout.Grow="1" Margin="0,0,16,16" Style="{StaticResource Card}">
                     <VerticalStackLayout Style="{StaticResource CardContent}">
                         <Label Style="{StaticResource SectionTitle}" Text="Recognition engine" />

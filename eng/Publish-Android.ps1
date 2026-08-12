@@ -38,7 +38,7 @@ Get-ChildItem -LiteralPath $output -Filter '*.apk' -File -ErrorAction SilentlyCo
 Get-ChildItem -LiteralPath $projectOutput -Filter '*-Signed.apk' -File -Recurse -ErrorAction SilentlyContinue |
     Remove-Item -Force
 
-dotnet restore $project --locked-mode
+dotnet restore $project
 
 $arguments = @('publish', $project, '--framework', 'net10.0-android36.0', '--configuration', $Configuration, '--no-restore', '-p:AndroidPackageFormats=apk', "-p:PublishDir=$output\")
 $arguments += @('--runtime', 'android-arm64')

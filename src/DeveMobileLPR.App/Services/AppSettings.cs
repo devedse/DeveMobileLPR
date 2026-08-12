@@ -13,6 +13,7 @@ internal sealed class AppSettings : IDriveSettings
     private const string RecognitionFramesPerSecondKey = "recognition_frames_per_second";
     private const string RecognitionDebugKey = "recognition_debug";
     private const string RecognitionStatisticsKey = "recognition_statistics";
+    private const string ContinueScanningInBackgroundKey = "continue_scanning_in_background";
     private const int DefaultRecognitionFramesPerSecond = 4;
     private string _networkStreamUrl = string.Empty;
 
@@ -81,6 +82,12 @@ internal sealed class AppSettings : IDriveSettings
             return Preferences.Default.Get(RecognitionStatisticsKey, false);
         }
         set => Preferences.Default.Set(RecognitionStatisticsKey, value);
+    }
+
+    public bool ContinueScanningInBackground
+    {
+        get => Preferences.Default.Get(ContinueScanningInBackgroundKey, false);
+        set => Preferences.Default.Set(ContinueScanningInBackgroundKey, value);
     }
 
     public string NetworkStreamUrl
