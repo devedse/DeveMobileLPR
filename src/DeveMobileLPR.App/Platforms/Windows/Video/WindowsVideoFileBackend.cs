@@ -1,4 +1,5 @@
 using DeveMobileLPR.Application;
+using DeveMobileLPR.App.Services;
 using DeveMobileLPR.Recognition;
 using DeveMobileLPR.Video.Windows;
 using Windows.Media.Editing;
@@ -19,18 +20,9 @@ internal sealed class WindowsVideoFileBackend : IVideoFileBackend
             return file.FullPath;
         }
 
-        Directory.CreateDirectory(StagingDirectory);
-        var target = Path.Combine(StagingDirectory, $"{Guid.NewGuid():N}{Path.GetExtension(file.FileName)}");
-        await using var source = await file.OpenReadAsync(cancellationToken).ConfigureAwait(false);
-        await using var destination = new FileStream(
-            target,
-            FileMode.CreateNew,
-            FileAccess.Write,
-            FileShare.Read,
-            128 * 1024,
-            FileOptions.Asynchronous);
-        await source.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
-        return target;
+        return await SelectedVideoFileStager
+            .CopyToPrivateStorageAsync(file, StagingDirectory, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<IVideoFrameSource> OpenFrameSourceAsync(string sourcePath, CancellationToken cancellationToken)

@@ -4,11 +4,6 @@ namespace DeveMobileLPR.App.Views;
 
 public partial class AnalyzePage : ContentPage
 {
-    private static readonly FilePickerFileType VideoFiles = new(new Dictionary<DevicePlatform, IEnumerable<string>>
-    {
-        [DevicePlatform.Android] = ["video/*"],
-        [DevicePlatform.WinUI] = [".mp4", ".mov", ".m4v", ".avi", ".wmv", ".mkv", ".webm"]
-    });
     private readonly AnalyzeViewModel _viewModel;
 
     internal AnalyzePage(AnalyzeViewModel viewModel)
@@ -29,7 +24,7 @@ public partial class AnalyzePage : ContentPage
         var file = await FilePicker.Default.PickAsync(new PickOptions
         {
             PickerTitle = "Select a video to analyze",
-            FileTypes = VideoFiles
+            FileTypes = FilePickerFileType.Videos
         });
         if (file is not null)
         {

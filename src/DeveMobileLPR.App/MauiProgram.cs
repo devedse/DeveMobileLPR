@@ -15,11 +15,8 @@ using DeveMobileLPR.App.Platforms.Android.Location;
 using DeveMobileLPR.App.Platforms.Android.Settings;
 using DeveMobileLPR.App.Platforms.Android.Video;
 #elif WINDOWS
-using DeveMobileLPR.App.Platforms.Windows.Background;
 using DeveMobileLPR.App.Platforms.Windows.Camera;
-using DeveMobileLPR.App.Platforms.Windows.Display;
 using DeveMobileLPR.App.Platforms.Windows.Inference;
-using DeveMobileLPR.App.Platforms.Windows.Location;
 using DeveMobileLPR.App.Platforms.Windows.Settings;
 using DeveMobileLPR.App.Platforms.Windows.Video;
 #endif
@@ -59,12 +56,12 @@ public static class MauiProgram
         builder.Services.AddSingleton<IPlatformSettingsInfo, AndroidPlatformSettingsInfo>();
         builder.Services.AddSingleton<IDriveDisplayMode, AndroidDriveDisplayMode>();
 #elif WINDOWS
-        builder.Services.AddSingleton<IBackgroundScanningManager, NoOpBackgroundScanningManager>();
-        builder.Services.AddSingleton<IDriveLocationTrackerFactory, NoOpDriveLocationTrackerFactory>();
+        builder.Services.AddSingleton<IBackgroundScanningManager, UnsupportedBackgroundScanningManager>();
+        builder.Services.AddSingleton<IDriveLocationTrackerFactory, UnsupportedDriveLocationTrackerFactory>();
         builder.Services.AddSingleton<IRecognitionPipelineProvider, WindowsRecognitionPipelineProvider>();
         builder.Services.AddSingleton<IVideoFileBackend, WindowsVideoFileBackend>();
         builder.Services.AddSingleton<IPlatformSettingsInfo, WindowsPlatformSettingsInfo>();
-        builder.Services.AddSingleton<IDriveDisplayMode, WindowsDriveDisplayMode>();
+        builder.Services.AddSingleton<IDriveDisplayMode, PassiveDriveDisplayMode>();
 #endif
         builder.Services.AddSingleton<IVehicleImageStore>(services => new VehicleImageStore(
             FileSystem.AppDataDirectory,
