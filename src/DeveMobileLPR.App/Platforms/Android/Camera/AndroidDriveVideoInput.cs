@@ -70,8 +70,24 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
     public bool IsReady => _selectedCameraId == DriveInputIds.NetworkLlHls ? _network.IsReady : true;
     public bool SupportsNetworkStreams => true;
 
-    public Task InitializeAsync(string preferredCameraId, CancellationToken cancellationToken = default) =>
-        SelectCameraAsync(preferredCameraId, cancellationToken);
+    public async Task InitializeAsync(string preferredCameraId, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        await _switchGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await _camera.PrepareAsync(cancellationToken).ConfigureAwait(false);
+            var selectedId = _cameraChoices.Any(choice =>
+                    string.Equals(choice.Id, preferredCameraId, StringComparison.Ordinal))
+                ? preferredCameraId
+                : _cameraChoices[0].Id;
+            await SelectCameraCoreAsync(selectedId, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _switchGate.Release();
+        }
+    }
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
@@ -124,8 +140,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
     public async Task SelectCameraAsync(string cameraId, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (cameraId is not ("rear" or "front")
-            && !_cameraChoices.Any(choice => string.Equals(choice.Id, cameraId, StringComparison.Ordinal)))
+        if (!_cameraChoices.Any(choice => string.Equals(choice.Id, cameraId, StringComparison.Ordinal)))
         {
             throw new ArgumentException("The selected Android video input is unavailable.", nameof(cameraId));
         }
@@ -133,58 +148,65 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
         await _switchGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (string.Equals(_selectedCameraId, cameraId, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            var restart = _running;
-            var previousCameraId = _selectedCameraId;
-            if (restart)
-            {
-                await StopSelectedAsync().ConfigureAwait(false);
-            }
-
-            _selectedCameraId = cameraId;
-            if (cameraId != DriveInputIds.NetworkLlHls)
-            {
-                _camera.SelectCamera(cameraId);
-            }
-            await MainThread.InvokeOnMainThreadAsync(ApplyPreviewVisibility);
-
-            if (restart)
-            {
-                try
-                {
-                    await StartSelectedAsync(cancellationToken).ConfigureAwait(false);
-                }
-                catch (Exception switchException)
-                {
-                    _selectedCameraId = previousCameraId;
-                    if (previousCameraId != DriveInputIds.NetworkLlHls)
-                    {
-                        _camera.SelectCamera(previousCameraId);
-                    }
-                    await MainThread.InvokeOnMainThreadAsync(ApplyPreviewVisibility);
-                    try
-                    {
-                        await StartSelectedAsync(CancellationToken.None).ConfigureAwait(false);
-                    }
-                    catch (Exception rollbackException)
-                    {
-                        _running = false;
-                        throw new AggregateException(
-                            "The selected input could not start and the previous input could not be resumed.",
-                            switchException,
-                            rollbackException);
-                    }
-                    throw;
-                }
-            }
+            await SelectCameraCoreAsync(cameraId, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
             _switchGate.Release();
+        }
+    }
+
+    private async Task SelectCameraCoreAsync(string cameraId, CancellationToken cancellationToken)
+    {
+        if (string.Equals(_selectedCameraId, cameraId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var restart = _running;
+        var previousCameraId = _selectedCameraId;
+        if (restart)
+        {
+            await StopSelectedAsync().ConfigureAwait(false);
+        }
+
+        _selectedCameraId = cameraId;
+        if (cameraId != DriveInputIds.NetworkLlHls)
+        {
+            _camera.SelectCamera(cameraId);
+        }
+        await MainThread.InvokeOnMainThreadAsync(ApplyPreviewVisibility);
+
+        if (!restart)
+        {
+            return;
+        }
+
+        try
+        {
+            await StartSelectedAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception switchException)
+        {
+            _selectedCameraId = previousCameraId;
+            if (previousCameraId != DriveInputIds.NetworkLlHls)
+            {
+                _camera.SelectCamera(previousCameraId);
+            }
+            await MainThread.InvokeOnMainThreadAsync(ApplyPreviewVisibility);
+            try
+            {
+                await StartSelectedAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception rollbackException)
+            {
+                _running = false;
+                throw new AggregateException(
+                    "The selected input could not start and the previous input could not be resumed.",
+                    switchException,
+                    rollbackException);
+            }
+            throw;
         }
     }
 
@@ -216,7 +238,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
                 "Camera access is required to recognize plates. You can enable it in Android settings.");
         }
         cancellationToken.ThrowIfCancellationRequested();
-        await _camera.StartAsync().ConfigureAwait(false);
+        await _camera.StartAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private async Task StopSelectedAsync()

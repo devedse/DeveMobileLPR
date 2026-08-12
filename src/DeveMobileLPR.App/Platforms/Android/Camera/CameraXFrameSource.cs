@@ -31,6 +31,8 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
     private readonly FrameRateGate _recognitionFrameGate = new(timestampFrequency: 1000);
     private readonly IExecutorService _analysisExecutor = Executors.NewSingleThreadExecutor()
         ?? throw new InvalidOperationException("Could not create the camera analysis executor.");
+    private readonly object _providerTaskGate = new();
+    private Task<ProcessCameraProvider>? _providerTask;
     private ProcessCameraProvider? _provider;
     private ICamera? _camera;
     private Preview? _preview;
@@ -40,6 +42,7 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
     private long _sequence;
     private int _reportedResolution;
     private bool _disposed;
+    private bool _cameraChoicesPrepared;
     private bool _running;
     private int _targetRotation = -1;
     private int _zoomRequestVersion;
@@ -76,29 +79,74 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
     public IReadOnlyList<CameraChoice> CameraChoices => _cameraChoices;
     public string SelectedCameraId => _selectedCameraId;
 
-    public Task StartAsync()
+    /// <summary>
+    /// Discovers available lenses without binding preview or analysis use cases.
+    /// </summary>
+    public async Task PrepareAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_cameraChoicesPrepared)
+        {
+            return;
+        }
+
+        var provider = await GetProviderAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        await MainThread.InvokeOnMainThreadAsync(() =>
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            cancellationToken.ThrowIfCancellationRequested();
+            _provider = provider;
+            if (!_cameraChoicesPrepared)
+            {
+                RefreshCameraChoices(provider);
+                _cameraChoicesPrepared = true;
+            }
+        });
+    }
+
+    public async Task StartAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         _recognitionFrameGate.Reset();
-        if (_provider is not null)
+        await PrepareAsync(cancellationToken).ConfigureAwait(false);
+        await MainThread.InvokeOnMainThreadAsync(() =>
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            cancellationToken.ThrowIfCancellationRequested();
             _running = true;
-            BindCamera(_provider);
-            return Task.CompletedTask;
-        }
+            try
+            {
+                BindCamera(_provider ?? throw new InvalidOperationException("CameraX is not prepared."));
+            }
+            catch
+            {
+                _running = false;
+                throw;
+            }
+        });
+    }
 
-        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    private Task<ProcessCameraProvider> GetProviderAsync()
+    {
+        lock (_providerTaskGate)
+        {
+            return _providerTask ??= CreateProviderTask();
+        }
+    }
+
+    private Task<ProcessCameraProvider> CreateProviderTask()
+    {
+        var completion = new TaskCompletionSource<ProcessCameraProvider>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
         var future = ProcessCameraProvider.GetInstance(_context);
         future.AddListener(new Java.Lang.Runnable(() =>
         {
             try
             {
-                _provider = (ProcessCameraProvider?)future.Get()
-                    ?? throw new InvalidOperationException("CameraX returned no camera provider.");
-                _running = true;
-                RefreshCameraChoices(_provider);
-                BindCamera(_provider);
-                completion.TrySetResult();
+                completion.TrySetResult(
+                    (ProcessCameraProvider?)future.Get()
+                    ?? throw new InvalidOperationException("CameraX returned no camera provider."));
             }
             catch (Exception exception)
             {
