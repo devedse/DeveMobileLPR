@@ -486,7 +486,7 @@ public sealed class DriveCoordinatorTests
         public bool TrackLocation { get; set; } = true;
         public bool SaveVehicleImages { get; set; }
         public bool ConfirmationHaptic { get; set; } = true;
-        public KnownVehicleSound KnownVehicleSound { get; set; } = KnownVehicleSound.Chime;
+        public KnownVehicleSound KnownVehicleSound { get; set; } = KnownVehicleSound.None;
         public float Zoom { get; set; } = 1;
         public string CameraId { get; set; } = "rear";
         public int RecognitionFramesPerSecond { get; set; } = 2;

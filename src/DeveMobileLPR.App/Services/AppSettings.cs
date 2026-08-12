@@ -46,15 +46,15 @@ internal sealed class AppSettings : IDriveSettings
     {
         get
         {
-            var value = Preferences.Default.Get(KnownVehicleSoundKey, nameof(KnownVehicleSound.Chime));
+            var value = Preferences.Default.Get(KnownVehicleSoundKey, nameof(KnownVehicleSound.None));
             return Enum.TryParse<KnownVehicleSound>(value, out var sound)
                 && Enum.IsDefined(sound)
                     ? sound
-                    : KnownVehicleSound.Chime;
+                    : KnownVehicleSound.None;
         }
         set => Preferences.Default.Set(
             KnownVehicleSoundKey,
-            Enum.IsDefined(value) ? value.ToString() : nameof(KnownVehicleSound.Chime));
+            Enum.IsDefined(value) ? value.ToString() : nameof(KnownVehicleSound.None));
     }
 
     public float Zoom
