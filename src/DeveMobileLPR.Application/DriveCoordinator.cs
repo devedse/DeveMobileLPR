@@ -39,7 +39,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
     private string _status = "Preparing the on-device recognition engine…";
     private bool _hasError;
     private DriveDiagnosticsSnapshot _diagnostics = DriveDiagnosticsSnapshot.Empty;
-    private IReadOnlyList<CameraChoice> _cameraChoices = [new("rear", "Rear cameras · automatic lens")];
+    private IReadOnlyList<CameraChoice> _cameraChoices = [new(DriveInputIds.RearCamera, "Rear cameras · automatic lens")];
     public DriveCoordinator(
         ISightingRepository repository,
         IVehicleImageStore vehicleImageStore,

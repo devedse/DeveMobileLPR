@@ -7,6 +7,9 @@ public sealed record CameraChoice(string Id, string Name);
 
 public static class DriveInputIds
 {
+    public const string RearCamera = "rear";
+    public const string FrontCamera = "front";
+    public const string ExternalCamera = "external";
     public const string NetworkLlHls = "network:llhls";
 }
 

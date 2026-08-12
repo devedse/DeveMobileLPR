@@ -19,7 +19,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
     private readonly AndroidVideoTextureView _networkPreview;
     private readonly SemaphoreSlim _switchGate = new(1, 1);
     private IReadOnlyList<CameraChoice> _cameraChoices;
-    private string _selectedCameraId = "rear";
+    private string _selectedCameraId = DriveInputIds.RearCamera;
     private bool _running;
     private bool _disposed;
 

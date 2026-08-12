@@ -23,6 +23,9 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
     private const int ZoomStateRetryCount = 8;
     private const long ZoomStateRetryDelayMilliseconds = 50;
     private static readonly global::Android.Util.Size RequestedAnalysisResolution = new(3840, 2160);
+    private static readonly CameraSelector ExternalCameraSelector = new CameraSelector.Builder()
+        .RequireLensFacing(CameraSelector.LensFacingExternal)!
+        .Build() ?? throw new InvalidOperationException("CameraX could not create the external-camera selector.");
     private readonly Context _context;
     private readonly ILifecycleOwner _lifecycleOwner;
     private readonly PreviewView _previewView;
@@ -47,8 +50,8 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
     private int _targetRotation = -1;
     private int _zoomRequestVersion;
     private float _requestedZoomRatio = 1f;
-    private string _selectedCameraId = "rear";
-    private IReadOnlyList<CameraChoice> _cameraChoices = [new("rear", "Rear cameras · automatic lens")];
+    private string _selectedCameraId = DriveInputIds.RearCamera;
+    private IReadOnlyList<CameraChoice> _cameraChoices = [new(DriveInputIds.RearCamera, "Rear cameras · automatic lens")];
 
     public CameraXFrameSource(
         Context context,
@@ -169,7 +172,8 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
 
     public void SelectCamera(string cameraId)
     {
-        if (cameraId is not ("rear" or "front") || cameraId == _selectedCameraId)
+        if (cameraId is not (DriveInputIds.RearCamera or DriveInputIds.FrontCamera or DriveInputIds.ExternalCamera)
+            || cameraId == _selectedCameraId)
         {
             return;
         }
@@ -289,9 +293,12 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
             .SetTargetRotation(targetRotation)!
             .Build() ?? throw new InvalidOperationException("CameraX could not create the analysis use case.");
         analysis.SetAnalyzer(_analysisExecutor, this);
-        var selector = _selectedCameraId == "front"
-            ? CameraSelector.DefaultFrontCamera
-            : CameraSelector.DefaultBackCamera;
+        var selector = _selectedCameraId switch
+        {
+            DriveInputIds.FrontCamera => CameraSelector.DefaultFrontCamera,
+            DriveInputIds.ExternalCamera => ExternalCameraSelector,
+            _ => CameraSelector.DefaultBackCamera
+        };
         _camera = provider.BindToLifecycle(
             _lifecycleOwner,
             selector ?? throw new InvalidOperationException("The selected camera is unavailable."),
@@ -341,15 +348,19 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
         var choices = new List<CameraChoice>();
         if (CameraSelector.DefaultBackCamera is { } back && provider.HasCamera(back))
         {
-            choices.Add(new CameraChoice("rear", "Rear cameras · automatic lens"));
+            choices.Add(new CameraChoice(DriveInputIds.RearCamera, "Rear cameras · automatic lens"));
         }
         if (CameraSelector.DefaultFrontCamera is { } front && provider.HasCamera(front))
         {
-            choices.Add(new CameraChoice("front", "Front camera"));
+            choices.Add(new CameraChoice(DriveInputIds.FrontCamera, "Front camera"));
+        }
+        if (provider.HasCamera(ExternalCameraSelector))
+        {
+            choices.Add(new CameraChoice(DriveInputIds.ExternalCamera, "USB/UVC camera"));
         }
         if (choices.Count == 0)
         {
-            choices.Add(new CameraChoice("rear", "Rear camera"));
+            choices.Add(new CameraChoice(DriveInputIds.RearCamera, "Rear camera"));
         }
         _cameraChoices = choices;
         if (!_cameraChoices.Any(choice => choice.Id == _selectedCameraId))
