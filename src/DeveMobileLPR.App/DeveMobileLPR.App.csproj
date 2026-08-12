@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFrameworks>net10.0-android36.0;net10.0-windows10.0.19041.0</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('osx'))">$(TargetFrameworks);net10.0-ios</TargetFrameworks>
+    <TargetFrameworks Condition="'$(IosOnly)' == 'true'">net10.0-ios</TargetFrameworks>
+    <RuntimeIdentifier Condition="'$(IosOnly)' == 'true'">ios-arm64</RuntimeIdentifier>
     <OutputType>Exe</OutputType>
     <AssemblyName>DeveMobileLPR</AssemblyName>
     <RootNamespace>DeveMobileLPR.App</RootNamespace>
@@ -10,6 +13,7 @@
     <Nullable>enable</Nullable>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">26.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.19041.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">16.0</SupportedOSPlatformVersion>
     <ApplicationId>nl.deve.mobilelpr</ApplicationId>
     <ApplicationTitle>DeveMobileLPR</ApplicationTitle>
     <ApplicationVersion>1</ApplicationVersion>
@@ -24,6 +28,7 @@
     <!-- Preserve the HybridWebView map bridge if a future publish enables full trimming. -->
     <MauiHybridWebViewSupported>true</MauiHybridWebViewSupported>
     <AllowUnsafeBlocks Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">true</AllowUnsafeBlocks>
+    <AllowUnsafeBlocks Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
     <UseMonoRuntime>false</UseMonoRuntime>
@@ -75,6 +80,12 @@
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
     <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" />
   </ItemGroup>
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
+    <PackageReference Include="TensorFlowLite.iOS" />
+    <Compile Remove="Camera\**\*.cs" />
+    <Compile Remove="Infrastructure\AndroidLocationTracker.cs" />
+    <Compile Remove="Infrastructure\AndroidModelInstaller.cs" />
+  </ItemGroup>
   <ItemGroup>
     <MauiIcon Include="Resources\AppIcon\appicon.png" BaseSize="256,256" />
     <MauiSplashScreen Include="Resources\Splash\splash.png" Color="#0B0D10" BaseSize="256,256" />
@@ -88,10 +99,16 @@
     <AndroidAsset Include="..\..\artifacts\models\cct_s_v2_global_float32.tflite"
         Link="models\cct_s_v2_global_float32.tflite" />
   </ItemGroup>
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
+    <MauiAsset Include="..\..\artifacts\models\yolo-v9-s-608-license-plates-raw_float32.tflite"
+               LogicalName="models/yolo-v9-s-608-license-plates-raw_float32.tflite" />
+    <MauiAsset Include="..\..\artifacts\models\cct_s_v2_global_float32.tflite"
+               LogicalName="models/cct_s_v2_global_float32.tflite" />
+  </ItemGroup>
 
-  <Target Name="GenerateAndroidDetectorModels"
+  <Target Name="GenerateLiteRtModels"
           BeforeTargets="PrepareForBuild"
-          Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'"
+          Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android' or $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'"
       Inputs="..\..\artifacts\models\yolo-v9-s-608-license-plates-end2end.onnx;..\..\artifacts\models\cct_s_v2_global.onnx;..\..\eng\Generate-LiteRt-Models.ps1;..\..\eng\Generate-LiteRt-Ocr.ps1;..\..\eng\model-tools\prepare_litert_detector.py;..\..\eng\model-tools\validate_litert_ocr.py"
       Outputs="..\..\artifacts\models\yolo-v9-s-608-license-plates-raw.onnx;..\..\artifacts\models\yolo-v9-s-608-license-plates-raw_float32.tflite;..\..\artifacts\models\cct_s_v2_global_float32.tflite">
     <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildProjectDirectory)\..\..\eng\Generate-LiteRt-Models.ps1&quot;" />
