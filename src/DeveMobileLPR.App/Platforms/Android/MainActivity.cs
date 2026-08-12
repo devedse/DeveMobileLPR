@@ -1,5 +1,6 @@
 using Android.App;
 using Android.Content.PM;
+using DeveMobileLPR.App.Platforms.Android.Camera;
 
 namespace DeveMobileLPR.App;
 

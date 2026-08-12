@@ -53,9 +53,16 @@
                             Description="A light tap when a plate reaches temporal consensus."
                             IsToggled="{Binding ConfirmationHaptic}"
                             Title="Confirmation haptic" />
+                        <BoxView Style="{StaticResource DividerLine}" />
+                        <Label Style="{StaticResource SettingTitle}" Text="Known vehicle sound" />
+                        <Picker
+                            ItemsSource="{Binding KnownVehicleSoundOptions}"
+                            SelectedItem="{Binding SelectedKnownVehicleSound}"
+                            Title="Choose a sound" />
+                        <Label Style="{StaticResource SettingDescription}" Text="{Binding KnownVehicleSoundDetail, StringFormat='{}{0}. Selecting a sound plays a preview.'}" />
                         <BoxView IsVisible="{Binding IsBackgroundScanningAvailable}" Style="{StaticResource DividerLine}" />
                         <controls:SettingsToggleRow
-                            Description="Keeps the active drive and camera recognition running behind other apps. Android shows a persistent notification until the drive stops."
+                            Description="{Binding BackgroundScanningDescription}"
                             IsToggled="{Binding ContinueScanningInBackground}"
                             IsVisible="{Binding IsBackgroundScanningAvailable}"
                             Toggled="BackgroundScanningToggled"
@@ -75,7 +82,7 @@
                         <Border Style="{StaticResource InsetCard}">
                             <Label FontSize="13" Text="{Binding PermissionsDetail}" />
                         </Border>
-                        <Button Clicked="OpenPermissionsClicked" Style="{StaticResource CompactSecondaryButton}" Text="Open Android app settings" />
+                        <Button Clicked="OpenPermissionsClicked" Style="{StaticResource CompactSecondaryButton}" Text="{Binding OpenSettingsLabel}" />
                     </VerticalStackLayout>
                 </Border>
             </FlexLayout>
@@ -100,7 +107,7 @@
                 <Border FlexLayout.Basis="320" FlexLayout.Grow="1" Margin="0,0,16,16" Style="{StaticResource Card}">
                     <VerticalStackLayout Style="{StaticResource CardContent}">
                         <Label Style="{StaticResource SectionTitle}" Text="Recognition engine" />
-                        <Label Style="{StaticResource SecondaryText}" Text="YOLOv9 plate detector · CCT-S V2 OCR · CameraX high-resolution analysis · LiteRT / ONNX Runtime · temporal consensus" />
+                        <Label Style="{StaticResource SecondaryText}" Text="{Binding RecognitionEngineDescription}" />
                         <BoxView Style="{StaticResource DividerLine}" />
                         <Label Style="{StaticResource SettingTitle}" Text="Maximum recognition rate" />
                         <Picker
@@ -124,7 +131,7 @@
                     <VerticalStackLayout Style="{StaticResource CardContent}">
                         <Label Style="{StaticResource SectionTitle}" Text="About" />
                         <Label Style="{StaticResource SecondaryText}" Text="{Binding Version}" />
-                        <Label Style="{StaticResource MutedText}" Text="Package nl.deve.mobilelpr · Android 8.0+" />
+                        <Label Style="{StaticResource MutedText}" Text="{Binding PlatformDescription}" />
                     </VerticalStackLayout>
                 </Border>
             </FlexLayout>

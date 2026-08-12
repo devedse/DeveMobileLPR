@@ -6,6 +6,21 @@ using DeveMobileLPR.Storage;
 using DeveMobileLPR.Recognition;
 using DeveMobileLPR.App.ViewModels;
 using DeveMobileLPR.App.Infrastructure;
+using Plugin.Maui.Audio;
+#if ANDROID
+using DeveMobileLPR.App.Platforms.Android.Background;
+using DeveMobileLPR.App.Platforms.Android.Camera;
+using DeveMobileLPR.App.Platforms.Android.Display;
+using DeveMobileLPR.App.Platforms.Android.Inference;
+using DeveMobileLPR.App.Platforms.Android.Location;
+using DeveMobileLPR.App.Platforms.Android.Settings;
+using DeveMobileLPR.App.Platforms.Android.Video;
+#elif WINDOWS
+using DeveMobileLPR.App.Platforms.Windows.Camera;
+using DeveMobileLPR.App.Platforms.Windows.Inference;
+using DeveMobileLPR.App.Platforms.Windows.Settings;
+using DeveMobileLPR.App.Platforms.Windows.Video;
+#endif
 
 namespace DeveMobileLPR.App;
 
@@ -15,11 +30,12 @@ public static class MauiProgram
     {
         var builder = MauiApp.CreateBuilder();
         builder.UseMauiApp<App>();
-    #if ANDROID
+        builder.AddAudio();
+#if ANDROID
         builder.ConfigureMauiHandlers(handlers => handlers.AddHandler<CameraPreview, CameraPreviewHandler>());
-    #elif WINDOWS
+#elif WINDOWS
         builder.ConfigureMauiHandlers(handlers => handlers.AddHandler<CameraPreview, CameraPreviewHandler>());
-    #endif
+#endif
         builder.Services.AddSingleton<AppSettings>();
         builder.Services.AddSingleton<IDriveSettings>(services => services.GetRequiredService<AppSettings>());
         builder.Services.AddSingleton<RecognitionTuningConfiguration>();
@@ -32,19 +48,23 @@ public static class MauiProgram
         builder.Services.AddSingleton<IApplicationDispatcher, MauiApplicationDispatcher>();
         builder.Services.AddSingleton<IDeviceExperience, MauiDeviceExperience>();
         builder.Services.AddSingleton<IVehicleImageEncoder, ImageSharpVehicleImageEncoder>();
-    #if ANDROID
+#if ANDROID
         builder.Services.AddSingleton<AndroidCameraLifecycleOwner>();
         builder.Services.AddSingleton<IBackgroundScanningManager, AndroidBackgroundScanningManager>();
         builder.Services.AddSingleton<IDriveLocationTrackerFactory>(_ =>
             new AndroidLocationTrackerFactory(global::Android.App.Application.Context));
         builder.Services.AddSingleton<IRecognitionPipelineProvider, AndroidRecognitionPipelineProvider>();
         builder.Services.AddSingleton<IVideoFileBackend, AndroidVideoFileBackend>();
-    #elif WINDOWS
-        builder.Services.AddSingleton<IBackgroundScanningManager, NoOpBackgroundScanningManager>();
-        builder.Services.AddSingleton<IDriveLocationTrackerFactory, NoOpDriveLocationTrackerFactory>();
+        builder.Services.AddSingleton<IPlatformSettingsInfo, AndroidPlatformSettingsInfo>();
+        builder.Services.AddSingleton<IDriveDisplayMode, AndroidDriveDisplayMode>();
+#elif WINDOWS
+        builder.Services.AddSingleton<IBackgroundScanningManager, UnsupportedBackgroundScanningManager>();
+        builder.Services.AddSingleton<IDriveLocationTrackerFactory, UnsupportedDriveLocationTrackerFactory>();
         builder.Services.AddSingleton<IRecognitionPipelineProvider, WindowsRecognitionPipelineProvider>();
         builder.Services.AddSingleton<IVideoFileBackend, WindowsVideoFileBackend>();
-    #endif
+        builder.Services.AddSingleton<IPlatformSettingsInfo, WindowsPlatformSettingsInfo>();
+        builder.Services.AddSingleton<IDriveDisplayMode, PassiveDriveDisplayMode>();
+#endif
         builder.Services.AddSingleton<IVehicleImageStore>(services => new VehicleImageStore(
             FileSystem.AppDataDirectory,
             services.GetRequiredService<IVehicleImageEncoder>()));
@@ -57,7 +77,9 @@ public static class MauiProgram
         builder.Services.AddSingleton<HistoryExportService>();
         builder.Services.AddSingleton<SettingsViewModel>();
         builder.Services.AddSingleton<AppShell>();
-        builder.Services.AddSingleton(services => new DrivePage(services.GetRequiredService<DriveViewModel>()));
+        builder.Services.AddSingleton(services => new DrivePage(
+            services.GetRequiredService<DriveViewModel>(),
+            services.GetRequiredService<IDriveDisplayMode>()));
         builder.Services.AddSingleton(services => new AnalyzePage(services.GetRequiredService<AnalyzeViewModel>()));
         builder.Services.AddSingleton(services => new HistoryPage(services.GetRequiredService<HistoryViewModel>()));
         builder.Services.AddSingleton(services => new SettingsPage(services.GetRequiredService<SettingsViewModel>()));

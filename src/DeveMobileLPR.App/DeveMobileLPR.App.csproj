@@ -49,10 +49,13 @@
     <ProjectReference Include="..\DeveMobileLPR.Storage\DeveMobileLPR.Storage.csproj" />
     <ProjectReference Include="..\DeveMobileLPR.Video.Windows\DeveMobileLPR.Video.Windows.csproj"
                       Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'" />
+    <ProjectReference Include="..\DeveMobileLPR.Video.Android\DeveMobileLPR.Video.Android.csproj"
+                      Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" />
     <PackageReference Include="Microsoft.Maui.Essentials" />
+    <PackageReference Include="Plugin.Maui.Audio" />
     <PackageReference Include="SixLabors.ImageSharp" />
   </ItemGroup>
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
@@ -99,9 +102,6 @@
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
     <Content Include="..\..\artifacts\models\yolo-v9-s-608-license-plates-end2end.onnx" Link="models\yolo-v9-s-608-license-plates-end2end.onnx" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\artifacts\models\cct_s_v2_global.onnx" Link="models\cct_s_v2_global.onnx" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Compile Remove="Camera\**\*.cs" />
-    <Compile Remove="Infrastructure\AndroidLocationTracker.cs" />
-    <Compile Remove="Infrastructure\AndroidModelInstaller.cs" />
     <Compile Remove="Platforms\Android\**\*.cs" />
   </ItemGroup>
   <Target Name="RemoveDuplicateDirectMLPublishAsset"

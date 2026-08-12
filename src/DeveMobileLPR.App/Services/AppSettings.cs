@@ -8,6 +8,7 @@ internal sealed class AppSettings : IDriveSettings
     private const string SaveVehicleImagesKey = "save_vehicle_images";
     private const string ShowGuideKey = "show_road_guide";
     private const string HapticKey = "confirmation_haptic";
+    private const string KnownVehicleSoundKey = "known_vehicle_sound";
     private const string ZoomKey = "camera_zoom";
     private const string CameraKey = "camera_id";
     private const string RecognitionFramesPerSecondKey = "recognition_frames_per_second";
@@ -39,6 +40,21 @@ internal sealed class AppSettings : IDriveSettings
     {
         get => Preferences.Default.Get(HapticKey, true);
         set => Preferences.Default.Set(HapticKey, value);
+    }
+
+    public KnownVehicleSound KnownVehicleSound
+    {
+        get
+        {
+            var value = Preferences.Default.Get(KnownVehicleSoundKey, nameof(KnownVehicleSound.None));
+            return Enum.TryParse<KnownVehicleSound>(value, out var sound)
+                && Enum.IsDefined(sound)
+                    ? sound
+                    : KnownVehicleSound.None;
+        }
+        set => Preferences.Default.Set(
+            KnownVehicleSoundKey,
+            Enum.IsDefined(value) ? value.ToString() : nameof(KnownVehicleSound.None));
     }
 
     public float Zoom

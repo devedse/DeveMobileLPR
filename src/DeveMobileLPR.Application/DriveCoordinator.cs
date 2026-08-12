@@ -584,6 +584,12 @@ public sealed class DriveCoordinator : IAsyncDisposable
         {
             _deviceExperience.NotifyPlateConfirmed();
         }
+        if (result.Confirmation.Revision == 0
+            && result.Prior.SightingCount > 0
+            && _settings.KnownVehicleSound != KnownVehicleSound.None)
+        {
+            _deviceExperience.NotifyKnownVehicle(_settings.KnownVehicleSound);
+        }
         Publish();
     }
 

@@ -1,5 +1,5 @@
 using DeveMobileLPR.Application;
-using DeveMobileLPR.Recognition;
+using Plugin.Maui.Audio;
 
 namespace DeveMobileLPR.App.Services;
 
@@ -12,8 +12,10 @@ internal sealed class MauiApplicationDispatcher : IApplicationDispatcher
     }
 }
 
-internal sealed class MauiDeviceExperience : IDeviceExperience
+internal sealed class MauiDeviceExperience(IAudioManager audioManager) : IDeviceExperience
 {
+    private readonly SemaphoreSlim _audioGate = new(1, 1);
+
     public void SetKeepScreenOn(bool enabled) =>
         MainThread.BeginInvokeOnMainThread(() =>
         {
@@ -39,22 +41,42 @@ internal sealed class MauiDeviceExperience : IDeviceExperience
                 System.Diagnostics.Debug.WriteLine($"Could not perform confirmation haptic: {exception}");
             }
         });
-}
 
-internal sealed class NoOpDriveLocationTrackerFactory : IDriveLocationTrackerFactory
-{
-    public IDriveLocationTracker Create() => new NoOpDriveLocationTracker();
-}
-
-internal sealed class NoOpDriveLocationTracker : IDriveLocationTracker
-{
-    public LocationFix? Latest => null;
-    public Task<bool> StartAsync(CancellationToken cancellationToken)
+    public void NotifyKnownVehicle(KnownVehicleSound sound)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(false);
+        if (sound == KnownVehicleSound.None)
+        {
+            return;
+        }
+
+        _ = PlayKnownVehicleAsync(sound);
     }
 
-    public void Stop() { }
-    public void Dispose() { }
+    private async Task PlayKnownVehicleAsync(KnownVehicleSound sound)
+    {
+        await _audioGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await using var stream = await FileSystem.OpenAppPackageFileAsync(FileName(sound));
+            using var player = audioManager.CreateAsyncPlayer(stream);
+            player.Volume = 0.8;
+            await player.PlayAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Debug.WriteLine($"Could not play the known-vehicle sound: {exception}");
+        }
+        finally
+        {
+            _audioGate.Release();
+        }
+    }
+
+    private static string FileName(KnownVehicleSound sound) => sound switch
+    {
+        KnownVehicleSound.Chime => "known_vehicle_chime.wav",
+        KnownVehicleSound.Radar => "known_vehicle_radar.wav",
+        KnownVehicleSound.Sparkle => "known_vehicle_sparkle.wav",
+        _ => throw new ArgumentOutOfRangeException(nameof(sound), sound, null)
+    };
 }

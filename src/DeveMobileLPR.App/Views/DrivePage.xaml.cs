@@ -1,7 +1,4 @@
-#if ANDROID
-using Android.Content.PM;
-using Android.Views;
-#endif
+using DeveMobileLPR.App.Services;
 using DeveMobileLPR.App.ViewModels;
 
 namespace DeveMobileLPR.App.Views;
@@ -9,11 +6,13 @@ namespace DeveMobileLPR.App.Views;
 public partial class DrivePage : ContentPage
 {
     private readonly DriveViewModel _viewModel;
+    private readonly IDriveDisplayMode _displayMode;
 
-    internal DrivePage(DriveViewModel viewModel)
+    internal DrivePage(DriveViewModel viewModel, IDriveDisplayMode displayMode)
     {
         InitializeComponent();
         BindingContext = _viewModel = viewModel;
+        _displayMode = displayMode;
         _viewModel.DriveModeChanged += DriveModeChanged;
         SizeChanged += PageSizeChanged;
     }
@@ -54,19 +53,6 @@ public partial class DrivePage : ContentPage
     private void ApplyDriveMode(bool isDriving)
     {
         Shell.SetTabBarIsVisible(this, !isDriving);
-#if ANDROID
-        if (Platform.CurrentActivity is not { } activity || activity.Window?.DecorView is not { } decor)
-        {
-            return;
-        }
-
-#pragma warning disable CS0618
-        activity.RequestedOrientation = isDriving ? ScreenOrientation.SensorLandscape : ScreenOrientation.Unspecified;
-        var flags = isDriving
-            ? SystemUiFlags.ImmersiveSticky | SystemUiFlags.Fullscreen | SystemUiFlags.HideNavigation | SystemUiFlags.LayoutFullscreen | SystemUiFlags.LayoutHideNavigation | SystemUiFlags.LayoutStable
-            : SystemUiFlags.Visible;
-        decor.SystemUiVisibility = (StatusBarVisibility)flags;
-#pragma warning restore CS0618
-#endif
+        _displayMode.Apply(isDriving);
     }
 }

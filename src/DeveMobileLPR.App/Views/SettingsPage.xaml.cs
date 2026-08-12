@@ -26,7 +26,7 @@ public partial class SettingsPage : ContentPage
         if (file is not null) await _viewModel.ImportRdwAsync(file);
     }
 
-    private static void OpenPermissionsClicked(object? sender, EventArgs args) => AppInfo.Current.ShowSettingsUI();
+    private void OpenPermissionsClicked(object? sender, EventArgs args) => _viewModel.OpenAppSettings();
 
     private async void BackgroundScanningToggled(object? sender, ToggledEventArgs args)
     {
