@@ -32,7 +32,11 @@ public static class MauiProgram
         builder.UseMauiApp<App>();
         builder.AddAudio();
 #if ANDROID
-        builder.ConfigureMauiHandlers(handlers => handlers.AddHandler<CameraPreview, CameraPreviewHandler>());
+        builder.ConfigureMauiHandlers(handlers =>
+        {
+            handlers.AddHandler<CameraPreview, CameraPreviewHandler>();
+            handlers.AddHandler<DualCameraPreview, DualCameraPreviewHandler>();
+        });
 #elif WINDOWS
         builder.ConfigureMauiHandlers(handlers => handlers.AddHandler<CameraPreview, CameraPreviewHandler>());
 #endif
