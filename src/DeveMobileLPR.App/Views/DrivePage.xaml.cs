@@ -37,6 +37,7 @@ public partial class DrivePage : ContentPage
         ReadyPortraitContent.IsVisible = !compactLandscape;
         ReadyLandscapeContent.IsVisible = compactLandscape;
         ReadyPanel.MaximumWidthRequest = compactLandscape ? 900 : 570;
+        ReadyPanel.MaximumHeightRequest = Math.Max(320, Height - 120);
         ReadyPanel.Padding = compactLandscape ? new Thickness(24, 16) : new Thickness(30);
         ReadyPanel.VerticalOptions = LayoutOptions.Center;
         ReadyPanel.Margin = compactLandscape ? new Thickness(26, 4) : Thickness.Zero;

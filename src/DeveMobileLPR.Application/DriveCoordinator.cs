@@ -70,6 +70,8 @@ public sealed class DriveCoordinator : IAsyncDisposable
     public IVehicleImageStore VehicleImageStore => _vehicleImageStore;
     public DriveSnapshot Snapshot { get { lock (_stateGate) return CreateSnapshot(); } }
     public long? ActiveTripId { get { lock (_stateGate) return _trip?.TripId; } }
+    public IReadOnlyList<DriveSourceCapability> SourceCapabilities => _camera?.SourceCapabilities ?? [];
+    public DriveInputConfiguration InputConfiguration => _settings.InputConfiguration;
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
@@ -165,7 +167,9 @@ public sealed class DriveCoordinator : IAsyncDisposable
         }
     }
 
-    public bool SubmitFrame(Yuv420Frame frame)
+    public bool SubmitFrame(Yuv420Frame frame) => SubmitFrame("default", frame);
+
+    public bool SubmitFrame(string sourceId, Yuv420Frame frame)
     {
         if (!_driving || _recognition is null)
         {
@@ -173,8 +177,12 @@ public sealed class DriveCoordinator : IAsyncDisposable
             return false;
         }
 
-        return _recognition.Submit(frame);
+        return _recognition.Submit(sourceId, frame);
     }
+
+    public bool HasPendingRecognitionFrameFor(string sourceId) => !_driving
+        || _recognition is null
+        || _recognition.HasPendingFrameFor(sourceId);
 
     public bool HasPendingRecognitionFrame => !_driving
         || _recognition is null
@@ -311,6 +319,22 @@ public sealed class DriveCoordinator : IAsyncDisposable
         }
     }
 
+    public async Task ApplyInputConfigurationAsync(
+        DriveInputConfiguration configuration,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        if (_driving || _stopping)
+        {
+            throw new InvalidOperationException("Stop the active drive before changing video sources.");
+        }
+
+        var camera = _camera ?? throw new InvalidOperationException("The camera preview is not available yet.");
+        await camera.ApplyConfigurationAsync(configuration, cancellationToken).ConfigureAwait(false);
+        _settings.InputConfiguration = configuration;
+        _settings.CameraId = camera.SelectedCameraId;
+        Publish();
+    }
     public void SetZoom(float zoom)
     {
         _settings.Zoom = zoom;
@@ -379,6 +403,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
         try
         {
             await camera.InitializeAsync(preferredCameraId).ConfigureAwait(false);
+            await camera.ApplyConfigurationAsync(_settings.InputConfiguration).ConfigureAwait(false);
             if (!ReferenceEquals(_camera, camera))
             {
                 return;

@@ -131,6 +131,35 @@ public sealed class DriveCoordinatorTests
     }
 
     [Fact]
+    public async Task DifferentSourcesHaveIndependentRecognitionWorkers()
+    {
+        var pipeline = new ConcurrentProbePipeline();
+        var input = new TestVideoInput();
+        await using var coordinator = new DriveCoordinator(
+            new FakeRepository(),
+            new TestVehicleImageStore(),
+            new TestSettings(),
+            new TestVehicleDataStatus(),
+            new RecognitionTuningConfiguration(),
+            new TestPipelineProvider(pipeline),
+            new TestVehicleLookup(),
+            new TestLocationFactory(),
+            new TestDeviceExperience(),
+            new ImmediateDispatcher());
+        coordinator.AttachCamera(input);
+        await input.Initialized.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await coordinator.InitializeAsync();
+        await coordinator.StartDriveAsync();
+
+        Assert.True(coordinator.SubmitFrame("physical:0:2", CreateFrame(1)));
+        Assert.True(coordinator.SubmitFrame("physical:0:4", CreateFrame(2)));
+        await pipeline.BothStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        pipeline.Release.TrySetResult();
+
+        Assert.Equal(2, pipeline.Started);
+    }
+
+    [Fact]
     public async Task RecognitionContinuesWithLatestFrameAfterPipelineFailure()
     {
         var pipeline = new FailsOncePipeline();
@@ -494,6 +523,7 @@ public sealed class DriveCoordinatorTests
         public bool RecognitionStatisticsEnabled { get; set; }
         public bool ShowRoadGuide { get; set; }
         public string NetworkStreamUrl { get; set; } = string.Empty;
+        public DriveInputConfiguration InputConfiguration { get; set; } = DriveInputConfiguration.Default;
     }
 
     private sealed class TestVideoInput : IDriveVideoInput
@@ -508,6 +538,10 @@ public sealed class DriveCoordinatorTests
         public event EventHandler<DriveFrameCountEventArgs>? SourceFramesAvailable;
         public event EventHandler<DriveFrameCountEventArgs>? PreviewFramesPresented;
         public IReadOnlyList<CameraChoice> CameraChoices { get; } = [new("rear", "Rear")];
+        public IReadOnlyList<DriveSourceCapability> SourceCapabilities { get; } =
+        [
+            new("rear", "Rear", DriveSourceKind.LogicalCamera, true, "0", null, null, null, null, 1, 4, [new(3840, 2160)])
+        ];
         public string SelectedCameraId { get; private set; } = "rear";
         public bool IsReady { get; private set; }
         public bool SupportsNetworkStreams => true;
@@ -517,6 +551,13 @@ public sealed class DriveCoordinatorTests
             SelectedCameraId = preferredCameraId;
             IsReady = true;
             Initialized.TrySetResult();
+            return Task.CompletedTask;
+        }
+        public Task ApplyConfigurationAsync(DriveInputConfiguration configuration, CancellationToken cancellationToken = default)
+        {
+            SelectedCameraId = configuration.Mode == DriveInputMode.Multi
+                ? "multi"
+                : configuration.EnabledSources[0].SourceId;
             return Task.CompletedTask;
         }
         public Task StartAsync(CancellationToken cancellationToken = default)
@@ -547,6 +588,27 @@ public sealed class DriveCoordinatorTests
     {
         public ValueTask<FrameRecognition> ProcessAsync(Yuv420Frame frame, CancellationToken cancellationToken) =>
             ValueTask.FromResult(new FrameRecognition(frame.Sequence, frame.CapturedAt, []));
+    }
+
+    private sealed class ConcurrentProbePipeline : IFrameRecognitionPipeline
+    {
+        private int _started;
+        public int Started => Volatile.Read(ref _started);
+        public TaskCompletionSource BothStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async ValueTask<FrameRecognition> ProcessAsync(
+            Yuv420Frame frame,
+            CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref _started) == 2)
+            {
+                BothStarted.TrySetResult();
+            }
+
+            await Release.Task.WaitAsync(cancellationToken);
+            return new FrameRecognition(frame.Sequence, frame.CapturedAt, []);
+        }
     }
 
     private sealed class FailsOncePipeline : IFrameRecognitionPipeline

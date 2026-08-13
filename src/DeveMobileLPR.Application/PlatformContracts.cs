@@ -17,6 +17,7 @@ public interface IDriveSettings
     bool RecognitionStatisticsEnabled { get; set; }
     bool ShowRoadGuide { get; set; }
     string NetworkStreamUrl { get; set; }
+    DriveInputConfiguration InputConfiguration { get; set; }
 }
 
 public enum KnownVehicleSound
@@ -67,6 +68,7 @@ public interface IDriveVideoInput : IDriveFrameSourceTelemetry, IAsyncDisposable
     string SelectedCameraId { get; }
     bool IsReady { get; }
     bool SupportsNetworkStreams { get; }
+    IReadOnlyList<DriveSourceCapability> SourceCapabilities { get; }
 
     Task InitializeAsync(string preferredCameraId, CancellationToken cancellationToken = default);
     Task StartAsync(CancellationToken cancellationToken = default);
@@ -74,6 +76,9 @@ public interface IDriveVideoInput : IDriveFrameSourceTelemetry, IAsyncDisposable
     Task SelectCameraAsync(string cameraId, CancellationToken cancellationToken = default);
     void SetZoom(float zoomRatio);
     void SetNetworkStreamUrl(string value);
+    Task ApplyConfigurationAsync(
+        DriveInputConfiguration configuration,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IDriveFrameSourceTelemetry

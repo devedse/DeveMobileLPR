@@ -16,6 +16,10 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     private string? _selectedCamera;
     private string _networkStreamUrl;
     private double _zoom;
+    private bool _isMultiCamera;
+    private DriveSourceOptionViewModel? _selectedSingleSource;
+    private string _inputConfigurationError = string.Empty;
+    private CancellationTokenSource? _inputConfigurationCancellation;
 
     public DriveViewModel(
         DriveCoordinator coordinator,
@@ -37,22 +41,75 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     public event EventHandler<bool>? DriveModeChanged;
     public AsyncCommand ToggleDriveCommand { get; }
     public ObservableCollection<string> CameraChoices { get; } = [];
+    public ObservableCollection<DriveSourceOptionViewModel> SingleSources { get; } = [];
+    public ObservableCollection<DriveSourceOptionViewModel> MultiSources { get; } = [];
     public bool IsInitializing => _snapshot.IsInitializing;
     public bool IsReady => _snapshot.IsReady;
     public bool IsDriving => _snapshot.IsDriving;
     public bool IsStopping => _snapshot.IsStopping;
     public bool ShowStartPanel => !IsDriving && !IsStopping;
     public bool ShowDriveControls => IsDriving || IsStopping;
-    public bool CanStart => IsReady && !IsInitializing && _snapshot.IsInputReady;
+    public bool CanStart => IsReady && !IsInitializing && _snapshot.IsInputReady && IsInputConfigurationValid;
     public bool ShowNetworkStreamUrl => _snapshot.SupportsNetworkStreams
         && _snapshot.SelectedCameraId == DriveInputIds.NetworkLlHls;
     public bool IsNetworkStreamPreview => _snapshot.SelectedCameraId == DriveInputIds.NetworkLlHls;
-    public IReadOnlyList<DriveOverlay> Overlays => DriveOverlayLayout.GetVisibleOverlays(_snapshot);
-    public bool ShowRoadGuide => _snapshot.IsDriving && _snapshot.ShowRoadGuide;
+    public IReadOnlyList<DriveOverlay> Overlays => IsMultiCamera
+        ? []
+        : DriveOverlayLayout.GetVisibleOverlays(_snapshot);
+    public bool ShowRoadGuide => !IsMultiCamera && _snapshot.IsDriving && _snapshot.ShowRoadGuide;
     public string Status => _snapshot.Status;
     public Color StatusColor => _snapshot.HasError ? Color.FromArgb("#FF8D8D") : Color.FromArgb("#E8EDF5");
     public string StatusLabel => _snapshot.HasError ? "Attention" : IsDriving ? "Live" : IsReady ? "Ready" : "Loading";
     public Color StatusAccent => _snapshot.HasError ? Color.FromArgb("#FF6B6B") : IsDriving ? Color.FromArgb("#58E0C2") : Color.FromArgb("#F5C542");
+    public bool IsMultiCamera
+    {
+        get => _isMultiCamera;
+        set
+        {
+            if (SetProperty(ref _isMultiCamera, value))
+            {
+                OnPropertyChanged(nameof(IsSingleCamera));
+                OnPropertyChanged(nameof(MultiCameraWarning));
+                QueueInputConfigurationUpdate();
+            }
+        }
+    }
+
+    public bool IsSingleCamera => !IsMultiCamera;
+
+    public DriveSourceOptionViewModel? SelectedSingleSource
+    {
+        get => _selectedSingleSource;
+        set
+        {
+            if (SetProperty(ref _selectedSingleSource, value) && value is not null)
+            {
+                OnPropertyChanged(nameof(SingleSourceIsNetwork));
+                QueueInputConfigurationUpdate();
+            }
+        }
+    }
+
+    public bool SingleSourceIsNetwork => SelectedSingleSource?.IsNetwork == true;
+    public string InputConfigurationError
+    {
+        get => _inputConfigurationError;
+        private set
+        {
+            if (SetProperty(ref _inputConfigurationError, value))
+            {
+                OnPropertyChanged(nameof(HasInputConfigurationError));
+                OnPropertyChanged(nameof(IsInputConfigurationValid));
+                OnPropertyChanged(nameof(CanStart));
+                ToggleDriveCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+    public bool HasInputConfigurationError => !string.IsNullOrWhiteSpace(InputConfigurationError);
+    public bool IsInputConfigurationValid => string.IsNullOrEmpty(GetInputConfigurationError());
+    public string MultiCameraWarning =>
+        "Most Android phones support at most two integrated cameras simultaneously. " +
+        "LL-HLS does not count as an integrated camera.";
     public string StartButtonText => IsInitializing ? "Preparing…" : "Start drive";
     public string Duration => _snapshot.StartedAt is null ? "0:00" : FormatClock(DateTimeOffset.UtcNow - _snapshot.StartedAt.Value);
     public DriveDiagnosticsSnapshot Diagnostics => _snapshot.Diagnostics;
@@ -106,7 +163,165 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         }
     }
 
-    public Task InitializeAsync() => _coordinator.InitializeAsync();
+    public async Task InitializeAsync()
+    {
+        await _coordinator.InitializeAsync();
+        await InitializeInputSourcesAsync();
+    }
+
+    private async Task InitializeInputSourcesAsync()
+    {
+        for (var attempt = 0; attempt < 20 && _coordinator.SourceCapabilities.Count == 0; attempt++)
+        {
+            await Task.Delay(100);
+        }
+
+        if (SingleSources.Count > 0 || _coordinator.SourceCapabilities.Count == 0)
+        {
+            return;
+        }
+
+        var configuration = _settings.InputConfiguration;
+        var profiles = configuration.Sources.ToDictionary(profile => profile.SourceId, StringComparer.Ordinal);
+        var optionsById = new Dictionary<string, DriveSourceOptionViewModel>(StringComparer.Ordinal);
+
+        DriveSourceOptionViewModel Create(DriveSourceCapability capability)
+        {
+            if (optionsById.TryGetValue(capability.Id, out var existing))
+            {
+                return existing;
+            }
+
+            if (!profiles.TryGetValue(capability.Id, out var profile))
+            {
+                var requested = capability.Resolutions.FirstOrDefault(size => size is { Width: 3840, Height: 2160 })
+                    ?? capability.Resolutions.FirstOrDefault()
+                    ?? new VideoResolution(3840, 2160);
+                profile = new DriveSourceProfile(
+                    capability.Id,
+                    false,
+                    requested,
+                    Math.Max(1f, capability.MinimumZoom),
+                    capability.Kind == DriveSourceKind.NetworkLlHls ? _settings.NetworkStreamUrl : null);
+            }
+
+            var option = new DriveSourceOptionViewModel(capability, profile, QueueInputConfigurationUpdate);
+            optionsById.Add(capability.Id, option);
+            return option;
+        }
+
+        foreach (var capability in _coordinator.SourceCapabilities
+                     .Where(source => source.Kind is DriveSourceKind.LogicalCamera or DriveSourceKind.NetworkLlHls))
+        {
+            SingleSources.Add(Create(capability));
+        }
+        foreach (var capability in _coordinator.SourceCapabilities
+                     .Where(source => source.Kind == DriveSourceKind.PhysicalCamera
+                         || source.Id == "front"
+                         || source.Kind == DriveSourceKind.NetworkLlHls))
+        {
+            MultiSources.Add(Create(capability));
+        }
+
+        _isMultiCamera = configuration.Mode == DriveInputMode.Multi;
+        _selectedSingleSource = SingleSources.FirstOrDefault(source =>
+                source.Id == (configuration.SelectedSingleSourceId ?? "rear"))
+            ?? SingleSources.FirstOrDefault();
+        InputConfigurationError = GetInputConfigurationError();
+        OnPropertyChanged(nameof(IsMultiCamera));
+        OnPropertyChanged(nameof(IsSingleCamera));
+        OnPropertyChanged(nameof(SelectedSingleSource));
+        OnPropertyChanged(nameof(SingleSourceIsNetwork));
+        OnPropertyChanged(nameof(MultiCameraWarning));
+        OnPropertyChanged(nameof(IsInputConfigurationValid));
+        OnPropertyChanged(nameof(CanStart));
+        QueueInputConfigurationUpdate();
+    }
+
+    private string GetInputConfigurationError()
+    {
+        if (SingleSources.Count == 0)
+        {
+            return "Video sources are still loading.";
+        }
+
+        var selected = IsMultiCamera
+            ? MultiSources.Where(source => source.IsEnabled).ToArray()
+            : SelectedSingleSource is null ? [] : [SelectedSingleSource];
+        if (selected.Length == 0)
+        {
+            return "Select at least one video source.";
+        }
+        if (selected.Count(source => source.Capability.IsIntegratedCamera) > 2)
+        {
+            return "This implementation supports at most two integrated cameras at once. You can also add LL-HLS.";
+        }
+        if (selected.Any(source => source.IsNetwork && !IsValidNetworkUrl(source.NetworkUrl)))
+        {
+            return "Enter a valid HTTP or HTTPS LL-HLS playlist URL.";
+        }
+
+        return string.Empty;
+    }
+
+    private static bool IsValidNetworkUrl(string value) =>
+        Uri.TryCreate(value?.Trim(), UriKind.Absolute, out var uri)
+        && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+
+    private void QueueInputConfigurationUpdate()
+    {
+        if (SingleSources.Count == 0)
+        {
+            return;
+        }
+
+        var allProfiles = SingleSources
+            .Concat(MultiSources)
+            .DistinctBy(source => source.Id)
+            .Select(source => source.ToProfile())
+            .ToArray();
+        var configuration = new DriveInputConfiguration(
+            DriveInputConfiguration.CurrentVersion,
+            IsMultiCamera ? DriveInputMode.Multi : DriveInputMode.Single,
+            allProfiles,
+            SelectedSingleSource?.Id ?? "rear");
+        _settings.InputConfiguration = configuration;
+        InputConfigurationError = GetInputConfigurationError();
+        OnPropertyChanged(nameof(IsInputConfigurationValid));
+        OnPropertyChanged(nameof(CanStart));
+        OnPropertyChanged(nameof(MultiCameraWarning));
+        ToggleDriveCommand.RaiseCanExecuteChanged();
+
+        _inputConfigurationCancellation?.Cancel();
+        _inputConfigurationCancellation?.Dispose();
+        if (!IsInputConfigurationValid)
+        {
+            _inputConfigurationCancellation = null;
+            return;
+        }
+
+        _inputConfigurationCancellation = new CancellationTokenSource();
+        _ = ApplyInputConfigurationAfterDelayAsync(configuration, _inputConfigurationCancellation.Token);
+    }
+
+    private async Task ApplyInputConfigurationAfterDelayAsync(
+        DriveInputConfiguration configuration,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(200, cancellationToken);
+            await _coordinator.ApplyInputConfigurationAsync(configuration, cancellationToken);
+            InputConfigurationError = string.Empty;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            InputConfigurationError = exception.Message;
+        }
+    }
 
     private async Task ToggleDriveAsync()
     {
@@ -196,6 +411,8 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         _coordinator.SnapshotChanged -= SnapshotChanged;
+        _inputConfigurationCancellation?.Cancel();
+        _inputConfigurationCancellation?.Dispose();
         _durationTimer.Dispose();
     }
 }

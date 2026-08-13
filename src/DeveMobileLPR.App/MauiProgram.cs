@@ -54,6 +54,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<IVehicleImageEncoder, ImageSharpVehicleImageEncoder>();
 #if ANDROID
         builder.Services.AddSingleton<AndroidCameraLifecycleOwner>();
+        builder.Services.AddSingleton<IDriveSourceCatalog>(_ => new AndroidDriveSourceCatalog(global::Android.App.Application.Context));
         builder.Services.AddSingleton<IBackgroundScanningManager, AndroidBackgroundScanningManager>();
         builder.Services.AddSingleton<IDriveLocationTrackerFactory>(_ =>
             new AndroidLocationTrackerFactory(global::Android.App.Application.Context));

@@ -36,37 +36,29 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, FrameLay
         var lifecycleOwner = MauiContext!.Services.GetRequiredService<AndroidCameraLifecycleOwner>();
         _coordinator = MauiContext!.Services.GetRequiredService<DriveCoordinator>();
         var settings = MauiContext.Services.GetRequiredService<AppSettings>();
+        var sourceCatalog = MauiContext.Services.GetRequiredService<IDriveSourceCatalog>();
         var root = new FrameLayout(context);
-        var match = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.MatchParent);
-        var preview = new PreviewView(context);
-        preview.SetScaleType(GetPreviewScaleType());
-        // Compatible uses TextureView, so the preview composites in normal view order instead of
-        // punching a SurfaceView hole that anything drawn on top would have to fight.
-        preview.SetImplementationMode(PreviewView.ImplementationMode.Compatible);
-        root.AddView(preview, match);
-        var streamPreview = new AndroidVideoTextureView(context)
+        var previewGrid = new LinearLayout(context)
         {
-            Visibility = ViewStates.Gone
+            Orientation = Orientation.Vertical
         };
-        root.AddView(streamPreview, new FrameLayout.LayoutParams(
+        root.AddView(previewGrid, new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MatchParent,
-            ViewGroup.LayoutParams.MatchParent)
-        {
-            Gravity = GravityFlags.Center
-        });
+            ViewGroup.LayoutParams.MatchParent));
+        var streamPreview = new AndroidVideoTextureView(context);
         _source = new AndroidDriveVideoInput(
             context,
             lifecycleOwner,
-            preview,
+            sourceCatalog,
+            previewGrid,
             streamPreview,
             settings.NetworkStreamUrl,
             () => settings.RecognitionFramesPerSecond,
-            () => _coordinator.HasPendingRecognitionFrame,
-            frame => _coordinator.SubmitFrame(frame));
+            sourceId => _coordinator.HasPendingRecognitionFrameFor(sourceId),
+            (sourceId, frame) => _coordinator.SubmitFrame(sourceId, frame));
         _coordinator.AttachCamera(_source);
         return root;
     }
-
     protected override void ConnectHandler(FrameLayout platformView)
     {
         base.ConnectHandler(platformView);

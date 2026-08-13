@@ -1,5 +1,6 @@
 using Android.Content;
 using Android.Views;
+using Android.Widget;
 using AndroidX.Camera.View;
 using AndroidX.Lifecycle;
 using DeveMobileLPR.Application;
@@ -7,18 +8,21 @@ using DeveMobileLPR.Imaging;
 
 namespace DeveMobileLPR.App.Platforms.Android.Camera;
 
-/// <summary>
-/// Selects between physical CameraX capture and Media3 LL-HLS while presenting
-/// one stable input and telemetry contract to the drive coordinator.
-/// </summary>
 internal sealed class AndroidDriveVideoInput : IDriveVideoInput
 {
-    private readonly CameraXFrameSource _camera;
-    private readonly AndroidHlsFrameSource _network;
-    private readonly PreviewView _cameraPreview;
+    private readonly Context _context;
+    private readonly IDriveSourceCatalog _sourceCatalog;
+    private readonly LinearLayout _previewGrid;
     private readonly AndroidVideoTextureView _networkPreview;
-    private readonly SemaphoreSlim _switchGate = new(1, 1);
-    private IReadOnlyList<CameraChoice> _cameraChoices;
+    private readonly CameraXMultiFrameSource _integrated;
+    private readonly Camera2PhysicalFrameSource _physicalPair;
+    private readonly AndroidHlsFrameSource _network;
+    private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
+    private readonly Dictionary<string, PreviewView> _cameraPreviews = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, TextureView> _camera2Previews = new(StringComparer.Ordinal);
+    private IReadOnlyList<DriveSourceCapability> _sourceCapabilities = [];
+    private IReadOnlyList<CameraChoice> _cameraChoices = [new("rear", "Rear cameras - automatic lens")];
+    private DriveInputConfiguration _configuration = DriveInputConfiguration.Default;
     private string _selectedCameraId = "rear";
     private bool _running;
     private bool _disposed;
@@ -26,37 +30,42 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
     public AndroidDriveVideoInput(
         Context context,
         ILifecycleOwner lifecycleOwner,
-        PreviewView cameraPreview,
+        IDriveSourceCatalog sourceCatalog,
+        LinearLayout previewGrid,
         AndroidVideoTextureView networkPreview,
         string networkStreamUrl,
         Func<int> recognitionFramesPerSecond,
-        Func<bool> hasPendingRecognitionFrame,
-        Func<Yuv420Frame, bool> submitFrame)
+        Func<string, bool> hasPendingRecognitionFrame,
+        Func<string, Yuv420Frame, bool> submitFrame)
     {
-        _cameraPreview = cameraPreview;
+        _context = context;
+        _sourceCatalog = sourceCatalog;
+        _previewGrid = previewGrid;
         _networkPreview = networkPreview;
-        _camera = new CameraXFrameSource(
+        _integrated = new CameraXMultiFrameSource(
             context,
             lifecycleOwner,
-            cameraPreview,
             recognitionFramesPerSecond,
-            frame => submitFrame(frame));
+            submitFrame);
+        _physicalPair = new Camera2PhysicalFrameSource(
+            context,
+            recognitionFramesPerSecond,
+            submitFrame);
         _network = new AndroidHlsFrameSource(
             context,
             networkPreview,
             networkStreamUrl,
             recognitionFramesPerSecond,
-            hasPendingRecognitionFrame,
-            submitFrame);
-        _cameraChoices = WithNetworkChoice(_camera.CameraChoices);
+            () => hasPendingRecognitionFrame(DriveInputIds.NetworkLlHls),
+            frame => submitFrame(DriveInputIds.NetworkLlHls, frame));
 
-        _camera.Diagnostic += ChildDiagnostic;
-        _camera.CameraChoicesChanged += ChildCameraChoicesChanged;
-        _camera.SourceFramesAvailable += ChildSourceFramesAvailable;
+        _integrated.Diagnostic += IntegratedDiagnostic;
+        _integrated.SourceFramesAvailable += ChildSourceFramesAvailable;
+        _physicalPair.Diagnostic += IntegratedDiagnostic;
+        _physicalPair.SourceFramesAvailable += ChildSourceFramesAvailable;
         _network.Diagnostic += ChildDiagnostic;
         _network.SourceFramesAvailable += ChildSourceFramesAvailable;
         _network.PreviewFramesPresented += ChildPreviewFramesPresented;
-        ApplyPreviewVisibility();
     }
 
     public event EventHandler<DriveInputDiagnostic>? Diagnostic;
@@ -65,34 +74,95 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
     public event EventHandler<DriveFrameCountEventArgs>? PreviewFramesPresented;
 
     public IReadOnlyList<CameraChoice> CameraChoices => _cameraChoices;
+    public IReadOnlyList<DriveSourceCapability> SourceCapabilities => _sourceCapabilities;
     public string SelectedCameraId => _selectedCameraId;
-    public bool ReportsPreviewFrames => _selectedCameraId == DriveInputIds.NetworkLlHls;
-    public bool IsReady => _selectedCameraId == DriveInputIds.NetworkLlHls ? _network.IsReady : true;
+    public bool ReportsPreviewFrames =>
+        _configuration.EnabledSources.Any(source => source.SourceId == DriveInputIds.NetworkLlHls);
     public bool SupportsNetworkStreams => true;
+    public bool IsReady => _configuration.EnabledSources.Count > 0
+        && (_configuration.EnabledSources.All(source => source.SourceId != DriveInputIds.NetworkLlHls)
+            || _network.IsReady);
 
     public async Task InitializeAsync(string preferredCameraId, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        await _switchGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        _sourceCapabilities = await new AndroidDriveSourceCatalog(_context)
+            .DiscoverAsync(cancellationToken)
+            .ConfigureAwait(false);
+        _cameraChoices = _sourceCapabilities
+            .Where(source => source.Id is "rear" or "front" || source.Kind == DriveSourceKind.NetworkLlHls)
+            .Select(source => new CameraChoice(source.Id, source.Name))
+            .ToArray();
+        CameraChoicesChanged?.Invoke(this, _cameraChoices);
+        await _integrated.PrepareAsync(cancellationToken).ConfigureAwait(false);
+
+        var preferred = _sourceCapabilities.FirstOrDefault(source => source.Id == preferredCameraId)
+            ?? _sourceCapabilities.First(source => source.Id == "rear");
+        var profile = CreateDefaultProfile(preferred);
+        await ApplyConfigurationAsync(
+            new DriveInputConfiguration(
+                DriveInputConfiguration.CurrentVersion,
+                DriveInputMode.Single,
+                [profile],
+                profile.SourceId),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task ApplyConfigurationAsync(
+        DriveInputConfiguration configuration,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var enabled = configuration.EnabledSources;
+        if (enabled.Count == 0)
+        {
+            throw new InvalidOperationException("Enable at least one video source.");
+        }
+
+        var integratedCount = enabled.Count(source =>
+            FindCapability(source.SourceId)?.IsIntegratedCamera == true);
+        if (integratedCount > 2)
+        {
+            throw new NotSupportedException(
+                "Android supports at most two simultaneous integrated camera streams.");
+        }
+        if (configuration.Mode == DriveInputMode.Single && enabled.Count != 1)
+        {
+            throw new InvalidOperationException("Single-camera mode requires exactly one source.");
+        }
+
+        await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await _camera.PrepareAsync(cancellationToken).ConfigureAwait(false);
-            var selectedId = _cameraChoices.Any(choice =>
-                    string.Equals(choice.Id, preferredCameraId, StringComparison.Ordinal))
-                ? preferredCameraId
-                : _cameraChoices[0].Id;
-            await SelectCameraCoreAsync(selectedId, cancellationToken).ConfigureAwait(false);
+            var restart = _running;
+            if (restart)
+            {
+                await StopCoreAsync().ConfigureAwait(false);
+            }
+
+            _configuration = NormalizeConfiguration(configuration);
+            _selectedCameraId = _configuration.Mode == DriveInputMode.Multi
+                ? "multi"
+                : _configuration.EnabledSources[0].SourceId;
+            await MainThread.InvokeOnMainThreadAsync(BuildPreviewGrid);
+            ConfigureIntegratedSource();
+            ConfigureNetworkSource();
+
+            if (restart)
+            {
+                await StartCoreAsync(cancellationToken).ConfigureAwait(false);
+            }
         }
         finally
         {
-            _switchGate.Release();
+            _lifecycleGate.Release();
         }
     }
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        await _switchGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (_running)
@@ -100,188 +170,284 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
                 return;
             }
 
-            _running = true;
-            await MainThread.InvokeOnMainThreadAsync(ApplyPreviewVisibility);
-            try
-            {
-                await StartSelectedAsync(cancellationToken).ConfigureAwait(false);
-            }
-            catch
-            {
-                _running = false;
-                throw;
-            }
+            await StartCoreAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {
-            _switchGate.Release();
+            _lifecycleGate.Release();
         }
     }
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
-        await _switchGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (!_running)
-            {
-                return;
-            }
-
-            _running = false;
-            await StopSelectedAsync().ConfigureAwait(false);
+            await StopCoreAsync().ConfigureAwait(false);
         }
         finally
         {
-            _switchGate.Release();
+            _lifecycleGate.Release();
         }
     }
 
     public async Task SelectCameraAsync(string cameraId, CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        if (!_cameraChoices.Any(choice => string.Equals(choice.Id, cameraId, StringComparison.Ordinal)))
-        {
-            throw new ArgumentException("The selected Android video input is unavailable.", nameof(cameraId));
-        }
-
-        await _switchGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            await SelectCameraCoreAsync(cameraId, cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            _switchGate.Release();
-        }
+        var capability = FindCapability(cameraId)
+            ?? throw new ArgumentException("The selected Android video input is unavailable.", nameof(cameraId));
+        await ApplyConfigurationAsync(
+            new DriveInputConfiguration(
+                DriveInputConfiguration.CurrentVersion,
+                DriveInputMode.Single,
+                [CreateDefaultProfile(capability)],
+                capability.Id),
+            cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task SelectCameraCoreAsync(string cameraId, CancellationToken cancellationToken)
+    public void SetZoom(float zoomRatio)
     {
-        if (string.Equals(_selectedCameraId, cameraId, StringComparison.Ordinal))
+        if (_configuration.Mode != DriveInputMode.Single)
         {
             return;
         }
 
-        var restart = _running;
-        var previousCameraId = _selectedCameraId;
-        if (restart)
+        var source = _configuration.EnabledSources[0];
+        _configuration = _configuration with
         {
-            await StopSelectedAsync().ConfigureAwait(false);
-        }
-
-        _selectedCameraId = cameraId;
-        if (cameraId != DriveInputIds.NetworkLlHls)
-        {
-            _camera.SelectCamera(cameraId);
-        }
-        await MainThread.InvokeOnMainThreadAsync(ApplyPreviewVisibility);
-
-        if (!restart)
-        {
-            return;
-        }
-
-        try
-        {
-            await StartSelectedAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception switchException)
-        {
-            _selectedCameraId = previousCameraId;
-            if (previousCameraId != DriveInputIds.NetworkLlHls)
-            {
-                _camera.SelectCamera(previousCameraId);
-            }
-            await MainThread.InvokeOnMainThreadAsync(ApplyPreviewVisibility);
-            try
-            {
-                await StartSelectedAsync(CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (Exception rollbackException)
-            {
-                _running = false;
-                throw new AggregateException(
-                    "The selected input could not start and the previous input could not be resumed.",
-                    switchException,
-                    rollbackException);
-            }
-            throw;
-        }
+            Sources =
+            [
+                source with { Zoom = zoomRatio }
+            ]
+        };
     }
-
-    public void SetZoom(float zoomRatio) => _camera.SetZoom(zoomRatio);
 
     public void SetNetworkStreamUrl(string value)
     {
         _network.SetNetworkStreamUrl(value);
-        if (_selectedCameraId == DriveInputIds.NetworkLlHls)
+    }
+
+    private async Task StartCoreAsync(CancellationToken cancellationToken)
+    {
+        var integrated = _configuration.EnabledSources
+            .Where(source => FindCapability(source.SourceId)?.IsIntegratedCamera == true)
+            .ToArray();
+        var networkEnabled = _configuration.EnabledSources
+            .Any(source => source.SourceId == DriveInputIds.NetworkLlHls);
+
+        if (integrated.Length > 0)
         {
-            Diagnostic?.Invoke(this, new DriveInputDiagnostic(_network.IsReady
-                ? "OME LL-HLS stream ready"
-                : "Enter an HTTP or HTTPS .m3u8 URL for the OME LL-HLS stream."));
+            if (await Permissions.RequestAsync<Permissions.Camera>() != PermissionStatus.Granted)
+            {
+                throw new UnauthorizedAccessException(
+                    "Camera access is required to recognize plates.");
+            }
+
+            if (UsesCamera2PhysicalPair)
+            {
+                await _physicalPair.StartAsync(cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await _integrated.StartAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        try
+        {
+            if (networkEnabled)
+            {
+                await _network.StartAsync(cancellationToken).ConfigureAwait(false);
+            }
+            _running = true;
+        }
+        catch
+        {
+            _integrated.Stop();
+            _physicalPair.Stop();
+            throw;
         }
     }
 
-    private async Task StartSelectedAsync(CancellationToken cancellationToken)
+    private async Task StopCoreAsync()
     {
-        if (_selectedCameraId == DriveInputIds.NetworkLlHls)
+        _running = false;
+        _integrated.Stop();
+        _physicalPair.Stop();
+        await _network.StopAsync().ConfigureAwait(false);
+    }
+
+    private void ConfigureIntegratedSource()
+    {
+        var sources = _configuration.EnabledSources
+            .Select(profile => (Capability: FindCapability(profile.SourceId), Profile: profile))
+            .Where(item => item.Capability?.IsIntegratedCamera == true)
+            .Select(item => (Capability: item.Capability!, item.Profile))
+            .ToArray();
+        if (sources.Length == 0)
         {
-            await _network.StartAsync(cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        cancellationToken.ThrowIfCancellationRequested();
-        if (await Permissions.RequestAsync<Permissions.Camera>() != PermissionStatus.Granted)
+        if (UsesCamera2PhysicalPair)
         {
-            throw new UnauthorizedAccessException(
-                "Camera access is required to recognize plates. You can enable it in Android settings.");
-        }
-        cancellationToken.ThrowIfCancellationRequested();
-        await _camera.StartAsync(cancellationToken).ConfigureAwait(false);
-    }
-
-    private async Task StopSelectedAsync()
-    {
-        if (_selectedCameraId == DriveInputIds.NetworkLlHls)
-        {
-            await _network.StopAsync().ConfigureAwait(false);
+            _physicalPair.Configure(sources.Select(source => (
+                source.Capability,
+                source.Profile,
+                _camera2Previews[source.Profile.SourceId])).ToArray());
         }
         else
         {
-            await MainThread.InvokeOnMainThreadAsync(_camera.Stop);
+            _integrated.Configure(sources.Select(source => (
+                source.Capability,
+                source.Profile,
+                _cameraPreviews[source.Profile.SourceId])).ToArray());
         }
     }
 
-    private void ApplyPreviewVisibility()
+    private bool UsesCamera2PhysicalPair
     {
-        var networkSelected = _selectedCameraId == DriveInputIds.NetworkLlHls;
-        _cameraPreview.Visibility = networkSelected ? ViewStates.Gone : ViewStates.Visible;
-        _networkPreview.Visibility = networkSelected ? ViewStates.Visible : ViewStates.Gone;
+        get
+        {
+            var integrated = _configuration.EnabledSources
+                .Select(source => FindCapability(source.SourceId))
+                .Where(source => source?.IsIntegratedCamera == true)
+                .ToArray();
+            return integrated.Length == 2
+                && integrated.All(source => source!.Kind == DriveSourceKind.PhysicalCamera)
+                && integrated.Select(source => source!.LogicalCameraId).Distinct().Count() == 1;
+        }
     }
 
-    private void ChildDiagnostic(object? sender, string message) => Diagnostic?.Invoke(
-        this,
-        new DriveInputDiagnostic(
+    private void ConfigureNetworkSource()
+    {
+        var profile = _configuration.EnabledSources
+            .FirstOrDefault(source => source.SourceId == DriveInputIds.NetworkLlHls);
+        if (profile?.NetworkUrl is not null)
+        {
+            _network.SetNetworkStreamUrl(profile.NetworkUrl);
+        }
+    }
+
+    private void BuildPreviewGrid()
+    {
+        _previewGrid.RemoveAllViews();
+        _cameraPreviews.Clear();
+        _camera2Previews.Clear();
+        var sources = _configuration.EnabledSources;
+        var rows = (sources.Count + 1) / 2;
+        for (var rowIndex = 0; rowIndex < rows; rowIndex++)
+        {
+            var row = new LinearLayout(_context) { Orientation = Orientation.Horizontal };
+            _previewGrid.AddView(
+                row,
+                new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, 0, 1));
+            for (var column = 0; column < 2; column++)
+            {
+                var index = rowIndex * 2 + column;
+                if (index >= sources.Count)
+                {
+                    row.AddView(
+                        new Space(_context),
+                        new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MatchParent, 1));
+                    continue;
+                }
+
+                var profile = sources[index];
+                global::Android.Views.View preview;
+                if (profile.SourceId == DriveInputIds.NetworkLlHls)
+                {
+                    preview = _networkPreview;
+                }
+                else if (UsesCamera2PhysicalPair)
+                {
+                    var texturePreview = new TextureView(_context);
+                    _camera2Previews.Add(profile.SourceId, texturePreview);
+                    preview = texturePreview;
+                }
+                else
+                {
+                    var cameraPreview = new PreviewView(_context);
+                    cameraPreview.SetImplementationMode(PreviewView.ImplementationMode.Compatible);
+                    cameraPreview.SetScaleType(PreviewView.ScaleType.FitCenter);
+                    _cameraPreviews.Add(profile.SourceId, cameraPreview);
+                    preview = cameraPreview;
+                }
+
+                if (preview.Parent is ViewGroup parent)
+                {
+                    parent.RemoveView(preview);
+                }
+                row.AddView(preview, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MatchParent, 1));
+            }
+        }
+    }
+
+    private DriveInputConfiguration NormalizeConfiguration(DriveInputConfiguration configuration)
+    {
+        var profiles = configuration.Sources.Select(profile =>
+        {
+            var capability = FindCapability(profile.SourceId);
+            if (capability is null)
+            {
+                return profile with { Enabled = false };
+            }
+
+            var resolution = capability.Kind == DriveSourceKind.NetworkLlHls
+                ? profile.Resolution
+                : SelectResolution(capability.Resolutions, profile.Resolution);
+            return profile with
+            {
+                Resolution = resolution,
+                Zoom = Math.Clamp(profile.Zoom, capability.MinimumZoom, capability.MaximumZoom),
+                NetworkUrl = profile.NetworkUrl?.Trim()
+            };
+        }).ToArray();
+        return configuration with { Sources = profiles };
+    }
+
+    private DriveSourceCapability? FindCapability(string sourceId) =>
+        _sourceCapabilities.FirstOrDefault(source => source.Id == sourceId);
+
+    private static DriveSourceProfile CreateDefaultProfile(DriveSourceCapability capability) =>
+        new(
+            capability.Id,
+            true,
+            SelectResolution(capability.Resolutions, new VideoResolution(3840, 2160)),
+            1f,
+            capability.Kind == DriveSourceKind.NetworkLlHls ? string.Empty : null);
+
+    private static VideoResolution SelectResolution(
+        IReadOnlyList<VideoResolution> available,
+        VideoResolution requested)
+    {
+        if (available.Count == 0)
+        {
+            return requested;
+        }
+
+        return available.FirstOrDefault(size => size == requested)
+            ?? available
+                .OrderBy(size => size.Width >= requested.Width && size.Height >= requested.Height ? 0 : 1)
+                .ThenBy(size => Math.Abs(size.PixelCount - requested.PixelCount))
+                .First();
+    }
+
+    private void IntegratedDiagnostic(object? sender, string message) =>
+        Diagnostic?.Invoke(this, new DriveInputDiagnostic(
+            message,
+            message.Contains("failed", StringComparison.OrdinalIgnoreCase)));
+
+    private void ChildDiagnostic(object? sender, string message) =>
+        Diagnostic?.Invoke(this, new DriveInputDiagnostic(
             message,
             message.StartsWith("Could not", StringComparison.Ordinal)
                 || message.Contains("failed", StringComparison.OrdinalIgnoreCase)));
-    private void ChildSourceFramesAvailable(object? sender, DriveFrameCountEventArgs args) => SourceFramesAvailable?.Invoke(this, args);
-    private void ChildPreviewFramesPresented(object? sender, DriveFrameCountEventArgs args) => PreviewFramesPresented?.Invoke(this, args);
 
-    private void ChildCameraChoicesChanged(object? sender, IReadOnlyList<CameraChoice> choices)
-    {
-        _cameraChoices = WithNetworkChoice(choices);
-        if (_selectedCameraId != DriveInputIds.NetworkLlHls
-            && !_cameraChoices.Any(choice => choice.Id == _selectedCameraId))
-        {
-            _selectedCameraId = _cameraChoices[0].Id;
-        }
-        CameraChoicesChanged?.Invoke(this, _cameraChoices);
-    }
+    private void ChildSourceFramesAvailable(object? sender, DriveFrameCountEventArgs args) =>
+        SourceFramesAvailable?.Invoke(this, args);
 
-    private static IReadOnlyList<CameraChoice> WithNetworkChoice(IReadOnlyList<CameraChoice> cameras) =>
-        [.. cameras.Where(choice => choice.Id != DriveInputIds.NetworkLlHls), new(DriveInputIds.NetworkLlHls, "OME LL-HLS stream")];
+    private void ChildPreviewFramesPresented(object? sender, DriveFrameCountEventArgs args) =>
+        PreviewFramesPresented?.Invoke(this, args);
 
     public async ValueTask DisposeAsync()
     {
@@ -289,32 +455,30 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
         {
             return;
         }
+
         _disposed = true;
-        await _switchGate.WaitAsync().ConfigureAwait(false);
+        await _lifecycleGate.WaitAsync().ConfigureAwait(false);
         try
         {
-            if (_running)
-            {
-                _running = false;
-                await StopSelectedAsync().ConfigureAwait(false);
-            }
-
-            _camera.Diagnostic -= ChildDiagnostic;
-            _camera.CameraChoicesChanged -= ChildCameraChoicesChanged;
-            _camera.SourceFramesAvailable -= ChildSourceFramesAvailable;
+            await StopCoreAsync().ConfigureAwait(false);
+            _integrated.Diagnostic -= IntegratedDiagnostic;
+            _integrated.SourceFramesAvailable -= ChildSourceFramesAvailable;
+            _physicalPair.Diagnostic -= IntegratedDiagnostic;
+            _physicalPair.SourceFramesAvailable -= ChildSourceFramesAvailable;
             _network.Diagnostic -= ChildDiagnostic;
             _network.SourceFramesAvailable -= ChildSourceFramesAvailable;
             _network.PreviewFramesPresented -= ChildPreviewFramesPresented;
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                _camera.Dispose();
+                _integrated.Dispose();
+                _physicalPair.Dispose();
                 _network.Dispose();
             });
         }
         finally
         {
-            _switchGate.Release();
-            _switchGate.Dispose();
+            _lifecycleGate.Release();
+            _lifecycleGate.Dispose();
         }
     }
 }

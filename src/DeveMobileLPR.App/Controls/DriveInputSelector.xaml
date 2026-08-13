@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentView x:Class="DeveMobileLPR.App.Controls.DriveInputSelector" x:DataType="vm:DriveViewModel"
+ xmlns="http://schemas.microsoft.com/dotnet/2021/maui" xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+ xmlns:vm="clr-namespace:DeveMobileLPR.App.ViewModels">
+ <VerticalStackLayout Spacing="12">
+  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
+   <VerticalStackLayout Spacing="2"><Label FontAttributes="Bold" FontSize="15" Text="Multi camera" /><Label FontSize="11" Text="Run several independent video sources and plate detectors." TextColor="{DynamicResource TextSecondary}" /></VerticalStackLayout>
+   <Switch AutomationId="multi_camera_toggle" Grid.Column="1" IsToggled="{Binding IsMultiCamera}" Toggled="MultiModeToggled" VerticalOptions="Center" />
+  </Grid>
+  <VerticalStackLayout IsVisible="{Binding IsSingleCamera}" Spacing="10">
+   <VerticalStackLayout Spacing="3"><Label Style="{StaticResource FieldCaption}" Text="Video source" /><Picker AutomationId="single_source_picker" ItemDisplayBinding="{Binding Name}" ItemsSource="{Binding SingleSources}" SelectedItem="{Binding SelectedSingleSource}" Title="Select camera or stream" /></VerticalStackLayout>
+   <Border x:DataType="{x:Null}" BindingContext="{Binding SelectedSingleSource}" Padding="12" Style="{StaticResource DriveControlCard}">
+    <VerticalStackLayout Spacing="8">
+     <Label FontSize="11" Text="{Binding Metadata}" TextColor="{DynamicResource TextSecondary}" />
+     <Grid ColumnDefinitions="*,150" ColumnSpacing="12">
+      <VerticalStackLayout Spacing="3"><Label Style="{StaticResource FieldCaption}" Text="Resolution" /><Picker ItemsSource="{Binding Resolutions}" SelectedItem="{Binding SelectedResolution}" /></VerticalStackLayout>
+      <VerticalStackLayout Grid.Column="1" IsVisible="{Binding IsNetwork, Converter={StaticResource InverseBool}}" Spacing="3"><Grid ColumnDefinitions="*,Auto"><Label Style="{StaticResource FieldCaption}" Text="Zoom" /><Label Grid.Column="1" FontAttributes="Bold" Text="{Binding ZoomLabel}" TextColor="{DynamicResource Primary}" /></Grid><Slider Maximum="{Binding MaximumZoom}" Minimum="{Binding MinimumZoom}" Value="{Binding Zoom}" /></VerticalStackLayout>
+     </Grid>
+     <VerticalStackLayout IsVisible="{Binding IsNetwork}" Spacing="3"><Label Style="{StaticResource FieldCaption}" Text="LL-HLS playlist URL" /><Entry AutomationId="single_network_stream_url" ClearButtonVisibility="WhileEditing" Keyboard="Url" Placeholder="https://media.example/live/camera/llhls.m3u8" Text="{Binding NetworkUrl}" /></VerticalStackLayout>
+    </VerticalStackLayout>
+   </Border>
+  </VerticalStackLayout>
+  <VerticalStackLayout x:Name="MultiPanel" IsVisible="{Binding IsMultiCamera}" Opacity="1" Spacing="10">
+   <Border BackgroundColor="#332815" Padding="10" Stroke="#F5C542" StrokeThickness="1"><Label FontSize="12" Text="{Binding MultiCameraWarning}" TextColor="#FFD96A" /></Border>
+   <VerticalStackLayout BindableLayout.ItemsSource="{Binding MultiSources}" Spacing="8">
+    <BindableLayout.ItemTemplate>
+     <DataTemplate x:DataType="vm:DriveSourceOptionViewModel">
+      <Border Padding="12" Style="{StaticResource DriveControlCard}">
+       <VerticalStackLayout Spacing="8">
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10"><Switch IsToggled="{Binding IsEnabled}" VerticalOptions="Center" /><VerticalStackLayout Grid.Column="1" Spacing="1"><Label FontAttributes="Bold" Text="{Binding Name}" /><Label FontSize="10" LineBreakMode="TailTruncation" MaxLines="2" Text="{Binding Metadata}" TextColor="{DynamicResource TextSecondary}" /></VerticalStackLayout></Grid>
+        <Grid ColumnDefinitions="*,150" ColumnSpacing="12">
+         <VerticalStackLayout Spacing="3"><Label Style="{StaticResource FieldCaption}" Text="Resolution" /><Picker ItemsSource="{Binding Resolutions}" SelectedItem="{Binding SelectedResolution}" /></VerticalStackLayout>
+         <VerticalStackLayout Grid.Column="1" IsVisible="{Binding IsNetwork, Converter={StaticResource InverseBool}}" Spacing="3"><Grid ColumnDefinitions="*,Auto"><Label Style="{StaticResource FieldCaption}" Text="Zoom" /><Label Grid.Column="1" FontAttributes="Bold" Text="{Binding ZoomLabel}" TextColor="{DynamicResource Primary}" /></Grid><Slider Maximum="{Binding MaximumZoom}" Minimum="{Binding MinimumZoom}" Value="{Binding Zoom}" /></VerticalStackLayout>
+        </Grid>
+        <Entry ClearButtonVisibility="WhileEditing" IsVisible="{Binding IsNetwork}" Keyboard="Url" Placeholder="LL-HLS .m3u8 URL" Text="{Binding NetworkUrl}" />
+       </VerticalStackLayout>
+      </Border>
+     </DataTemplate>
+    </BindableLayout.ItemTemplate>
+   </VerticalStackLayout>
+  </VerticalStackLayout>
+  <Label FontAttributes="Bold" FontSize="12" IsVisible="{Binding HasInputConfigurationError}" Text="{Binding InputConfigurationError}" TextColor="#FF8D8D" />
+ </VerticalStackLayout>
+</ContentView>

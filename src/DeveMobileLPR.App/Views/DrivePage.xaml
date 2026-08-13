@@ -85,31 +85,13 @@
                 IsVisible="{Binding ShowStartPanel}"
                 Style="{StaticResource DriveReadyCard}">
                 <Grid>
+                    <ScrollView>
                     <VerticalStackLayout x:Name="ReadyPortraitContent" Spacing="18">
                     <Label Style="{StaticResource Eyebrow}" Text="Ready for the road" />
                     <Label FontAttributes="Bold" FontSize="34" LineHeight="1.05" Text="See the cars.&#10;Remember the journey." />
                     <Label Style="{StaticResource SecondaryText}" Text="Mount your phone securely before starting. Recognition and trip history stay on this device; raw video is never saved." />
 
-                    <Grid ColumnDefinitions="*,150" ColumnSpacing="14">
-                        <VerticalStackLayout Spacing="4">
-                            <Label Style="{StaticResource FieldCaption}" Text="Camera" />
-                            <Picker ItemsSource="{Binding CameraChoices}" SelectedItem="{Binding SelectedCamera}" Title="Select camera" />
-                        </VerticalStackLayout>
-                        <VerticalStackLayout Grid.Column="1" Spacing="4">
-                            <Grid ColumnDefinitions="*,Auto"><Label Style="{StaticResource FieldCaption}" Text="Zoom" /><Label Grid.Column="1" FontAttributes="Bold" Text="{Binding ZoomLabel}" TextColor="{DynamicResource Primary}" /></Grid>
-                            <Slider Maximum="4" Minimum="1" Value="{Binding Zoom}" />
-                        </VerticalStackLayout>
-                    </Grid>
-
-                    <VerticalStackLayout IsVisible="{Binding ShowNetworkStreamUrl}" Spacing="4">
-                        <Label Style="{StaticResource FieldCaption}" Text="OME LL-HLS playlist URL" />
-                        <Entry
-                            AutomationId="network_stream_url"
-                            ClearButtonVisibility="WhileEditing"
-                            Keyboard="Url"
-                            Placeholder="https://media.example/live/camera/llhls.m3u8"
-                            Text="{Binding NetworkStreamUrl}" />
-                    </VerticalStackLayout>
+                    <controls:DriveInputSelector />
 
                     <Button
                         AutomationId="start_drive_button"
@@ -122,6 +104,8 @@
                     </HorizontalStackLayout>
                     </VerticalStackLayout>
 
+                    </ScrollView>
+
                     <Grid x:Name="ReadyLandscapeContent" ColumnDefinitions="1.05*,*" ColumnSpacing="30" IsVisible="False">
                     <VerticalStackLayout Spacing="10" VerticalOptions="Center">
                         <Label Style="{StaticResource Eyebrow}" Text="Ready for the road" />
@@ -129,24 +113,9 @@
                         <Label FontSize="12" LineBreakMode="WordWrap" MaxLines="3" Text="Mount your phone securely before starting. Recognition and trip history stay on this device; raw video is never saved." TextColor="{DynamicResource TextSecondary}" />
                     </VerticalStackLayout>
 
-                    <VerticalStackLayout Grid.Column="1" Spacing="9" VerticalOptions="Center">
-                        <Grid ColumnDefinitions="*,128" ColumnSpacing="12">
-                            <VerticalStackLayout Spacing="2">
-                                <Label Style="{StaticResource FieldCaption}" Text="Camera" />
-                                <Picker ItemsSource="{Binding CameraChoices}" SelectedItem="{Binding SelectedCamera}" Title="Select camera" />
-                            </VerticalStackLayout>
-                            <VerticalStackLayout Grid.Column="1" Spacing="2">
-                                <Grid ColumnDefinitions="*,Auto"><Label Style="{StaticResource FieldCaption}" Text="Zoom" /><Label Grid.Column="1" FontAttributes="Bold" Text="{Binding ZoomLabel}" TextColor="{DynamicResource Primary}" /></Grid>
-                                <Slider Maximum="4" Minimum="1" Value="{Binding Zoom}" />
-                            </VerticalStackLayout>
-                        </Grid>
-                        <Entry
-                            AutomationId="network_stream_url_landscape"
-                            ClearButtonVisibility="WhileEditing"
-                            IsVisible="{Binding ShowNetworkStreamUrl}"
-                            Keyboard="Url"
-                            Placeholder="OME LL-HLS .m3u8 URL"
-                            Text="{Binding NetworkStreamUrl}" />
+                    <ScrollView Grid.Column="1">
+                    <VerticalStackLayout Spacing="9" VerticalOptions="Center">
+                        <controls:DriveInputSelector />
                         <Button
                             AutomationId="start_drive_landscape_button"
                             Command="{Binding ToggleDriveCommand}"
@@ -158,6 +127,7 @@
                             <Label FontSize="11" HorizontalTextAlignment="Center" MaxLines="1" Text="{Binding Status}" TextColor="{Binding StatusColor}" VerticalOptions="Center" />
                         </HorizontalStackLayout>
                     </VerticalStackLayout>
+                    </ScrollView>
                     </Grid>
                 </Grid>
             </Border>
@@ -171,7 +141,7 @@
                     IsVisible="{Binding ShowRecognitionStatistics, Source={RelativeSource AncestorType={x:Type vm:DriveViewModel}}}"
                     MaximumWidthRequest="900"
                     VerticalOptions="End" />
-                <Border Grid.Column="1" HorizontalOptions="End" Style="{StaticResource DriveControlCard}" VerticalOptions="Start">
+                <Border Grid.Column="1" HorizontalOptions="End" IsVisible="{Binding IsSingleCamera}" Style="{StaticResource DriveControlCard}" VerticalOptions="Start">
                     <HorizontalStackLayout Spacing="14">
                         <Picker ItemsSource="{Binding CameraChoices}" SelectedItem="{Binding SelectedCamera}" Title="Camera" WidthRequest="205" />
                         <VerticalStackLayout Spacing="0" WidthRequest="180">
