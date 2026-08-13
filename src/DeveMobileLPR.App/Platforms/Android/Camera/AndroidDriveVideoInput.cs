@@ -24,6 +24,8 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
     private string _selectedCameraId = DriveInputIds.RearCamera;
     private bool _running;
     private bool _disposed;
+    private DriveZoomState _zoomState = DriveZoomState.Pending(1f);
+    private float _requestedZoomRatio = 1f;
 
     public AndroidDriveVideoInput(
         Context context,
@@ -63,9 +65,11 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
         _camera.Diagnostic += ChildDiagnostic;
         _camera.CameraChoicesChanged += ChildCameraChoicesChanged;
         _camera.SourceFramesAvailable += ChildSourceFramesAvailable;
+        _camera.ZoomStateChanged += ChildCameraZoomStateChanged;
         _uvc.Diagnostic += ChildDiagnostic;
         _uvc.CameraChoicesChanged += ChildUvcCameraChoicesChanged;
         _uvc.SourceFramesAvailable += ChildSourceFramesAvailable;
+        _uvc.ZoomStateChanged += ChildUvcZoomStateChanged;
         _network.Diagnostic += ChildDiagnostic;
         _network.SourceFramesAvailable += ChildSourceFramesAvailable;
         _network.PreviewFramesPresented += ChildPreviewFramesPresented;
@@ -76,6 +80,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
     public event EventHandler<IReadOnlyList<CameraChoice>>? CameraChoicesChanged;
     public event EventHandler<DriveFrameCountEventArgs>? SourceFramesAvailable;
     public event EventHandler<DriveFrameCountEventArgs>? PreviewFramesPresented;
+    public event EventHandler<DriveZoomState>? ZoomStateChanged;
 
     public IReadOnlyList<CameraChoice> CameraChoices => _cameraChoices;
     public string SelectedCameraId => _selectedCameraId;
@@ -87,6 +92,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
         _ => true
     };
     public bool SupportsNetworkStreams => true;
+    public DriveZoomState ZoomState => _zoomState;
 
     public async Task InitializeAsync(string preferredCameraId, CancellationToken cancellationToken = default)
     {
@@ -200,6 +206,8 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
             _camera.SelectCamera(cameraId);
         }
         await MainThread.InvokeOnMainThreadAsync(ApplyPreviewVisibility);
+        ApplyRequestedZoom();
+        PublishSelectedZoomState();
 
         if (!restart)
         {
@@ -222,6 +230,8 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
                 _camera.SelectCamera(previousCameraId);
             }
             await MainThread.InvokeOnMainThreadAsync(ApplyPreviewVisibility);
+            ApplyRequestedZoom();
+            PublishSelectedZoomState();
             try
             {
                 await StartSelectedAsync(CancellationToken.None).ConfigureAwait(false);
@@ -240,13 +250,23 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
 
     public void SetZoom(float zoomRatio)
     {
+        _requestedZoomRatio = Math.Clamp(zoomRatio, 1f, 4f);
+        ApplyRequestedZoom();
+    }
+
+    private void ApplyRequestedZoom()
+    {
         if (DriveInputIds.IsUsbUvcCamera(_selectedCameraId))
         {
-            _uvc.SetZoom(zoomRatio);
+            _uvc.SetZoom(_requestedZoomRatio);
         }
         else if (_selectedCameraId != DriveInputIds.NetworkLlHls)
         {
-            _camera.SetZoom(zoomRatio);
+            _camera.SetZoom(_requestedZoomRatio);
+        }
+        else
+        {
+            SetZoomState(DriveZoomState.Unavailable(_requestedZoomRatio));
         }
     }
 
@@ -317,6 +337,34 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
                 || message.Contains("failed", StringComparison.OrdinalIgnoreCase)));
     private void ChildSourceFramesAvailable(object? sender, DriveFrameCountEventArgs args) => SourceFramesAvailable?.Invoke(this, args);
     private void ChildPreviewFramesPresented(object? sender, DriveFrameCountEventArgs args) => PreviewFramesPresented?.Invoke(this, args);
+    private void ChildCameraZoomStateChanged(object? sender, DriveZoomState state)
+    {
+        if (!DriveInputIds.IsUsbUvcCamera(_selectedCameraId)
+            && _selectedCameraId != DriveInputIds.NetworkLlHls)
+        {
+            SetZoomState(state);
+        }
+    }
+    private void ChildUvcZoomStateChanged(object? sender, DriveZoomState state)
+    {
+        if (DriveInputIds.IsUsbUvcCamera(_selectedCameraId)) SetZoomState(state);
+    }
+
+    private void PublishSelectedZoomState()
+    {
+        SetZoomState(_selectedCameraId switch
+        {
+            DriveInputIds.NetworkLlHls => DriveZoomState.Unavailable(_requestedZoomRatio),
+            var cameraId when DriveInputIds.IsUsbUvcCamera(cameraId) => _uvc.ZoomState,
+            _ => _camera.ZoomState
+        });
+    }
+
+    private void SetZoomState(DriveZoomState state)
+    {
+        _zoomState = state;
+        ZoomStateChanged?.Invoke(this, state);
+    }
 
     private void ChildCameraChoicesChanged(object? sender, IReadOnlyList<CameraChoice> choices)
     {
@@ -335,6 +383,8 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
             && !_cameraChoices.Any(choice => choice.Id == _selectedCameraId))
         {
             _selectedCameraId = _cameraChoices[0].Id;
+            ApplyRequestedZoom();
+            PublishSelectedZoomState();
             MainThread.BeginInvokeOnMainThread(ApplyPreviewVisibility);
         }
         CameraChoicesChanged?.Invoke(this, _cameraChoices);
@@ -392,9 +442,11 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
             _camera.Diagnostic -= ChildDiagnostic;
             _camera.CameraChoicesChanged -= ChildCameraChoicesChanged;
             _camera.SourceFramesAvailable -= ChildSourceFramesAvailable;
+            _camera.ZoomStateChanged -= ChildCameraZoomStateChanged;
             _uvc.Diagnostic -= ChildDiagnostic;
             _uvc.CameraChoicesChanged -= ChildUvcCameraChoicesChanged;
             _uvc.SourceFramesAvailable -= ChildSourceFramesAvailable;
+            _uvc.ZoomStateChanged -= ChildUvcZoomStateChanged;
             _network.Diagnostic -= ChildDiagnostic;
             _network.SourceFramesAvailable -= ChildSourceFramesAvailable;
             _network.PreviewFramesPresented -= ChildPreviewFramesPresented;

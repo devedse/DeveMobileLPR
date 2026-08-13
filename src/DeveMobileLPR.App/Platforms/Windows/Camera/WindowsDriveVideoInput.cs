@@ -21,6 +21,8 @@ internal sealed class WindowsDriveVideoInput : IDriveVideoInput
     private bool _disposed;
     private int _previewDeactivated;
     private long _sequence;
+    private float _requestedZoomRatio = 1f;
+    private DriveZoomState _zoomState = DriveZoomState.Pending(1f);
 
     public WindowsDriveVideoInput(
         MediaPlayerElement webcamPreview,
@@ -46,6 +48,7 @@ internal sealed class WindowsDriveVideoInput : IDriveVideoInput
             NextSequence);
         _webcam.Diagnostic += ChildDiagnostic;
         _webcam.SourceFramesAvailable += ChildSourceFramesAvailable;
+        _webcam.ZoomStateChanged += ChildZoomStateChanged;
         _network.Diagnostic += ChildDiagnostic;
         _network.SourceFramesAvailable += ChildSourceFramesAvailable;
         _network.PreviewFramesPresented += ChildPreviewFramesPresented;
@@ -55,11 +58,13 @@ internal sealed class WindowsDriveVideoInput : IDriveVideoInput
     public event EventHandler<IReadOnlyList<CameraChoice>>? CameraChoicesChanged;
     public event EventHandler<DriveFrameCountEventArgs>? SourceFramesAvailable;
     public event EventHandler<DriveFrameCountEventArgs>? PreviewFramesPresented;
+    public event EventHandler<DriveZoomState>? ZoomStateChanged;
 
     public IReadOnlyList<CameraChoice> CameraChoices => _cameraChoices;
     public string SelectedCameraId => _selectedCameraId;
     public bool ReportsPreviewFrames => _selectedCameraId == DriveInputIds.NetworkLlHls;
     public bool SupportsNetworkStreams => true;
+    public DriveZoomState ZoomState => _zoomState;
     public bool IsReady => _selectedCameraId == DriveInputIds.NetworkLlHls
         ? _network.IsReady
         : _webcam.IsReady;
@@ -136,7 +141,18 @@ internal sealed class WindowsDriveVideoInput : IDriveVideoInput
         }
     }
 
-    public void SetZoom(float zoomRatio) => _webcam.SetZoom(zoomRatio);
+    public void SetZoom(float zoomRatio)
+    {
+        _requestedZoomRatio = Math.Clamp(zoomRatio, 1f, 4f);
+        if (_selectedCameraId == DriveInputIds.NetworkLlHls)
+        {
+            SetZoomState(DriveZoomState.Unavailable(_requestedZoomRatio));
+        }
+        else
+        {
+            _webcam.SetZoom(_requestedZoomRatio);
+        }
+    }
 
     public void SetNetworkStreamUrl(string value)
     {
@@ -174,6 +190,7 @@ internal sealed class WindowsDriveVideoInput : IDriveVideoInput
             await _webcam.ResetAsync();
             _selectedCameraId = DriveInputIds.NetworkLlHls;
             ApplyPreviewVisibility();
+            SetZoomState(DriveZoomState.Unavailable(_requestedZoomRatio));
             Diagnostic?.Invoke(this, new DriveInputDiagnostic(_network.ReadinessMessage));
             return;
         }
@@ -181,6 +198,8 @@ internal sealed class WindowsDriveVideoInput : IDriveVideoInput
         await _webcam.InitializeAsync(preferredCameraId, cancellationToken);
         _selectedCameraId = _webcam.SelectedCameraId;
         ApplyPreviewVisibility();
+        _webcam.SetZoom(_requestedZoomRatio);
+        SetZoomState(_webcam.ZoomState);
     }
 
     private Task StartSelectedAsync(CancellationToken cancellationToken) =>
@@ -215,6 +234,17 @@ internal sealed class WindowsDriveVideoInput : IDriveVideoInput
     private void ChildPreviewFramesPresented(object? sender, DriveFrameCountEventArgs args) =>
         PreviewFramesPresented?.Invoke(this, args);
 
+    private void ChildZoomStateChanged(object? sender, DriveZoomState state)
+    {
+        if (_selectedCameraId != DriveInputIds.NetworkLlHls) SetZoomState(state);
+    }
+
+    private void SetZoomState(DriveZoomState state)
+    {
+        _zoomState = state;
+        ZoomStateChanged?.Invoke(this, state);
+    }
+
     private void ThrowIfUnavailable() => ObjectDisposedException.ThrowIf(
         _disposed || Volatile.Read(ref _previewDeactivated) != 0,
         this);
@@ -240,6 +270,7 @@ internal sealed class WindowsDriveVideoInput : IDriveVideoInput
 
         _webcam.Diagnostic -= ChildDiagnostic;
         _webcam.SourceFramesAvailable -= ChildSourceFramesAvailable;
+        _webcam.ZoomStateChanged -= ChildZoomStateChanged;
         _network.Diagnostic -= ChildDiagnostic;
         _network.SourceFramesAvailable -= ChildSourceFramesAvailable;
         _network.PreviewFramesPresented -= ChildPreviewFramesPresented;

@@ -40,6 +40,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
     private bool _hasError;
     private DriveDiagnosticsSnapshot _diagnostics = DriveDiagnosticsSnapshot.Empty;
     private IReadOnlyList<CameraChoice> _cameraChoices = [new(DriveInputIds.RearCamera, "Rear cameras · automatic lens")];
+    private DriveZoomState _zoomState = DriveZoomState.Pending(1f);
     public DriveCoordinator(
         ISightingRepository repository,
         IVehicleImageStore vehicleImageStore,
@@ -143,9 +144,11 @@ public sealed class DriveCoordinator : IAsyncDisposable
         _camera = camera;
         camera.Diagnostic += CameraDiagnostic;
         camera.CameraChoicesChanged += CameraChoicesChanged;
+        camera.ZoomStateChanged += CameraZoomStateChanged;
         camera.SourceFramesAvailable += SourceFramesAvailable;
         camera.PreviewFramesPresented += PreviewFramesPresented;
         _cameraChoices = camera.CameraChoices;
+        _zoomState = camera.ZoomState;
         camera.SetNetworkStreamUrl(_settings.NetworkStreamUrl);
         _cameraInitialization = InitializeCameraAsync(camera, _settings.CameraId);
         camera.SetZoom(_settings.Zoom);
@@ -156,6 +159,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
     {
         camera.Diagnostic -= CameraDiagnostic;
         camera.CameraChoicesChanged -= CameraChoicesChanged;
+        camera.ZoomStateChanged -= CameraZoomStateChanged;
         camera.SourceFramesAvailable -= SourceFramesAvailable;
         camera.PreviewFramesPresented -= PreviewFramesPresented;
         if (ReferenceEquals(_camera, camera))
@@ -633,6 +637,11 @@ public sealed class DriveCoordinator : IAsyncDisposable
         lock (_stateGate) _cameraChoices = choices.ToArray();
         Publish();
     }
+    private void CameraZoomStateChanged(object? sender, DriveZoomState state)
+    {
+        lock (_stateGate) _zoomState = state;
+        Publish();
+    }
     private void SetStatus(string message) => SetStatus(message, false);
     private void SetStatus(string message, bool error)
     {
@@ -671,7 +680,8 @@ public sealed class DriveCoordinator : IAsyncDisposable
         _camera?.SelectedCameraId ?? _settings.CameraId,
         _settings.TrackingDiagnosticsEnabled,
         _settings.RecognitionStatisticsEnabled,
-        _settings.ShowRoadGuide);
+        _settings.ShowRoadGuide,
+        _zoomState);
 
     /// <summary>
     /// Confirmed plates are composed in at snapshot time rather than stored alongside the live

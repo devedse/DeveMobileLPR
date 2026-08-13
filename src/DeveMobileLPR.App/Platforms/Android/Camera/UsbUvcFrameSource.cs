@@ -25,7 +25,10 @@ internal sealed class UsbUvcFrameSource : Java.Lang.Object, IDriveFrameSourceTel
     private float _zoomRatio = 1f;
     private float _appliedHardwareZoomRatio = 1f;
     private int _zoomCapabilityKnown;
+    private int _hardwareZoomSupported;
+    private float _maximumHardwareZoomRatio = 1f;
     private int _zoomCapabilityReported;
+    private DriveZoomState _zoomState = DriveZoomState.Pending(1f);
     private volatile bool _running;
     private bool _disposed;
 
@@ -50,6 +53,7 @@ internal sealed class UsbUvcFrameSource : Java.Lang.Object, IDriveFrameSourceTel
 
     public event EventHandler<string>? Diagnostic;
     public event EventHandler<IReadOnlyList<CameraChoice>>? CameraChoicesChanged;
+    public event EventHandler<DriveZoomState>? ZoomStateChanged;
     public event EventHandler<DriveFrameCountEventArgs>? SourceFramesAvailable;
     public event EventHandler<DriveFrameCountEventArgs>? PreviewFramesPresented
     {
@@ -60,6 +64,7 @@ internal sealed class UsbUvcFrameSource : Java.Lang.Object, IDriveFrameSourceTel
     public IReadOnlyList<CameraChoice> CameraChoices => _cameraChoices;
     public bool ReportsPreviewFrames => false;
     public bool IsReady => _cameraChoices.Count > 0;
+    public DriveZoomState ZoomState => _zoomState;
 
     public void SelectCamera(string cameraId)
     {
@@ -69,12 +74,18 @@ internal sealed class UsbUvcFrameSource : Java.Lang.Object, IDriveFrameSourceTel
             throw new ArgumentException("The selected USB/UVC camera is no longer connected.", nameof(cameraId));
         }
         _selectedCameraId = cameraId;
+        Volatile.Write(ref _appliedHardwareZoomRatio, 1f);
+        Volatile.Write(ref _zoomCapabilityKnown, 0);
+        Volatile.Write(ref _hardwareZoomSupported, 0);
+        Volatile.Write(ref _maximumHardwareZoomRatio, 1f);
+        SetZoomState(DriveZoomState.Pending(Volatile.Read(ref _zoomRatio)));
     }
 
     public void SetZoom(float zoomRatio)
     {
         var zoom = Math.Clamp(zoomRatio, 1f, 4f);
         Volatile.Write(ref _zoomRatio, zoom);
+        UpdateZoomState();
         MainThread.BeginInvokeOnMainThread(() =>
         {
             _bridge.SetZoom(zoom);
@@ -93,7 +104,10 @@ internal sealed class UsbUvcFrameSource : Java.Lang.Object, IDriveFrameSourceTel
         _recognitionFrameGate.Reset();
         Volatile.Write(ref _appliedHardwareZoomRatio, 1f);
         Volatile.Write(ref _zoomCapabilityKnown, 0);
+        Volatile.Write(ref _hardwareZoomSupported, 0);
+        Volatile.Write(ref _maximumHardwareZoomRatio, 1f);
         Volatile.Write(ref _zoomCapabilityReported, 0);
+        SetZoomState(DriveZoomState.Pending(Volatile.Read(ref _zoomRatio)));
         MainThread.BeginInvokeOnMainThread(() => _preview.SetZoom(1f));
         _opened = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _running = true;
@@ -215,6 +229,9 @@ internal sealed class UsbUvcFrameSource : Java.Lang.Object, IDriveFrameSourceTel
     {
         Volatile.Write(ref _appliedHardwareZoomRatio, hardwareSupported ? Math.Max(1f, appliedZoomRatio) : 1f);
         Volatile.Write(ref _zoomCapabilityKnown, 1);
+        Volatile.Write(ref _hardwareZoomSupported, hardwareSupported ? 1 : 0);
+        Volatile.Write(ref _maximumHardwareZoomRatio, Math.Max(1f, maximumZoomRatio));
+        UpdateZoomState();
         MainThread.BeginInvokeOnMainThread(() => _preview.SetZoom(GetDigitalZoomRatio()));
 
         if (Interlocked.Exchange(ref _zoomCapabilityReported, 1) == 0)
@@ -293,6 +310,35 @@ internal sealed class UsbUvcFrameSource : Java.Lang.Object, IDriveFrameSourceTel
         var requested = Volatile.Read(ref _zoomRatio);
         var hardware = Math.Max(1f, Volatile.Read(ref _appliedHardwareZoomRatio));
         return Math.Clamp(requested / hardware, 1f, 4f);
+    }
+
+    private void UpdateZoomState()
+    {
+        var requested = Volatile.Read(ref _zoomRatio);
+        if (Volatile.Read(ref _zoomCapabilityKnown) == 0)
+        {
+            SetZoomState(DriveZoomState.Pending(requested));
+            return;
+        }
+
+        var hardware = Math.Max(1f, Volatile.Read(ref _appliedHardwareZoomRatio));
+        var digital = Math.Clamp(requested / hardware, 1f, 4f);
+        var hasHardwareZoom = Volatile.Read(ref _hardwareZoomSupported) != 0;
+        var kind = hasHardwareZoom
+            ? digital > 1.001f ? DriveZoomKind.Hybrid : DriveZoomKind.Optical
+            : DriveZoomKind.Digital;
+        SetZoomState(new DriveZoomState(
+            kind,
+            requested,
+            hardware,
+            digital,
+            hasHardwareZoom ? Volatile.Read(ref _maximumHardwareZoomRatio) : null));
+    }
+
+    private void SetZoomState(DriveZoomState state)
+    {
+        _zoomState = state;
+        ZoomStateChanged?.Invoke(this, state);
     }
 
     private static void GetCenterCrop(

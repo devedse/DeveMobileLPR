@@ -50,6 +50,7 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
     private int _targetRotation = -1;
     private int _zoomRequestVersion;
     private float _requestedZoomRatio = 1f;
+    private DriveZoomState _zoomState = DriveZoomState.Pending(1f);
     private string _selectedCameraId = DriveInputIds.RearCamera;
     private IReadOnlyList<CameraChoice> _cameraChoices = [new(DriveInputIds.RearCamera, "Rear cameras · automatic lens")];
 
@@ -72,6 +73,7 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
 
     public event EventHandler<string>? Diagnostic;
     public event EventHandler<IReadOnlyList<CameraChoice>>? CameraChoicesChanged;
+    public event EventHandler<DriveZoomState>? ZoomStateChanged;
     public event EventHandler<DriveFrameCountEventArgs>? SourceFramesAvailable;
     public event EventHandler<DriveFrameCountEventArgs>? PreviewFramesPresented
     {
@@ -81,6 +83,7 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
     public bool ReportsPreviewFrames => false;
     public IReadOnlyList<CameraChoice> CameraChoices => _cameraChoices;
     public string SelectedCameraId => _selectedCameraId;
+    public DriveZoomState ZoomState => _zoomState;
 
     /// <summary>
     /// Discovers available lenses without binding preview or analysis use cases.
@@ -187,7 +190,9 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
 
     public void SetZoom(float zoomRatio)
     {
-        Volatile.Write(ref _requestedZoomRatio, Math.Max(1f, zoomRatio));
+        var requested = Math.Max(1f, zoomRatio);
+        Volatile.Write(ref _requestedZoomRatio, requested);
+        SetZoomState(DriveZoomState.Pending(requested));
         var requestVersion = Interlocked.Increment(ref _zoomRequestVersion);
         if (_running)
         {
@@ -227,6 +232,7 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
             else
             {
                 ReportDiagnostic("Camera zoom is unavailable for the selected camera.");
+                SetZoomState(DriveZoomState.Unavailable(Volatile.Read(ref _requestedZoomRatio)));
             }
             return;
         }
@@ -246,12 +252,20 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
             {
                 future.Get();
                 var applied = GetZoomState(camera);
+                var appliedRatio = applied?.ZoomRatio ?? target;
+                SetZoomState(new DriveZoomState(
+                    DriveZoomKind.CameraManaged,
+                    requested,
+                    appliedRatio,
+                    1f,
+                    state.MaxZoomRatio));
                 ReportDiagnostic(
-                    $"Camera zoom applied: {applied?.ZoomRatio ?? target:0.0}× " +
+                    $"Camera zoom applied: {appliedRatio:0.0}× " +
                     $"(requested {requested:0.0}×; supported {state.MinZoomRatio:0.0}–{state.MaxZoomRatio:0.0}×).");
             }
             catch (Exception exception)
             {
+                SetZoomState(DriveZoomState.Unavailable(requested));
                 ReportDiagnostic($"Camera zoom failed: {exception.GetBaseException().Message}");
             }
         }), ContextCompat.GetMainExecutor(_context));
@@ -266,6 +280,12 @@ internal sealed class CameraXFrameSource : Java.Lang.Object, ImageAnalysis.IAnal
         }
 
         return value?.JavaCast<IZoomState>();
+    }
+
+    private void SetZoomState(DriveZoomState state)
+    {
+        _zoomState = state;
+        ZoomStateChanged?.Invoke(this, state);
     }
 
     private void BindCamera(ProcessCameraProvider provider)

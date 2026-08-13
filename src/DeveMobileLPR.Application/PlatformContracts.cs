@@ -58,15 +58,42 @@ public interface IRecognitionPipelineProvider
 
 public sealed record DriveInputDiagnostic(string Message, bool IsError = false);
 
+/// <summary>Platform-neutral description of how the requested field of view is being produced.</summary>
+public enum DriveZoomKind
+{
+    Unavailable,
+    Pending,
+    CameraManaged,
+    Optical,
+    Digital,
+    Hybrid
+}
+
+public sealed record DriveZoomState(
+    DriveZoomKind Kind,
+    float RequestedRatio,
+    float CameraRatio,
+    float DigitalRatio,
+    float? MaximumCameraRatio = null)
+{
+    public static DriveZoomState Unavailable(float requestedRatio = 1f) =>
+        new(DriveZoomKind.Unavailable, requestedRatio, 1f, 1f);
+
+    public static DriveZoomState Pending(float requestedRatio) =>
+        new(DriveZoomKind.Pending, requestedRatio, 1f, 1f);
+}
+
 public interface IDriveVideoInput : IDriveFrameSourceTelemetry, IAsyncDisposable
 {
     event EventHandler<DriveInputDiagnostic>? Diagnostic;
     event EventHandler<IReadOnlyList<CameraChoice>>? CameraChoicesChanged;
+    event EventHandler<DriveZoomState>? ZoomStateChanged;
 
     IReadOnlyList<CameraChoice> CameraChoices { get; }
     string SelectedCameraId { get; }
     bool IsReady { get; }
     bool SupportsNetworkStreams { get; }
+    DriveZoomState ZoomState { get; }
 
     Task InitializeAsync(string preferredCameraId, CancellationToken cancellationToken = default);
     Task StartAsync(CancellationToken cancellationToken = default);
