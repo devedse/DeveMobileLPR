@@ -165,8 +165,8 @@ internal sealed class DualCameraPreviewHandler : ViewHandler<DualCameraPreview, 
 
                 var cameraId = cameraIds[cameraIndex];
                 var frame = new FrameLayout(context);
+                frame.SetBackgroundColor(Color.Black);
                 var texture = new TextureView(context);
-                texture.SetBackgroundColor(Color.Black);
                 frame.AddView(texture, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.MatchParent));
 
