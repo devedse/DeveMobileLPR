@@ -135,6 +135,11 @@
                             Description="Shows the processing statistics panel on the left side of the Drive screen."
                             IsToggled="{Binding RecognitionStatisticsEnabled}"
                             Title="Drive processing statistics" />
+                        <BoxView Style="{StaticResource DividerLine}" />
+                        <controls:SettingsToggleRow
+                            Description="Shows recent camera and recognition events over the live Drive view. Persistent logs are always recorded and remain available under App logs."
+                            IsToggled="{Binding ShowDriveEventLog}"
+                            Title="Live drive event log" />
                     </VerticalStackLayout>
                 </Border>
                 <Border FlexLayout.Basis="320" FlexLayout.Grow="1" Margin="0,0,0,16" Style="{StaticResource Card}">

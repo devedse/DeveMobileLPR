@@ -22,6 +22,7 @@
   </VerticalStackLayout>
   <VerticalStackLayout x:Name="MultiPanel" IsVisible="{Binding IsMultiCamera}" Opacity="1" Spacing="10">
    <Border BackgroundColor="#332815" Padding="10" Stroke="#F5C542" StrokeThickness="1"><Label FontSize="12" Text="{Binding MultiCameraWarning}" TextColor="#FFD96A" /></Border>
+   <Border Padding="10" Style="{StaticResource DriveControlCard}"><Label FontSize="11" Text="Crop enlarges a smaller part of the camera stream and normally loses detail. Prefer a dedicated cropped sensor mode when available: on Pixel phones it can read the high-resolution sensor centre directly and retain substantially more detail." TextColor="{DynamicResource TextSecondary}" /></Border>
    <VerticalStackLayout BindableLayout.ItemsSource="{Binding MultiSources}" Spacing="8">
     <BindableLayout.ItemTemplate>
      <DataTemplate x:DataType="vm:DriveSourceOptionViewModel">
@@ -30,7 +31,7 @@
         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10"><Switch IsToggled="{Binding IsEnabled}" VerticalOptions="Center" /><VerticalStackLayout Grid.Column="1" Spacing="1"><Label FontAttributes="Bold" Text="{Binding Name}" /><Label FontSize="10" LineBreakMode="TailTruncation" MaxLines="2" Text="{Binding Metadata}" TextColor="{DynamicResource TextSecondary}" /></VerticalStackLayout></Grid>
         <Grid ColumnDefinitions="*,150" ColumnSpacing="12">
          <VerticalStackLayout Spacing="3"><Label Style="{StaticResource FieldCaption}" Text="Resolution" /><Picker ItemsSource="{Binding Resolutions}" SelectedItem="{Binding SelectedResolution}" /></VerticalStackLayout>
-         <VerticalStackLayout Grid.Column="1" IsVisible="{Binding IsIntegratedCamera}" Spacing="3"><Grid ColumnDefinitions="*,Auto"><Label Style="{StaticResource FieldCaption}" Text="Zoom" /><Label Grid.Column="1" FontAttributes="Bold" Text="{Binding ZoomLabel}" TextColor="{DynamicResource Primary}" /></Grid><Slider Maximum="{Binding MaximumZoom}" Minimum="{Binding MinimumZoom}" Value="{Binding Zoom}" /></VerticalStackLayout>
+         <VerticalStackLayout Grid.Column="1" IsVisible="{Binding IsIntegratedCamera}" Spacing="3"><Grid ColumnDefinitions="*,Auto"><Label Style="{StaticResource FieldCaption}" Text="Crop" /><Label Grid.Column="1" FontAttributes="Bold" Text="{Binding CropLabel}" TextColor="{DynamicResource Primary}" /></Grid><Slider Maximum="{Binding MaximumCrop}" Minimum="1" Value="{Binding Crop}" /></VerticalStackLayout>
         </Grid>
         <Entry ClearButtonVisibility="WhileEditing" IsVisible="{Binding IsNetwork}" Keyboard="Url" Placeholder="LL-HLS .m3u8 URL" Text="{Binding NetworkUrl}" />
        </VerticalStackLayout>

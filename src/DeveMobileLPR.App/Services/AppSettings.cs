@@ -15,6 +15,7 @@ internal sealed class AppSettings : IDriveSettings
     private const string RecognitionFramesPerSecondKey = "recognition_frames_per_second";
     private const string RecognitionDebugKey = "recognition_debug";
     private const string RecognitionStatisticsKey = "recognition_statistics";
+    private const string ShowDriveEventLogKey = "show_drive_event_log";
     private const string ContinueScanningInBackgroundKey = "continue_scanning_in_background";
     private const string InputConfigurationKey = "drive_input_configuration_v1";
     private const int DefaultRecognitionFramesPerSecond = 4;
@@ -61,8 +62,8 @@ internal sealed class AppSettings : IDriveSettings
 
     public float Zoom
     {
-        get => Math.Clamp(Preferences.Default.Get(ZoomKey, 1f), 1f, 4f);
-        set => Preferences.Default.Set(ZoomKey, Math.Clamp(value, 1f, 4f));
+        get => Math.Clamp(Preferences.Default.Get(ZoomKey, 1f), 1f, 5f);
+        set => Preferences.Default.Set(ZoomKey, Math.Clamp(value, 1f, 5f));
     }
 
     public string CameraId
@@ -100,6 +101,12 @@ internal sealed class AppSettings : IDriveSettings
             return Preferences.Default.Get(RecognitionStatisticsKey, false);
         }
         set => Preferences.Default.Set(RecognitionStatisticsKey, value);
+    }
+
+    public bool ShowDriveEventLog
+    {
+        get => Preferences.Default.Get(ShowDriveEventLogKey, false);
+        set => Preferences.Default.Set(ShowDriveEventLogKey, value);
     }
 
     public bool ContinueScanningInBackground

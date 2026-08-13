@@ -89,8 +89,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
     public async Task InitializeAsync(string preferredCameraId, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        _sourceCapabilities = await new AndroidDriveSourceCatalog(_context)
-            .DiscoverAsync(cancellationToken)
+        _sourceCapabilities = await _sourceCatalog.DiscoverAsync(cancellationToken)
             .ConfigureAwait(false);
         _cameraChoices = _sourceCapabilities
             .Where(source => source.Id is "rear" or "front" || source.Kind == DriveSourceKind.NetworkLlHls)
@@ -425,7 +424,12 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
             return profile with
             {
                 Resolution = resolution,
-                Zoom = Math.Clamp(profile.Zoom, capability.MinimumZoom, capability.MaximumZoom),
+                Zoom = Math.Clamp(
+                    profile.Zoom,
+                    capability.MinimumZoom,
+                    configuration.Mode == DriveInputMode.Multi && capability.IsIntegratedCamera
+                        ? Math.Min(4f, capability.MaximumZoom)
+                        : capability.MaximumZoom),
                 NetworkUrl = profile.NetworkUrl?.Trim()
             };
         }).ToArray();

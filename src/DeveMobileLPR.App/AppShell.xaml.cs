@@ -12,7 +12,7 @@ public partial class AppShell : Shell
         {
             Items =
             {
-                Tab("Drive", "drive.svg", () => services.GetRequiredService<DrivePage>()),
+                Tab("Drive", "drive.svg", () => services.GetRequiredService<DriveSetupPage>()),
                 Tab("Analyze", "analyze.svg", () => services.GetRequiredService<AnalyzePage>()),
                 Tab("History", "history.svg", () => services.GetRequiredService<HistoryPage>()),
                 Tab("Settings", "settings.svg", () => services.GetRequiredService<SettingsPage>())

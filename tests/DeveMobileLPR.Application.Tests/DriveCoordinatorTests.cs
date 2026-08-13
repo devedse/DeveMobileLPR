@@ -540,6 +540,7 @@ public sealed class DriveCoordinatorTests
         public int RecognitionFramesPerSecond { get; set; } = 2;
         public bool TrackingDiagnosticsEnabled { get; set; }
         public bool RecognitionStatisticsEnabled { get; set; }
+        public bool ShowDriveEventLog { get; set; }
         public bool ShowRoadGuide { get; set; }
         public string NetworkStreamUrl { get; set; } = string.Empty;
         public DriveInputConfiguration InputConfiguration { get; set; } = DriveInputConfiguration.Default;

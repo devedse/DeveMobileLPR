@@ -12,6 +12,8 @@ namespace DeveMobileLPR.App.Platforms.Android.Camera;
 
 internal sealed class AndroidDriveSourceCatalog(Context context) : IDriveSourceCatalog
 {
+    private const float LogicalRearMaximumZoom = 5f;
+
     private readonly CameraManager _manager = context.GetSystemService(Context.CameraService) as CameraManager
         ?? throw new InvalidOperationException("Android returned no CameraManager.");
 
@@ -47,7 +49,9 @@ internal sealed class AndroidDriveSourceCatalog(Context context) : IDriveSourceC
                 ReadSizeF(characteristics)?.Width,
                 ReadSizeF(characteristics)?.Height,
                 1f,
-                Math.Max(1f, zoomMaximum),
+                isBack
+                    ? Math.Clamp(zoomMaximum, 1f, LogicalRearMaximumZoom)
+                    : Math.Max(1f, zoomMaximum),
                 resolutions,
                 isFront ? InferredLensRole.Front : InferredLensRole.Unknown));
 

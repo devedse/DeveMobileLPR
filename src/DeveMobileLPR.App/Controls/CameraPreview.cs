@@ -33,6 +33,13 @@ internal sealed class CameraPreview : View
         false,
         propertyChanged: static (bindable, _, _) => ((CameraPreview)bindable).OnPropertyChanged(nameof(ScaleMode)));
 
+    public static readonly BindableProperty IsMultiSourceProperty = BindableProperty.Create(
+        nameof(IsMultiSource),
+        typeof(bool),
+        typeof(CameraPreview),
+        false,
+        propertyChanged: static (bindable, _, _) => ((CameraPreview)bindable).OnPropertyChanged(nameof(ScaleMode)));
+
     public CameraPreview()
     {
         AutomationId = "drive_camera_preview";
@@ -57,6 +64,14 @@ internal sealed class CameraPreview : View
         set => SetValue(IsNetworkStreamProperty, value);
     }
 
+    public bool IsMultiSource
+    {
+        get => (bool)GetValue(IsMultiSourceProperty);
+        set => SetValue(IsMultiSourceProperty, value);
+    }
+
     /// <summary>The fit currently applied to the visible surface; bind an overlay's scale mode to this.</summary>
-    public AspectScaleMode ScaleMode => IsNetworkStream ? StreamScaleMode : CameraScaleMode;
+    public AspectScaleMode ScaleMode => IsNetworkStream || IsMultiSource
+        ? StreamScaleMode
+        : CameraScaleMode;
 }

@@ -13,34 +13,34 @@ public partial class DrivePage : ContentPage
         InitializeComponent();
         BindingContext = _viewModel = viewModel;
         _displayMode = displayMode;
-        _viewModel.DriveModeChanged += DriveModeChanged;
-        SizeChanged += PageSizeChanged;
     }
 
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        ApplyDriveMode(_viewModel.IsDriving);
+        _viewModel.DriveModeChanged += DriveModeChanged;
+        ApplyDriveMode(true);
         await _viewModel.InitializeAsync();
+        await _viewModel.StartDriveAsync();
+        if (!_viewModel.IsDriving && Navigation.ModalStack.Count > 0)
+        {
+            await Navigation.PopModalAsync();
+        }
     }
 
-    private void DriveModeChanged(object? sender, bool isDriving) => ApplyDriveMode(isDriving);
-
-    private void PageSizeChanged(object? sender, EventArgs args)
+    protected override void OnDisappearing()
     {
-        if (Width <= 0 || Height <= 0)
-        {
-            return;
-        }
+        _viewModel.DriveModeChanged -= DriveModeChanged;
+        base.OnDisappearing();
+    }
 
-        var compactLandscape = Width > Height;
-        ReadyPortraitContent.IsVisible = !compactLandscape;
-        ReadyLandscapeContent.IsVisible = compactLandscape;
-        ReadyPanel.MaximumWidthRequest = compactLandscape ? 900 : 570;
-        ReadyPanel.MaximumHeightRequest = Math.Max(320, Height - 120);
-        ReadyPanel.Padding = compactLandscape ? new Thickness(24, 16) : new Thickness(30);
-        ReadyPanel.VerticalOptions = LayoutOptions.Center;
-        ReadyPanel.Margin = compactLandscape ? new Thickness(26, 4) : Thickness.Zero;
+    private async void DriveModeChanged(object? sender, bool isDriving)
+    {
+        ApplyDriveMode(isDriving);
+        if (!isDriving && Navigation.ModalStack.Count > 0)
+        {
+            await Navigation.PopModalAsync();
+        }
     }
 
     private void DriveMiddleAreaSizeChanged(object? sender, EventArgs args)
@@ -55,5 +55,25 @@ public partial class DrivePage : ContentPage
     {
         Shell.SetTabBarIsVisible(this, !isDriving);
         _displayMode.Apply(isDriving);
+    }
+
+    protected override bool OnBackButtonPressed()
+    {
+        _ = StopAndCloseAsync();
+        return true;
+    }
+
+    private async Task StopAndCloseAsync()
+    {
+        if (_viewModel.IsDriving)
+        {
+            _viewModel.ToggleDriveCommand.Execute(null);
+            return;
+        }
+
+        if (Navigation.ModalStack.Count > 0)
+        {
+            await Navigation.PopModalAsync();
+        }
     }
 }

@@ -96,6 +96,7 @@ public sealed record DriveSnapshot(
     string SelectedCameraId,
     bool TrackingDiagnosticsEnabled,
     bool RecognitionStatisticsEnabled,
+    bool ShowDriveEventLog,
     bool ShowRoadGuide,
     IReadOnlyList<string>? EventLog = null,
     IReadOnlyList<string>? ActiveSourceIds = null);

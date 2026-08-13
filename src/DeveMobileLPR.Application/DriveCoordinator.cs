@@ -811,6 +811,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
         _camera?.SelectedCameraId ?? _settings.CameraId,
         _settings.TrackingDiagnosticsEnabled,
         _settings.RecognitionStatisticsEnabled,
+        _settings.ShowDriveEventLog,
         _settings.ShowRoadGuide,
         _eventLog.ToArray(),
         _settings.InputConfiguration.EnabledSources.Select(source => source.SourceId).ToArray());

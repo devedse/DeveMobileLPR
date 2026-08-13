@@ -222,6 +222,20 @@ internal sealed class SettingsViewModel : ViewModelBase
         }
     }
 
+    public bool ShowDriveEventLog
+    {
+        get => _settings.ShowDriveEventLog;
+        set
+        {
+            if (_settings.ShowDriveEventLog != value)
+            {
+                _settings.ShowDriveEventLog = value;
+                OnPropertyChanged();
+                _coordinator.RefreshSettings();
+            }
+        }
+    }
+
     public async Task RefreshAsync()
     {
         await _coordinator.InitializeAsync();

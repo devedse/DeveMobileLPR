@@ -479,18 +479,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         using var matrix = new Matrix();
         var centerX = width / 2f;
         var centerY = height / 2f;
-        if (rotationRequired)
-        {
-            matrix.SetScale(finalScale / scaleX, finalScale / scaleY, centerX, centerY);
-        }
-        else
-        {
-            matrix.SetScale(
-                height / (float)width / scaleY * finalScale,
-                width / (float)height / scaleX * finalScale,
-                centerX,
-                centerY);
-        }
+        matrix.SetScale(finalScale / scaleX, finalScale / scaleY, centerX, centerY);
         matrix.PostRotate(-displayDegrees, centerX, centerY);
         preview.SetTransform(matrix);
     }

@@ -9,6 +9,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
 {
     private readonly DriveCoordinator _coordinator;
     private readonly AppSettings _settings;
+    private readonly IDriveSourceCatalog _sourceCatalog;
     private readonly IBackgroundScanningManager _backgroundScanning;
     private readonly Dictionary<string, string> _cameraIds = new(StringComparer.Ordinal);
     private readonly Timer _durationTimer;
@@ -19,15 +20,16 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     private bool _isMultiCamera;
     private DriveSourceOptionViewModel? _selectedSingleSource;
     private string _inputConfigurationError = string.Empty;
-    private CancellationTokenSource? _inputConfigurationCancellation;
 
     public DriveViewModel(
         DriveCoordinator coordinator,
         AppSettings settings,
+        IDriveSourceCatalog sourceCatalog,
         IBackgroundScanningManager backgroundScanning)
     {
         _coordinator = coordinator;
         _settings = settings;
+        _sourceCatalog = sourceCatalog;
         _backgroundScanning = backgroundScanning;
         _snapshot = coordinator.Snapshot;
         _networkStreamUrl = settings.NetworkStreamUrl;
@@ -47,9 +49,8 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     public bool IsReady => _snapshot.IsReady;
     public bool IsDriving => _snapshot.IsDriving;
     public bool IsStopping => _snapshot.IsStopping;
-    public bool ShowStartPanel => !IsDriving && !IsStopping;
     public bool ShowDriveControls => IsDriving || IsStopping;
-    public bool CanStart => IsReady && !IsInitializing && _snapshot.IsInputReady && IsInputConfigurationValid;
+    public bool CanStart => IsReady && !IsInitializing && IsInputConfigurationValid;
     public bool ShowNetworkStreamUrl => _snapshot.SupportsNetworkStreams
         && _snapshot.SelectedCameraId == DriveInputIds.NetworkLlHls;
     public bool IsNetworkStreamPreview => _snapshot.SelectedCameraId == DriveInputIds.NetworkLlHls;
@@ -58,7 +59,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     public bool ShowRoadGuide => !IsMultiCamera && _snapshot.IsDriving && _snapshot.ShowRoadGuide;
     public string Status => _snapshot.Status;
     public string EventLog => string.Join(Environment.NewLine, (_snapshot.EventLog ?? []).TakeLast(6));
-    public bool HasEventLog => _snapshot.EventLog is { Count: > 0 };
+    public bool HasEventLog => _snapshot.ShowDriveEventLog && _snapshot.EventLog is { Count: > 0 };
     public Color StatusColor => _snapshot.HasError ? Color.FromArgb("#FF8D8D") : Color.FromArgb("#E8EDF5");
     public string StatusLabel => _snapshot.HasError ? "Attention" : IsDriving ? "Live" : IsReady ? "Ready" : "Loading";
     public Color StatusAccent => _snapshot.HasError ? Color.FromArgb("#FF6B6B") : IsDriving ? Color.FromArgb("#58E0C2") : Color.FromArgb("#F5C542");
@@ -89,6 +90,9 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
                 _settings.Zoom = (float)_zoom;
                 OnPropertyChanged(nameof(Zoom));
                 OnPropertyChanged(nameof(ZoomLabel));
+                OnPropertyChanged(nameof(ActiveZoomMinimum));
+                OnPropertyChanged(nameof(ActiveZoomMaximum));
+                OnPropertyChanged(nameof(ActiveCameraName));
                 OnPropertyChanged(nameof(SingleSourceIsNetwork));
                 QueueInputConfigurationUpdate();
             }
@@ -144,6 +148,9 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     }
 
     public string ZoomLabel => $"{Zoom:0.0}×";
+    public double ActiveZoomMinimum => SelectedSingleSource?.MinimumZoom ?? 1d;
+    public double ActiveZoomMaximum => SelectedSingleSource?.MaximumZoom ?? 5d;
+    public string ActiveCameraName => SelectedSingleSource?.Name ?? _selectedCamera ?? "Camera";
 
     public string NetworkStreamUrl
     {
@@ -177,13 +184,15 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
 
     private async Task InitializeInputSourcesAsync()
     {
-        for (var attempt = 0; attempt < 20 && _coordinator.SourceCapabilities.Count == 0; attempt++)
+        if (SingleSources.Count > 0)
         {
-            await Task.Delay(100);
+            return;
         }
 
-        if (SingleSources.Count > 0 || _coordinator.SourceCapabilities.Count == 0)
+        var capabilities = await _sourceCatalog.DiscoverAsync();
+        if (capabilities.Count == 0)
         {
+            InputConfigurationError = "No video sources are available.";
             return;
         }
 
@@ -216,12 +225,12 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
             return option;
         }
 
-        foreach (var capability in _coordinator.SourceCapabilities
+        foreach (var capability in capabilities
                      .Where(source => source.Kind is DriveSourceKind.LogicalCamera or DriveSourceKind.NetworkLlHls))
         {
             SingleSources.Add(Create(capability));
         }
-        foreach (var capability in _coordinator.SourceCapabilities
+        foreach (var capability in capabilities
                      .Where(source => source.Kind == DriveSourceKind.PhysicalCamera
                          || source.Id == "front"
                          || source.Kind == DriveSourceKind.NetworkLlHls))
@@ -292,7 +301,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
             .DistinctBy(source => source.Id)
             .Select(source =>
             {
-                var profile = source.ToProfile();
+                var profile = source.ToProfile(IsMultiCamera);
                 return IsMultiCamera && !multiSourceIds.Contains(source.Id)
                     ? profile with { Enabled = false }
                     : profile;
@@ -321,41 +330,9 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(MultiCameraWarning));
         ToggleDriveCommand.RaiseCanExecuteChanged();
 
-        _inputConfigurationCancellation?.Cancel();
-        _inputConfigurationCancellation?.Dispose();
-        if (IsDriving)
-        {
-            _inputConfigurationCancellation = null;
-            return;
-        }
-        if (!IsInputConfigurationValid)
-        {
-            _inputConfigurationCancellation = null;
-            return;
-        }
-
-        _inputConfigurationCancellation = new CancellationTokenSource();
-        _ = ApplyInputConfigurationAfterDelayAsync(configuration, _inputConfigurationCancellation.Token);
     }
 
-    private async Task ApplyInputConfigurationAfterDelayAsync(
-        DriveInputConfiguration configuration,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            await Task.Delay(200, cancellationToken);
-            await _coordinator.ApplyInputConfigurationAsync(configuration, cancellationToken);
-            InputConfigurationError = string.Empty;
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-        catch (Exception exception)
-        {
-            InputConfigurationError = exception.Message;
-        }
-    }
+    public Task StartDriveAsync() => IsDriving ? Task.CompletedTask : ToggleDriveAsync();
 
     private async Task ToggleDriveAsync()
     {
@@ -412,7 +389,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     {
         foreach (var property in new[]
         {
-            nameof(IsInitializing), nameof(IsReady), nameof(IsDriving), nameof(IsStopping), nameof(ShowStartPanel), nameof(ShowDriveControls),
+            nameof(IsInitializing), nameof(IsReady), nameof(IsDriving), nameof(IsStopping), nameof(ShowDriveControls),
             nameof(CanStart), nameof(ShowNetworkStreamUrl), nameof(Status), nameof(EventLog), nameof(HasEventLog), nameof(StatusColor), nameof(StatusLabel), nameof(StatusAccent), nameof(StartButtonText), nameof(Duration),
             nameof(Diagnostics), nameof(ShowRecognitionStatistics),
             nameof(Overlays), nameof(OverlaySourceIds), nameof(ShowRoadGuide), nameof(IsNetworkStreamPreview),
@@ -438,6 +415,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         {
             _selectedCamera = selectedName;
             OnPropertyChanged(nameof(SelectedCamera));
+            OnPropertyChanged(nameof(ActiveCameraName));
         }
     }
 
@@ -445,8 +423,6 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         _coordinator.SnapshotChanged -= SnapshotChanged;
-        _inputConfigurationCancellation?.Cancel();
-        _inputConfigurationCancellation?.Dispose();
         _durationTimer.Dispose();
     }
 }

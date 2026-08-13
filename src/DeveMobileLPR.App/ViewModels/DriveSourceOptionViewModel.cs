@@ -51,6 +51,8 @@ internal sealed class DriveSourceOptionViewModel : ViewModelBase
     public double MinimumZoom => Capability.MinimumZoom;
     public double MaximumZoom => Capability.MaximumZoom;
     public string ZoomLabel => $"{Zoom:0.0}×";
+    public double MaximumCrop => Math.Min(4d, MaximumZoom);
+    public string CropLabel => $"{Crop:0.0}×";
 
     public bool IsEnabled
     {
@@ -90,6 +92,22 @@ internal sealed class DriveSourceOptionViewModel : ViewModelBase
         }
     }
 
+    public double Crop
+    {
+        get => Math.Clamp(_zoom, 1d, MaximumCrop);
+        set
+        {
+            var normalized = Math.Clamp(value, 1d, MaximumCrop);
+            if (SetProperty(ref _zoom, normalized, nameof(Zoom)))
+            {
+                OnPropertyChanged(nameof(ZoomLabel));
+                OnPropertyChanged(nameof(Crop));
+                OnPropertyChanged(nameof(CropLabel));
+                _changed();
+            }
+        }
+    }
+
     public string NetworkUrl
     {
         get => _networkUrl;
@@ -102,8 +120,13 @@ internal sealed class DriveSourceOptionViewModel : ViewModelBase
         }
     }
 
-    public DriveSourceProfile ToProfile() =>
-        new(Id, IsEnabled, SelectedResolution, (float)Zoom, IsNetwork ? NetworkUrl.Trim() : null);
+    public DriveSourceProfile ToProfile(bool useCropLimit = false) =>
+        new(
+            Id,
+            IsEnabled,
+            SelectedResolution,
+            (float)(useCropLimit && IsIntegratedCamera ? Math.Clamp(Zoom, 1d, MaximumCrop) : Zoom),
+            IsNetwork ? NetworkUrl.Trim() : null);
 
     public void SetZoomFromActiveCamera(double value)
     {

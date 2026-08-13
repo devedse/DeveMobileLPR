@@ -66,6 +66,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<IPlatformSettingsInfo, AndroidPlatformSettingsInfo>();
         builder.Services.AddSingleton<IDriveDisplayMode, AndroidDriveDisplayMode>();
 #elif WINDOWS
+        builder.Services.AddSingleton<IDriveSourceCatalog, WindowsDriveSourceCatalog>();
         builder.Services.AddSingleton<IBackgroundScanningManager, UnsupportedBackgroundScanningManager>();
         builder.Services.AddSingleton<IDriveLocationTrackerFactory, UnsupportedDriveLocationTrackerFactory>();
         builder.Services.AddSingleton<IRecognitionPipelineProvider, WindowsRecognitionPipelineProvider>();
@@ -85,9 +86,14 @@ public static class MauiProgram
         builder.Services.AddSingleton<HistoryExportService>();
         builder.Services.AddSingleton<SettingsViewModel>();
         builder.Services.AddSingleton<AppShell>();
-        builder.Services.AddSingleton(services => new DrivePage(
+        builder.Services.AddTransient(services => new DrivePage(
             services.GetRequiredService<DriveViewModel>(),
             services.GetRequiredService<IDriveDisplayMode>()));
+        builder.Services.AddSingleton<Func<DrivePage>>(services =>
+            () => services.GetRequiredService<DrivePage>());
+        builder.Services.AddSingleton(services => new DriveSetupPage(
+            services.GetRequiredService<DriveViewModel>(),
+            services.GetRequiredService<Func<DrivePage>>()));
         builder.Services.AddSingleton(services => new AnalyzePage(services.GetRequiredService<AnalyzeViewModel>()));
         builder.Services.AddSingleton(services => new HistoryPage(services.GetRequiredService<HistoryViewModel>()));
         builder.Services.AddSingleton(services => new SettingsPage(
