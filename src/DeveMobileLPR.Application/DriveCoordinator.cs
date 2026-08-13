@@ -20,10 +20,13 @@ public sealed class DriveCoordinator : IAsyncDisposable
     private readonly IDriveLocationTrackerFactory _locationFactory;
     private readonly IDeviceExperience _deviceExperience;
     private readonly IApplicationDispatcher _dispatcher;
+    private readonly IApplicationLog? _applicationLog;
     private readonly SemaphoreSlim _initializeGate = new(1, 1);
     private readonly SemaphoreSlim _driveGate = new(1, 1);
     private readonly object _stateGate = new();
     private readonly DrivePerformanceMonitor _performance = new();
+    private readonly Queue<string> _eventLog = new();
+    private const int MaximumEventLogEntries = 12;
     /// <summary>The active drive, or null when idle. Guarded by <c>_stateGate</c>.</summary>
     private DriveTrip? _trip;
     private RecognitionSession? _recognition;
@@ -50,7 +53,8 @@ public sealed class DriveCoordinator : IAsyncDisposable
         IVehicleLookup vehicleLookup,
         IDriveLocationTrackerFactory locationFactory,
         IDeviceExperience deviceExperience,
-        IApplicationDispatcher dispatcher)
+        IApplicationDispatcher dispatcher,
+        IApplicationLog? applicationLog = null)
     {
         _repository = repository;
         _vehicleImageStore = vehicleImageStore;
@@ -62,6 +66,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
         _locationFactory = locationFactory;
         _deviceExperience = deviceExperience;
         _dispatcher = dispatcher;
+        _applicationLog = applicationLog;
         _performance.Sampled += PerformanceSampled;
     }
 
@@ -648,9 +653,10 @@ public sealed class DriveCoordinator : IAsyncDisposable
     }
     private void CameraDiagnostic(object? sender, DriveInputDiagnostic diagnostic)
     {
+        AppendEvent(diagnostic.Message, diagnostic.IsError);
         if (!_driving || diagnostic.IsError || diagnostic.Message.StartsWith("Camera active", StringComparison.Ordinal))
         {
-            SetStatus(diagnostic.Message, diagnostic.IsError);
+            SetStatus(diagnostic.Message, diagnostic.IsError, appendEvent: false);
         }
     }
     private void CameraChoicesChanged(object? sender, IReadOnlyList<CameraChoice> choices)
@@ -659,14 +665,42 @@ public sealed class DriveCoordinator : IAsyncDisposable
         Publish();
     }
     private void SetStatus(string message) => SetStatus(message, false);
-    private void SetStatus(string message, bool error)
+    private void SetStatus(string message, bool error, bool appendEvent = true)
     {
         lock (_stateGate)
         {
             _status = message;
             _hasError = error;
+            if (appendEvent)
+            {
+                AppendEventLocked(message, error);
+            }
         }
         Publish();
+    }
+
+    private void AppendEvent(string message, bool isError = false)
+    {
+        lock (_stateGate)
+        {
+            AppendEventLocked(message, isError);
+        }
+        Publish();
+    }
+
+    private void AppendEventLocked(string message, bool isError = false)
+    {
+        var line = $"{DateTimeOffset.Now:HH:mm:ss}  {message}";
+        if (_eventLog.Count > 0 && _eventLog.Last().EndsWith(message, StringComparison.Ordinal))
+        {
+            return;
+        }
+        _applicationLog?.Write("Drive", message, isError);
+        _eventLog.Enqueue(line);
+        while (_eventLog.Count > MaximumEventLogEntries)
+        {
+            _eventLog.Dequeue();
+        }
     }
 
     private void Publish()
@@ -696,7 +730,8 @@ public sealed class DriveCoordinator : IAsyncDisposable
         _camera?.SelectedCameraId ?? _settings.CameraId,
         _settings.TrackingDiagnosticsEnabled,
         _settings.RecognitionStatisticsEnabled,
-        _settings.ShowRoadGuide);
+        _settings.ShowRoadGuide,
+        _eventLog.ToArray());
 
     /// <summary>
     /// Confirmed plates are composed in at snapshot time rather than stored alongside the live

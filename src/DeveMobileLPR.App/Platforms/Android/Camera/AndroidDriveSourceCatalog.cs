@@ -126,6 +126,9 @@ internal sealed class AndroidDriveSourceCatalog(Context context) : IDriveSourceC
                 {
                     var sensorArea = (source.SensorWidth ?? 0f) * (source.SensorHeight ?? 0f);
                     var cropped = largestSensorArea > 0f && sensorArea < largestSensorArea * 0.8f;
+                    var relativeArea = largestSensorArea > 0f ? sensorArea / largestSensorArea : 1f;
+                    var isPrimary = ReferenceEquals(source, focalGroup.MaxBy(item =>
+                        (item.SensorWidth ?? 0f) * (item.SensorHeight ?? 0f)));
                     var roleName = role switch
                     {
                         InferredLensRole.Main => "main",
@@ -134,10 +137,12 @@ internal sealed class AndroidDriveSourceCatalog(Context context) : IDriveSourceC
                         InferredLensRole.Front => "front",
                         _ => "camera"
                     };
-                    var mode = cropped ? "likely cropped" : "likely full";
+                    var mode = isPrimary
+                        ? "primary"
+                        : cropped ? "cropped alternate" : "alternate";
                     result.Add(new DriveSourceCapability(
                         $"physical:{source.LogicalCameraId}:{source.PhysicalCameraId}",
-                        $"ID {source.PhysicalCameraId} · {source.FocalLength:0.##} mm · {roleName}, {mode}",
+                        $"ID {source.PhysicalCameraId} · {roleName} {mode} · {source.FocalLength:0.##} mm",
                         DriveSourceKind.PhysicalCamera,
                         true,
                         source.LogicalCameraId,
@@ -149,7 +154,8 @@ internal sealed class AndroidDriveSourceCatalog(Context context) : IDriveSourceC
                         source.MaximumZoom,
                         source.Resolutions,
                         role,
-                        cropped));
+                        cropped,
+                        relativeArea));
                 }
             }
         }

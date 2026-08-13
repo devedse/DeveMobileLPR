@@ -46,6 +46,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
 
     public event EventHandler<string>? Diagnostic;
     public event EventHandler<DriveFrameCountEventArgs>? SourceFramesAvailable;
+    public event Action<string, string, bool>? SourceStatusChanged;
 
     public void Configure(
         IReadOnlyList<(DriveSourceCapability Capability, DriveSourceProfile Profile, TextureView Preview)> sources)
@@ -90,6 +91,13 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         }
         try
         {
+            Diagnostic?.Invoke(this,
+                "Starting Camera2 physical streams: " + string.Join(" + ", _sources.Select(source =>
+                    $"{source.Capability.Name} at {source.Profile.Resolution}, {source.Profile.Zoom:0.0}x")));
+            foreach (var source in _sources)
+            {
+                SourceStatusChanged?.Invoke(source.Capability.Id, "WAITING FOR CAMERA FRAMES", false);
+            }
             var logicalId = _sources[0].Capability.LogicalCameraId
                 ?? throw new InvalidOperationException("Logical camera ID is missing.");
             _device = await OpenCameraAsync(manager, logicalId, cancellationToken).ConfigureAwait(false);
@@ -113,11 +121,16 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
                 ?? throw new InvalidOperationException("Camera2 could not build a repeating request.");
             _session.SetRepeatingRequest(request, null, _imageHandler);
             _running = true;
+            await WaitForFirstFramesAsync(cancellationToken).ConfigureAwait(false);
             Diagnostic?.Invoke(this,
                 $"Camera2 physical pair active: {string.Join(" + ", _sources.Select(source => source.Capability.Name))}");
         }
-        catch
+        catch (Exception exception)
         {
+            foreach (var source in _sources.Where(source => !source.FirstFrame.Task.IsCompletedSuccessfully))
+            {
+                SourceStatusChanged?.Invoke(source.Capability.Id, $"NO FRAMES · {exception.Message}", true);
+            }
             Stop();
             throw;
         }
@@ -222,10 +235,28 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
                 ImageFormatType.Yuv420888,
                 2) ?? throw new InvalidOperationException(
                     $"Could not create {source.Profile.Resolution} YUV reader for {source.Capability.Name}.");
-            var listener = new ImageAvailableListener(source, FrameAvailable, ReportDiagnostic);
+            var listener = new ImageAvailableListener(source, FrameAvailable, FrameObserved, ReportDiagnostic);
             reader.SetOnImageAvailableListener(listener, _imageHandler);
             _readers.Add(reader);
             _listeners.Add(listener);
+        }
+    }
+
+    private async Task WaitForFirstFramesAsync(CancellationToken cancellationToken)
+    {
+        var allFrames = Task.WhenAll(_sources.Select(source => source.FirstFrame.Task));
+        try
+        {
+            await allFrames.WaitAsync(TimeSpan.FromSeconds(6), cancellationToken).ConfigureAwait(false);
+        }
+        catch (System.TimeoutException)
+        {
+            var missing = _sources
+                .Where(source => !source.FirstFrame.Task.IsCompletedSuccessfully)
+                .Select(source => source.Capability.Name)
+                .ToArray();
+            throw new System.TimeoutException(
+                $"No frames arrived from {string.Join(" and ", missing)}. The selected dual-camera/resolution combination is not usable.");
         }
     }
 
@@ -324,6 +355,19 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         _submitFrame(sourceId, frame);
     }
 
+    private void FrameObserved(ConfiguredSource source, int width, int height)
+    {
+        if (!source.FirstFrame.TrySetResult(true))
+        {
+            return;
+        }
+
+        var message = $"LIVE · analysis {width}×{height}";
+        SourceStatusChanged?.Invoke(source.Capability.Id, message, false);
+        Diagnostic?.Invoke(this,
+            $"{source.Capability.Name}: actual analysis {width}x{height}, requested {source.Profile.Resolution}.");
+    }
+
     private void ReportDiagnostic(string message) => Diagnostic?.Invoke(this, message);
 
     public void Dispose()
@@ -349,17 +393,21 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         public FrameRateGate Gate { get; } = new(timestampFrequency: 1000);
         public long Sequence;
         public int ReportedResolution;
+        public TaskCompletionSource<bool> FirstFrame { get; private set; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public void Reset()
         {
             Gate.Reset();
             Interlocked.Exchange(ref ReportedResolution, 0);
+            FirstFrame = new(TaskCreationOptions.RunContinuationsAsynchronously);
         }
     }
 
     private sealed class ImageAvailableListener(
         ConfiguredSource source,
         Action<string, Yuv420Frame> frameAvailable,
+        Action<ConfiguredSource, int, int> frameObserved,
         Action<string> diagnostic) : Java.Lang.Object, ImageReader.IOnImageAvailableListener
     {
         public void OnImageAvailable(ImageReader? reader)
@@ -372,6 +420,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
 
             try
             {
+                frameObserved(source, image.Width, image.Height);
                 if (!source.Gate.TryAcquire(System.Environment.TickCount64, source.FramesPerSecond()))
                 {
                     return;
@@ -381,12 +430,6 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
                 if (planes is null || planes.Length != 3)
                 {
                     return;
-                }
-
-                if (Interlocked.Exchange(ref source.ReportedResolution, 1) == 0)
-                {
-                    diagnostic(
-                        $"{source.Capability.Name}: actual analysis {image.Width}x{image.Height}, requested {source.Profile.Resolution}.");
                 }
 
                 var y = CopyPlane(planes[0]);

@@ -59,6 +59,13 @@ public interface IRecognitionPipelineProvider
 
 public sealed record DriveInputDiagnostic(string Message, bool IsError = false);
 
+public interface IApplicationLog
+{
+    void Write(string category, string message, bool isError = false);
+    IReadOnlyList<string> ReadRecent();
+    void Clear();
+}
+
 public interface IDriveVideoInput : IDriveFrameSourceTelemetry, IAsyncDisposable
 {
     event EventHandler<DriveInputDiagnostic>? Diagnostic;

@@ -20,6 +20,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly Dictionary<string, PreviewView> _cameraPreviews = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TextureView> _camera2Previews = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, TextView> _sourceStatusLabels = new(StringComparer.Ordinal);
     private IReadOnlyList<DriveSourceCapability> _sourceCapabilities = [];
     private IReadOnlyList<CameraChoice> _cameraChoices = [new("rear", "Rear cameras - automatic lens")];
     private DriveInputConfiguration _configuration = DriveInputConfiguration.Default;
@@ -63,6 +64,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
         _integrated.SourceFramesAvailable += ChildSourceFramesAvailable;
         _physicalPair.Diagnostic += IntegratedDiagnostic;
         _physicalPair.SourceFramesAvailable += ChildSourceFramesAvailable;
+        _physicalPair.SourceStatusChanged += PhysicalSourceStatusChanged;
         _network.Diagnostic += ChildDiagnostic;
         _network.SourceFramesAvailable += ChildSourceFramesAvailable;
         _network.PreviewFramesPresented += ChildPreviewFramesPresented;
@@ -333,6 +335,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
         _previewGrid.RemoveAllViews();
         _cameraPreviews.Clear();
         _camera2Previews.Clear();
+        _sourceStatusLabels.Clear();
         var sources = _configuration.EnabledSources;
         var rows = (sources.Count + 1) / 2;
         for (var rowIndex = 0; rowIndex < rows; rowIndex++)
@@ -377,7 +380,26 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
                 {
                     parent.RemoveView(preview);
                 }
-                row.AddView(preview, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MatchParent, 1));
+                var panel = new FrameLayout(_context);
+                panel.AddView(preview, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MatchParent,
+                    ViewGroup.LayoutParams.MatchParent));
+                var capability = FindCapability(profile.SourceId);
+                var label = new TextView(_context)
+                {
+                    Text = $"{capability?.Name ?? profile.SourceId}\nWAITING",
+                    TextSize = 10,
+                    Gravity = GravityFlags.Left
+                };
+                label.SetTextColor(global::Android.Graphics.Color.White);
+                label.SetBackgroundColor(global::Android.Graphics.Color.Argb(190, 10, 13, 18));
+                label.SetPadding(12, 8, 12, 8);
+                panel.AddView(label, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WrapContent,
+                    ViewGroup.LayoutParams.WrapContent,
+                    GravityFlags.Top | GravityFlags.Left));
+                _sourceStatusLabels[profile.SourceId] = label;
+                row.AddView(panel, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MatchParent, 1));
             }
         }
     }
@@ -449,6 +471,21 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
     private void ChildPreviewFramesPresented(object? sender, DriveFrameCountEventArgs args) =>
         PreviewFramesPresented?.Invoke(this, args);
 
+    private void PhysicalSourceStatusChanged(string sourceId, string status, bool isError)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (_sourceStatusLabels.TryGetValue(sourceId, out var label))
+            {
+                var name = FindCapability(sourceId)?.Name ?? sourceId;
+                label.Text = $"{name}\n{status}";
+                label.SetTextColor(isError
+                    ? global::Android.Graphics.Color.Rgb(255, 141, 141)
+                    : global::Android.Graphics.Color.White);
+            }
+        });
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_disposed)
@@ -465,6 +502,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
             _integrated.SourceFramesAvailable -= ChildSourceFramesAvailable;
             _physicalPair.Diagnostic -= IntegratedDiagnostic;
             _physicalPair.SourceFramesAvailable -= ChildSourceFramesAvailable;
+            _physicalPair.SourceStatusChanged -= PhysicalSourceStatusChanged;
             _network.Diagnostic -= ChildDiagnostic;
             _network.SourceFramesAvailable -= ChildSourceFramesAvailable;
             _network.PreviewFramesPresented -= ChildPreviewFramesPresented;

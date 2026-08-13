@@ -58,6 +58,8 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         : DriveOverlayLayout.GetVisibleOverlays(_snapshot);
     public bool ShowRoadGuide => !IsMultiCamera && _snapshot.IsDriving && _snapshot.ShowRoadGuide;
     public string Status => _snapshot.Status;
+    public string EventLog => string.Join(Environment.NewLine, (_snapshot.EventLog ?? []).TakeLast(6));
+    public bool HasEventLog => _snapshot.EventLog is { Count: > 0 };
     public Color StatusColor => _snapshot.HasError ? Color.FromArgb("#FF8D8D") : Color.FromArgb("#E8EDF5");
     public string StatusLabel => _snapshot.HasError ? "Attention" : IsDriving ? "Live" : IsReady ? "Ready" : "Loading";
     public Color StatusAccent => _snapshot.HasError ? Color.FromArgb("#FF6B6B") : IsDriving ? Color.FromArgb("#58E0C2") : Color.FromArgb("#F5C542");
@@ -379,7 +381,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         foreach (var property in new[]
         {
             nameof(IsInitializing), nameof(IsReady), nameof(IsDriving), nameof(IsStopping), nameof(ShowStartPanel), nameof(ShowDriveControls),
-            nameof(CanStart), nameof(ShowNetworkStreamUrl), nameof(Status), nameof(StatusColor), nameof(StatusLabel), nameof(StatusAccent), nameof(StartButtonText), nameof(Duration),
+            nameof(CanStart), nameof(ShowNetworkStreamUrl), nameof(Status), nameof(EventLog), nameof(HasEventLog), nameof(StatusColor), nameof(StatusLabel), nameof(StatusAccent), nameof(StartButtonText), nameof(Duration),
             nameof(Diagnostics), nameof(ShowRecognitionStatistics),
             nameof(Overlays), nameof(ShowRoadGuide), nameof(IsNetworkStreamPreview),
             nameof(UniqueVehicles), nameof(LocationState), nameof(HasLatest), nameof(LatestPlate),

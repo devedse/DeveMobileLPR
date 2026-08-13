@@ -133,6 +133,9 @@
             </Border>
 
             <Grid x:Name="DriveMiddleArea" Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12" IsVisible="{Binding ShowDriveControls}" SizeChanged="DriveMiddleAreaSizeChanged">
+                <Border HorizontalOptions="Start" IsVisible="{Binding HasEventLog}" MaximumWidthRequest="680" Padding="10,7" Style="{StaticResource DriveControlCard}" VerticalOptions="Start">
+                    <Label FontFamily="monospace" FontSize="10" LineBreakMode="WordWrap" MaxLines="6" Text="{Binding EventLog}" TextColor="{DynamicResource TextSecondary}" />
+                </Border>
                 <controls:DriveDiagnosticsPanel
                     x:Name="DiagnosticsPanel"
                     AutomationId="drive_processing_diagnostics"

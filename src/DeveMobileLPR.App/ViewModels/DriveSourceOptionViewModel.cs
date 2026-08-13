@@ -40,6 +40,9 @@ internal sealed class DriveSourceOptionViewModel : ViewModelBase
                 Capability.FocalLengthMillimeters is { } focal ? $"{focal:0.##} mm" : null,
                 Capability.SensorWidthMillimeters is { } width && Capability.SensorHeightMillimeters is { } height
                     ? $"{width:0.##}×{height:0.##} mm sensor"
+                    : null,
+                Capability.Kind == DriveSourceKind.PhysicalCamera && Capability.RelativeSensorArea is { } ratio && ratio < 0.99f
+                    ? $"{ratio:P0} of primary sensor area"
                     : null
             }.Where(value => value is not null));
     public bool IsNetwork => Capability.Kind == DriveSourceKind.NetworkLlHls;

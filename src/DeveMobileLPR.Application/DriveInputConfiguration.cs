@@ -45,7 +45,8 @@ public sealed record DriveSourceCapability(
     float MaximumZoom,
     IReadOnlyList<VideoResolution> Resolutions,
     InferredLensRole InferredRole = InferredLensRole.Unknown,
-    bool IsLikelyCroppedMode = false);
+    bool IsLikelyCroppedMode = false,
+    float? RelativeSensorArea = null);
 
 public sealed record DriveSourceProfile(
     string SourceId,

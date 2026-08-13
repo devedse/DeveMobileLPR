@@ -28,6 +28,7 @@ public static class MauiProgram
 {
     public static MauiApp CreateMauiApp()
     {
+        AppLogService.Initialize(FileSystem.AppDataDirectory);
         var builder = MauiApp.CreateBuilder();
         builder.UseMauiApp<App>();
         builder.AddAudio();
@@ -41,6 +42,8 @@ public static class MauiProgram
         builder.ConfigureMauiHandlers(handlers => handlers.AddHandler<CameraPreview, CameraPreviewHandler>());
 #endif
         builder.Services.AddSingleton<AppSettings>();
+        builder.Services.AddSingleton<AppLogService>();
+        builder.Services.AddSingleton<IApplicationLog>(services => services.GetRequiredService<AppLogService>());
         builder.Services.AddSingleton<IDriveSettings>(services => services.GetRequiredService<AppSettings>());
         builder.Services.AddSingleton<RecognitionTuningConfiguration>();
         builder.Services.AddSingleton<RdwDatabaseService>();
@@ -87,7 +90,9 @@ public static class MauiProgram
             services.GetRequiredService<IDriveDisplayMode>()));
         builder.Services.AddSingleton(services => new AnalyzePage(services.GetRequiredService<AnalyzeViewModel>()));
         builder.Services.AddSingleton(services => new HistoryPage(services.GetRequiredService<HistoryViewModel>()));
-        builder.Services.AddSingleton(services => new SettingsPage(services.GetRequiredService<SettingsViewModel>()));
+        builder.Services.AddSingleton(services => new SettingsPage(
+            services.GetRequiredService<SettingsViewModel>(),
+            services.GetRequiredService<AppLogService>()));
         return builder.Build();
     }
 

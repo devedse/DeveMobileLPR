@@ -7,11 +7,13 @@ public partial class SettingsPage : ContentPage
     private const double PairedCardMinimumWidth = 656;
     private const double RdwSideBySideMinimumWidth = 466;
     private readonly SettingsViewModel _viewModel;
+    private readonly Services.AppLogService _appLog;
 
-    internal SettingsPage(SettingsViewModel viewModel)
+    internal SettingsPage(SettingsViewModel viewModel, Services.AppLogService appLog)
     {
         InitializeComponent();
         BindingContext = _viewModel = viewModel;
+        _appLog = appLog;
     }
 
     protected override async void OnAppearing()
@@ -27,6 +29,9 @@ public partial class SettingsPage : ContentPage
     }
 
     private void OpenPermissionsClicked(object? sender, EventArgs args) => _viewModel.OpenAppSettings();
+
+    private async void OpenAppLogsClicked(object? sender, EventArgs args) =>
+        await Navigation.PushModalAsync(new NavigationPage(new AppLogsPage(_appLog)));
 
     private async void CameraCapabilitiesClicked(object? sender, EventArgs args)
     {
