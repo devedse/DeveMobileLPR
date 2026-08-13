@@ -53,9 +53,8 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     public bool ShowNetworkStreamUrl => _snapshot.SupportsNetworkStreams
         && _snapshot.SelectedCameraId == DriveInputIds.NetworkLlHls;
     public bool IsNetworkStreamPreview => _snapshot.SelectedCameraId == DriveInputIds.NetworkLlHls;
-    public IReadOnlyList<DriveOverlay> Overlays => IsMultiCamera
-        ? []
-        : DriveOverlayLayout.GetVisibleOverlays(_snapshot);
+    public IReadOnlyList<DriveOverlay> Overlays => DriveOverlayLayout.GetVisibleOverlays(_snapshot);
+    public IReadOnlyList<string> OverlaySourceIds => _snapshot.ActiveSourceIds ?? [];
     public bool ShowRoadGuide => !IsMultiCamera && _snapshot.IsDriving && _snapshot.ShowRoadGuide;
     public string Status => _snapshot.Status;
     public string EventLog => string.Join(Environment.NewLine, (_snapshot.EventLog ?? []).TakeLast(6));
@@ -390,7 +389,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
             nameof(IsInitializing), nameof(IsReady), nameof(IsDriving), nameof(IsStopping), nameof(ShowStartPanel), nameof(ShowDriveControls),
             nameof(CanStart), nameof(ShowNetworkStreamUrl), nameof(Status), nameof(EventLog), nameof(HasEventLog), nameof(StatusColor), nameof(StatusLabel), nameof(StatusAccent), nameof(StartButtonText), nameof(Duration),
             nameof(Diagnostics), nameof(ShowRecognitionStatistics),
-            nameof(Overlays), nameof(ShowRoadGuide), nameof(IsNetworkStreamPreview),
+            nameof(Overlays), nameof(OverlaySourceIds), nameof(ShowRoadGuide), nameof(IsNetworkStreamPreview),
             nameof(UniqueVehicles), nameof(LocationState), nameof(HasLatest), nameof(LatestPlate),
             nameof(LatestVehicle), nameof(LatestPrice), nameof(TopValue)
         }) OnPropertyChanged(property);

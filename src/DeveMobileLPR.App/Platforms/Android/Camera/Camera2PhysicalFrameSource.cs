@@ -84,7 +84,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         var manager = _context.GetSystemService(Context.CameraService) as CameraManager
             ?? throw new InvalidOperationException("Android returned no CameraManager.");
 
-        PrepareOutputs();
+        PrepareOutputs(manager);
         if (!OperatingSystem.IsAndroidVersionAtLeast(28))
         {
             throw new PlatformNotSupportedException("Physical camera outputs require Android 9 or newer.");
@@ -212,7 +212,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         throw new System.TimeoutException("Physical camera preview surfaces did not become available.");
     }
 
-    private void PrepareOutputs()
+    private void PrepareOutputs(CameraManager manager)
     {
         if (!OperatingSystem.IsAndroidVersionAtLeast(28))
         {
@@ -226,6 +226,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
 
         foreach (var source in _sources)
         {
+            source.RotationDegrees = GetRelativeImageRotation(manager, source);
             var texture = source.Preview.SurfaceTexture
                 ?? throw new InvalidOperationException($"{source.Capability.Name} preview surface is unavailable.");
             // Preview stays modest; the YUV reader carries the user-selected analysis resolution.
@@ -247,6 +248,27 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             _readers.Add(reader);
             _listeners.Add(listener);
         }
+    }
+
+    private static int GetRelativeImageRotation(CameraManager manager, ConfiguredSource source)
+    {
+        var physicalId = source.Capability.PhysicalCameraId
+            ?? throw new InvalidOperationException("Physical camera ID is missing.");
+        var characteristics = manager.GetCameraCharacteristics(physicalId);
+        var sensorOrientation = (characteristics.Get(CameraCharacteristics.SensorOrientation)
+            as Java.Lang.Integer)?.IntValue() ?? 0;
+        var displayRotation = source.Preview.Display?.Rotation ?? SurfaceOrientation.Rotation0;
+        var displayDegrees = displayRotation switch
+        {
+            SurfaceOrientation.Rotation90 => 90,
+            SurfaceOrientation.Rotation180 => 180,
+            SurfaceOrientation.Rotation270 => 270,
+            _ => 0
+        };
+        var isFront = source.Capability.InferredRole == InferredLensRole.Front;
+        return isFront
+            ? (sensorOrientation + displayDegrees) % 360
+            : (sensorOrientation - displayDegrees + 360) % 360;
     }
 
     private async Task WaitForFirstFramesAsync(CancellationToken cancellationToken)
@@ -430,7 +452,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         var message = $"LIVE · analysis {width}×{height} · zoom {source.EffectiveZoom:0.0}×";
         SourceStatusChanged?.Invoke(source.Capability.Id, message, false);
         Diagnostic?.Invoke(this,
-            $"{source.Capability.Name}: actual analysis {width}x{height}, requested {source.Profile.Resolution}.");
+            $"{source.Capability.Name}: actual analysis {width}x{height}, requested {source.Profile.Resolution}; AI rotation {source.RotationDegrees}°.");
     }
 
     private void ReportDiagnostic(string message) => Diagnostic?.Invoke(this, message);
@@ -459,6 +481,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         public long Sequence;
         public int ReportedResolution;
         public float EffectiveZoom { get; set; } = 1f;
+        public int RotationDegrees { get; set; }
         public TaskCompletionSource<bool> FirstFrame { get; private set; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -510,7 +533,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
                         DateTimeOffset.UtcNow,
                         image.Width,
                         image.Height,
-                        90,
+                        source.RotationDegrees,
                         y.Owner!, y.Length, planes[0].RowStride, planes[0].PixelStride,
                         u.Owner!, u.Length, planes[1].RowStride, planes[1].PixelStride,
                         v.Owner!, v.Length, planes[2].RowStride, planes[2].PixelStride);

@@ -44,6 +44,12 @@ internal sealed class DriveOverlayView : GraphicsView, IDrawable
         AspectScaleMode.Fit,
         propertyChanged: static (bindable, _, _) => ((DriveOverlayView)bindable).Invalidate());
 
+    public static readonly BindableProperty SourceIdsProperty = BindableProperty.Create(
+        nameof(SourceIds),
+        typeof(IReadOnlyList<string>),
+        typeof(DriveOverlayView),
+        propertyChanged: static (bindable, _, _) => ((DriveOverlayView)bindable).Invalidate());
+
     public DriveOverlayView()
     {
         Drawable = this;
@@ -69,6 +75,13 @@ internal sealed class DriveOverlayView : GraphicsView, IDrawable
     {
         get => (AspectScaleMode)GetValue(ScaleModeProperty);
         set => SetValue(ScaleModeProperty, value);
+    }
+
+    /// <summary>Source order used by the native preview's one- or two-column grid.</summary>
+    public IReadOnlyList<string>? SourceIds
+    {
+        get => (IReadOnlyList<string>?)GetValue(SourceIdsProperty);
+        set => SetValue(SourceIdsProperty, value);
     }
 
     public void Draw(ICanvas canvas, RectF dirtyRect)
@@ -118,6 +131,10 @@ internal sealed class DriveOverlayView : GraphicsView, IDrawable
 
     private void DrawOverlay(ICanvas canvas, RectF viewport, DriveOverlay overlay)
     {
+        if (!TryGetSourceViewport(viewport, overlay.SourceId, out viewport))
+        {
+            return;
+        }
         if (!DriveOverlayLayout.TryProject(
                 overlay,
                 viewport.Width,
@@ -141,6 +158,42 @@ internal sealed class DriveOverlayView : GraphicsView, IDrawable
         canvas.StrokeDashPattern = null;
 
         DrawLabel(canvas, viewport, box, overlay, style);
+    }
+
+    private bool TryGetSourceViewport(RectF fullViewport, string sourceId, out RectF viewport)
+    {
+        var sourceIds = SourceIds;
+        if (sourceIds is null || sourceIds.Count <= 1)
+        {
+            viewport = fullViewport;
+            return true;
+        }
+
+        var index = -1;
+        for (var candidate = 0; candidate < sourceIds.Count; candidate++)
+        {
+            if (string.Equals(sourceIds[candidate], sourceId, StringComparison.Ordinal))
+            {
+                index = candidate;
+                break;
+            }
+        }
+        if (index < 0)
+        {
+            viewport = default;
+            return false;
+        }
+
+        const int columns = 2;
+        var rows = (sourceIds.Count + columns - 1) / columns;
+        var cellWidth = fullViewport.Width / columns;
+        var cellHeight = fullViewport.Height / rows;
+        viewport = new RectF(
+            fullViewport.Left + index % columns * cellWidth,
+            fullViewport.Top + index / columns * cellHeight,
+            cellWidth,
+            cellHeight);
+        return true;
     }
 
     private static void DrawLabel(

@@ -17,7 +17,10 @@ public sealed record DriveOverlay(
     string Title,
     string Detail,
     float Confidence,
-    DriveOverlayKind Kind);
+    DriveOverlayKind Kind)
+{
+    public string SourceId { get; init; } = string.Empty;
+}
 
 /// <summary>
 /// Overlay classes in draw order: later members are drawn on top of earlier ones.
@@ -48,6 +51,8 @@ public sealed record DriveSourceRecognitionDiagnostics(
     RecognitionStreamDiagnostics Diagnostics)
 {
     public double TotalMilliseconds => Diagnostics.TotalMilliseconds;
+    public string ResultSummary =>
+        $"{Diagnostics.Frame.DetectionCount} detected · {Diagnostics.Frame.OcrAttemptCount} read · {Diagnostics.Frame.ObservationCount} accepted";
 }
 
 public sealed record DriveDiagnosticsSnapshot(
@@ -92,4 +97,5 @@ public sealed record DriveSnapshot(
     bool TrackingDiagnosticsEnabled,
     bool RecognitionStatisticsEnabled,
     bool ShowRoadGuide,
-    IReadOnlyList<string>? EventLog = null);
+    IReadOnlyList<string>? EventLog = null,
+    IReadOnlyList<string>? ActiveSourceIds = null);

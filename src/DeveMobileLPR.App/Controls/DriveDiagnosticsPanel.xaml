@@ -55,9 +55,10 @@
                     <BindableLayout.ItemTemplate>
                         <DataTemplate x:DataType="application:DriveSourceRecognitionDiagnostics">
                             <Border Style="{StaticResource SectionCard}" Stroke="{DynamicResource Primary}">
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" RowDefinitions="Auto,Auto">
                                     <Label FontSize="10" LineBreakMode="TailTruncation" Text="{Binding SourceName}" TextColor="{DynamicResource TextSecondary}" />
                                     <Label Grid.Column="1" FontAttributes="Bold" FontSize="13" Text="{Binding TotalMilliseconds, Converter={StaticResource Milliseconds}}" TextColor="{DynamicResource Primary}" />
+                                    <Label Grid.Row="1" Grid.ColumnSpan="2" FontSize="9" Text="{Binding ResultSummary}" TextColor="{DynamicResource TextMuted}" />
                                 </Grid>
                             </Border>
                         </DataTemplate>

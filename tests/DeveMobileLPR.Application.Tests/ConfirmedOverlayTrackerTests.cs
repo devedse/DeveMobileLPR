@@ -179,6 +179,39 @@ public sealed class ConfirmedOverlayTrackerTests
         Assert.Equal(1080, overlay.SourceHeight);
     }
 
+    [Fact]
+    public void CamerasKeepIndependentGeometryAndOverlayIdentity()
+    {
+        var clock = new FakeClock(Start);
+        var tracker = new ConfirmedOverlayTracker(clock.Now);
+        tracker.ObserveFrame(3840, 2160, [], "main");
+        tracker.Confirm(Confirmation(bounds: PlateBounds), PlateSighting("AB1234"), PriorVehicleSightings.None, "main");
+        tracker.ObserveFrame(1920, 1080, [], "tele");
+        tracker.Confirm(
+            Confirmation(bounds: new BoundingBox(100, 100, 160, 130)),
+            PlateSighting("CD5678"),
+            PriorVehicleSightings.None,
+            "tele");
+
+        var overlays = tracker.CreateOverlays().OrderBy(overlay => overlay.SourceId).ToArray();
+        Assert.Collection(
+            overlays,
+            main =>
+            {
+                Assert.Equal("main", main.SourceId);
+                Assert.Equal(3840, main.SourceWidth);
+                Assert.Equal(2160, main.SourceHeight);
+            },
+            tele =>
+            {
+                Assert.Equal("tele", tele.SourceId);
+                Assert.Equal(1920, tele.SourceWidth);
+                Assert.Equal(1080, tele.SourceHeight);
+            });
+        Assert.True(tracker.Suppresses(PlateBounds, "main"));
+        Assert.False(tracker.Suppresses(PlateBounds, "tele"));
+    }
+
     private static ConfirmedPlate Confirmation(Guid? trackId = null, BoundingBox bounds = default, int revision = 0) =>
         new(
             trackId ?? Guid.NewGuid(),

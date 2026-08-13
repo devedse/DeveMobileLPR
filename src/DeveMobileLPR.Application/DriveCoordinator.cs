@@ -44,6 +44,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
     private bool _hasError;
     private DriveDiagnosticsSnapshot _diagnostics = DriveDiagnosticsSnapshot.Empty;
     private readonly Dictionary<string, RecognitionStreamDiagnostics> _recognitionDiagnosticsBySource = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> _recognitionStageBySource = new(StringComparer.Ordinal);
     private IReadOnlyList<CameraChoice> _cameraChoices = [new("rear", "Rear cameras · automatic lens")];
     public DriveCoordinator(
         ISightingRepository repository,
@@ -250,6 +251,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
                 _stopping = false;
                 _diagnostics = DriveDiagnosticsSnapshot.Empty;
                 _recognitionDiagnosticsBySource.Clear();
+                _recognitionStageBySource.Clear();
                 _hasError = false;
                 _status = "Scanning · video stays on this device";
             }
@@ -273,6 +275,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
                 _stopping = false;
                 _diagnostics = DriveDiagnosticsSnapshot.Empty;
                 _recognitionDiagnosticsBySource.Clear();
+                _recognitionStageBySource.Clear();
             }
             SetStatus(
                 cleanupFailures.Count == 0
@@ -304,6 +307,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
                 _trip?.ClearOverlays();
                 _diagnostics = DriveDiagnosticsSnapshot.Empty;
                 _recognitionDiagnosticsBySource.Clear();
+                _recognitionStageBySource.Clear();
             }
             _performance.Stop();
             Publish();
@@ -425,6 +429,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
         {
             _diagnostics = DriveDiagnosticsSnapshot.Empty;
             _recognitionDiagnosticsBySource.Clear();
+            _recognitionStageBySource.Clear();
             _trip?.ClearOverlays();
         }
     }
@@ -613,8 +618,9 @@ public sealed class DriveCoordinator : IAsyncDisposable
             trip.ConfirmedPlates.ObserveFrame(
                 recognition.SourceWidth,
                 recognition.SourceHeight,
-                progress.Diagnostics.Tracks);
-            trip.LiveOverlays = _settings.TrackingDiagnosticsEnabled
+                progress.Diagnostics.Tracks,
+                progress.SourceId);
+            var liveOverlays = (_settings.TrackingDiagnosticsEnabled
                 ? DriveOverlayFactory.CreateDiagnosticOverlays(
                     progress.Diagnostics,
                     recognition.SourceWidth,
@@ -622,9 +628,28 @@ public sealed class DriveCoordinator : IAsyncDisposable
                 : DriveOverlayFactory.CreateReadingOverlays(
                     recognition.Observations,
                     recognition.SourceWidth,
-                    recognition.SourceHeight).ToArray();
+                    recognition.SourceHeight).ToArray())
+                .Select(overlay => overlay with { SourceId = progress.SourceId })
+                .ToArray();
+            trip.SetLiveOverlays(progress.SourceId, liveOverlays);
             _diagnostics = _diagnostics with { Recognition = progress.Diagnostics };
             _recognitionDiagnosticsBySource[progress.SourceId] = progress.Diagnostics;
+            var frame = progress.Diagnostics.Frame;
+            var recognitionStage = frame.ObservationCount > 0 ? 3
+                : frame.OcrAttemptCount > 0 ? 2
+                : frame.DetectionCount > 0 ? 1
+                : 0;
+            var shouldReport = !_recognitionStageBySource.TryGetValue(progress.SourceId, out var previousStage)
+                || recognitionStage > previousStage;
+            _recognitionStageBySource[progress.SourceId] = Math.Max(recognitionStage, previousStage);
+            if (shouldReport)
+            {
+                var sourceName = _camera?.SourceCapabilities.FirstOrDefault(source => source.Id == progress.SourceId)?.Name
+                    ?? progress.SourceId;
+                AppendEventLocked(
+                    $"{sourceName}: AI analyzed frame rotated {recognition.RotationDegrees}° · " +
+                    $"{frame.DetectionCount} detected · {frame.OcrAttemptCount} read · {frame.ObservationCount} accepted.");
+            }
             _diagnostics = _diagnostics with
             {
                 RecognitionSources = _recognitionDiagnosticsBySource
@@ -652,7 +677,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
             }
 
             trip.AddOrReplaceSighting(sighting);
-            trip.ConfirmedPlates.Confirm(result.Confirmation, sighting, result.Prior);
+            trip.ConfirmedPlates.Confirm(result.Confirmation, sighting, result.Prior, result.SourceId);
         }
 
         if (result.Confirmation.Revision == 0 && _settings.ConfirmationHaptic)
@@ -776,7 +801,8 @@ public sealed class DriveCoordinator : IAsyncDisposable
         _settings.TrackingDiagnosticsEnabled,
         _settings.RecognitionStatisticsEnabled,
         _settings.ShowRoadGuide,
-        _eventLog.ToArray());
+        _eventLog.ToArray(),
+        _settings.InputConfiguration.EnabledSources.Select(source => source.SourceId).ToArray());
 
     /// <summary>
     /// Confirmed plates are composed in at snapshot time rather than stored alongside the live
@@ -792,7 +818,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
 
         return trip.LiveOverlays
             .Where(overlay => overlay.Kind != DriveOverlayKind.Reading
-                || !trip.ConfirmedPlates.Suppresses(overlay.Bounds))
+                || !trip.ConfirmedPlates.Suppresses(overlay.Bounds, overlay.SourceId))
             .Concat(trip.ConfirmedPlates.CreateOverlays())
             .ToArray();
     }
