@@ -14,7 +14,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
     private readonly IDriveSourceCatalog _sourceCatalog;
     private readonly LinearLayout _previewGrid;
     private readonly AndroidVideoTextureView _networkPreview;
-    private readonly CameraXMultiFrameSource _integrated;
+    private readonly CameraXIntegratedFrameSource _integrated;
     private readonly Camera2PhysicalFrameSource _physicalPair;
     private readonly AndroidHlsFrameSource _network;
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
@@ -43,7 +43,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
         _sourceCatalog = sourceCatalog;
         _previewGrid = previewGrid;
         _networkPreview = networkPreview;
-        _integrated = new CameraXMultiFrameSource(
+        _integrated = new CameraXIntegratedFrameSource(
             context,
             lifecycleOwner,
             recognitionFramesPerSecond,

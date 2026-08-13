@@ -363,13 +363,14 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         return await completion.Task.ConfigureAwait(false);
     }
 
+    [SupportedOSPlatform("android28.0")]
     private void ApplyPhysicalZoom(
         CaptureRequest.Builder builder,
         CameraManager manager,
         string logicalCameraId,
         ConfiguredSource source)
     {
-        if (!OperatingSystem.IsAndroidVersionAtLeast(30) || source.Profile.Zoom <= 1f)
+        if (source.Profile.Zoom <= 1f)
         {
             return;
         }
@@ -378,23 +379,46 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         var logicalCharacteristics = manager.GetCameraCharacteristics(logicalCameraId);
         var physicalKeys = logicalCharacteristics.AvailablePhysicalCameraRequestKeys;
 #pragma warning disable CA1416
-        var zoomKeyAvailable = physicalKeys?.Any(key =>
-            string.Equals(key?.Name, CaptureRequest.ControlZoomRatio?.Name, StringComparison.Ordinal)) == true;
+        var cropKeyAvailable = physicalKeys?.Any(key =>
+            string.Equals(key?.Name, CaptureRequest.ScalerCropRegion?.Name, StringComparison.Ordinal)) == true;
+        var zoomKeyAvailable = OperatingSystem.IsAndroidVersionAtLeast(30)
+            && physicalKeys?.Any(key =>
+                string.Equals(key?.Name, CaptureRequest.ControlZoomRatio?.Name, StringComparison.Ordinal)) == true;
 #pragma warning restore CA1416
-        if (!zoomKeyAvailable)
-        {
-            source.EffectiveZoom = 1f;
-            Diagnostic?.Invoke(this,
-                $"{source.Capability.Name}: this logical camera does not advertise independent physical zoom; using optical 1.0× instead of {source.Profile.Zoom:0.0}×.");
-            return;
-        }
-
         var characteristics = manager.GetCameraCharacteristics(physicalId);
-        var range = characteristics.Get(CameraCharacteristics.ControlZoomRatioRange) as global::Android.Util.Range;
-        var maximum = range?.Upper is Java.Lang.Float upper ? upper.FloatValue() : source.Capability.MaximumZoom;
+        var range = OperatingSystem.IsAndroidVersionAtLeast(30)
+            ? characteristics.Get(CameraCharacteristics.ControlZoomRatioRange) as global::Android.Util.Range
+            : null;
+        var maximum = range?.Upper is Java.Lang.Float upper
+            ? upper.FloatValue()
+            : source.Capability.MaximumZoom;
         var zoom = System.Math.Clamp(source.Profile.Zoom, 1f, System.Math.Max(1f, maximum));
         try
         {
+            if (cropKeyAvailable
+                && characteristics.Get(CameraCharacteristics.SensorInfoActiveArraySize)
+                    is global::Android.Graphics.Rect activeArray)
+            {
+                var cropWidth = System.Math.Max(2, (int)(activeArray.Width() / zoom)) & ~1;
+                var cropHeight = System.Math.Max(2, (int)(activeArray.Height() / zoom)) & ~1;
+                var left = activeArray.Left + (activeArray.Width() - cropWidth) / 2;
+                var top = activeArray.Top + (activeArray.Height() - cropHeight) / 2;
+                var crop = new global::Android.Graphics.Rect(left, top, left + cropWidth, top + cropHeight);
+#pragma warning disable CA1422
+                builder.SetPhysicalCameraKey(CaptureRequest.ScalerCropRegion!, crop, physicalId);
+#pragma warning restore CA1422
+                source.EffectiveZoom = zoom;
+                Diagnostic?.Invoke(this,
+                    $"{source.Capability.Name}: independent physical crop {zoom:0.0}× requested.");
+                return;
+            }
+            if (!OperatingSystem.IsAndroidVersionAtLeast(30) || !zoomKeyAvailable)
+            {
+                source.EffectiveZoom = 1f;
+                Diagnostic?.Invoke(this,
+                    $"{source.Capability.Name}: this logical camera advertises neither physical crop nor physical zoom; using optical 1.0× instead of {source.Profile.Zoom:0.0}×.");
+                return;
+            }
 #pragma warning disable CA1422
             builder.SetPhysicalCameraKey(
                 CaptureRequest.ControlZoomRatio,
@@ -403,7 +427,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
 #pragma warning restore CA1422
             source.EffectiveZoom = zoom;
             Diagnostic?.Invoke(this,
-                $"{source.Capability.Name}: independent physical zoom {zoom:0.0}× accepted by request builder.");
+                $"{source.Capability.Name}: independent physical zoom ratio {zoom:0.0}× requested.");
         }
         catch (Exception exception) when (exception is Java.Lang.IllegalArgumentException
             or Java.Lang.IllegalStateException)

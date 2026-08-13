@@ -1,5 +1,6 @@
 using System.Buffers;
 using Android.Content;
+using Android.Hardware.Display;
 using Android.Runtime;
 using Android.Views;
 using AndroidX.Camera.Core;
@@ -16,7 +17,7 @@ using AndroidSize = Android.Util.Size;
 
 namespace DeveMobileLPR.App.Platforms.Android.Camera;
 
-internal sealed class CameraXMultiFrameSource : IDisposable
+internal sealed class CameraXIntegratedFrameSource : IDisposable
 {
     private readonly Context _context;
     private readonly ILifecycleOwner _lifecycleOwner;
@@ -26,10 +27,12 @@ internal sealed class CameraXMultiFrameSource : IDisposable
     private readonly List<SourceBinding> _bindings = [];
     private Task<ProcessCameraProvider>? _providerTask;
     private ProcessCameraProvider? _provider;
+    private readonly DisplayManager? _displayManager;
+    private readonly DisplayRotationListener _displayRotationListener;
     private bool _running;
     private bool _disposed;
 
-    public CameraXMultiFrameSource(
+    public CameraXIntegratedFrameSource(
         Context context,
         ILifecycleOwner lifecycleOwner,
         Func<int> recognitionFramesPerSecond,
@@ -39,6 +42,9 @@ internal sealed class CameraXMultiFrameSource : IDisposable
         _lifecycleOwner = lifecycleOwner;
         _recognitionFramesPerSecond = recognitionFramesPerSecond;
         _submitFrame = submitFrame;
+        _displayManager = context.GetSystemService(Context.DisplayService) as DisplayManager;
+        _displayRotationListener = new DisplayRotationListener(UpdateTargetRotations);
+        _displayManager?.RegisterDisplayListener(_displayRotationListener, null);
     }
 
     public event EventHandler<string>? Diagnostic;
@@ -127,6 +133,14 @@ internal sealed class CameraXMultiFrameSource : IDisposable
     {
         var binding = _bindings.FirstOrDefault(item => item.Capability.Id == sourceId);
         binding?.SetZoom(zoomRatio);
+    }
+
+    private void UpdateTargetRotations()
+    {
+        foreach (var binding in _bindings)
+        {
+            binding.UpdateTargetRotation();
+        }
     }
 
     private void Bind(ProcessCameraProvider provider)
@@ -241,6 +255,8 @@ internal sealed class CameraXMultiFrameSource : IDisposable
         }
 
         _disposed = true;
+        _displayManager?.UnregisterDisplayListener(_displayRotationListener);
+        _displayRotationListener.Dispose();
         Stop();
         ClearBindings();
     }
@@ -256,6 +272,7 @@ internal sealed class CameraXMultiFrameSource : IDisposable
             ?? throw new InvalidOperationException("Could not create a camera analysis executor.");
         private long _sequence;
         private int _reportedResolution;
+        private int _targetRotation = -1;
         private float _requestedZoom;
         private ICamera? _camera;
 
@@ -290,6 +307,7 @@ internal sealed class CameraXMultiFrameSource : IDisposable
 
         public void BuildUseCases(Context context)
         {
+            var targetRotation = GetTargetRotation();
             var requested = new AndroidSize(Profile.Resolution.Width, Profile.Resolution.Height);
             var strategy = new ResolutionStrategy(
                 requested,
@@ -300,6 +318,7 @@ internal sealed class CameraXMultiFrameSource : IDisposable
 
             PreviewUseCase = new Preview.Builder()
                 .SetResolutionSelector(resolutionSelector)!
+                .SetTargetRotation(targetRotation)!
                 .Build() ?? throw new InvalidOperationException("Could not build camera preview.");
             PreviewUseCase.SetSurfaceProvider(
                 ContextCompat.GetMainExecutor(context),
@@ -309,8 +328,10 @@ internal sealed class CameraXMultiFrameSource : IDisposable
                 .SetResolutionSelector(resolutionSelector)!
                 .SetBackpressureStrategy(ImageAnalysis.StrategyKeepOnlyLatest)!
                 .SetOutputImageFormat(ImageAnalysis.OutputImageFormatYuv420888)!
+                .SetTargetRotation(targetRotation)!
                 .Build() ?? throw new InvalidOperationException("Could not build camera analysis.");
             AnalysisUseCase.SetAnalyzer(_executor, this);
+            _targetRotation = targetRotation;
         }
 
         public void ApplyZoom(ICamera camera)
@@ -339,6 +360,33 @@ internal sealed class CameraXMultiFrameSource : IDisposable
             }
         }
 
+        public void UpdateTargetRotation()
+        {
+            var targetRotation = GetTargetRotation();
+            if (_targetRotation == targetRotation || PreviewUseCase is null || AnalysisUseCase is null)
+            {
+                return;
+            }
+
+            PreviewUseCase.TargetRotation = targetRotation;
+            AnalysisUseCase.TargetRotation = targetRotation;
+            _targetRotation = targetRotation;
+            Interlocked.Exchange(ref _reportedResolution, 0);
+            _diagnostic($"{Capability.Name}: target rotation updated to {RotationName(targetRotation)}.");
+        }
+
+        private int GetTargetRotation() =>
+            (int)(PreviewView.Display?.Rotation ?? SurfaceOrientation.Rotation0);
+
+        private static string RotationName(int rotation) => rotation switch
+        {
+            (int)SurfaceOrientation.Rotation0 => "0°",
+            (int)SurfaceOrientation.Rotation90 => "90°",
+            (int)SurfaceOrientation.Rotation180 => "180°",
+            (int)SurfaceOrientation.Rotation270 => "270°",
+            _ => rotation.ToString()
+        };
+
         public void Analyze(IImageProxy? image)
         {
             if (image is null)
@@ -364,7 +412,7 @@ internal sealed class CameraXMultiFrameSource : IDisposable
                 {
                     _diagnostic(
                         $"{Capability.Name}: actual analysis {image.Width}×{image.Height}, " +
-                        $"requested {Profile.Resolution}.");
+                        $"requested {Profile.Resolution}; AI rotation {image.ImageInfo?.RotationDegrees ?? 0}°.");
                 }
 
                 var y = CopyPlane(planes[0]);
@@ -484,5 +532,14 @@ internal sealed class CameraXMultiFrameSource : IDisposable
                 }
             }
         }
+    }
+
+    private sealed class DisplayRotationListener(Action changed)
+        : Java.Lang.Object, DisplayManager.IDisplayListener
+    {
+        public void OnDisplayAdded(int displayId) { }
+        public void OnDisplayRemoved(int displayId) { }
+        public void OnDisplayChanged(int displayId) =>
+            MainThread.BeginInvokeOnMainThread(changed);
     }
 }
