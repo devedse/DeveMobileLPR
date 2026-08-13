@@ -44,6 +44,16 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, FrameLay
         // punching a SurfaceView hole that anything drawn on top would have to fight.
         preview.SetImplementationMode(PreviewView.ImplementationMode.Compatible);
         root.AddView(preview, match);
+        var uvcPreview = new UvcPreviewTextureView(context)
+        {
+            Visibility = ViewStates.Gone
+        };
+        root.AddView(uvcPreview, new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MatchParent,
+            ViewGroup.LayoutParams.MatchParent)
+        {
+            Gravity = GravityFlags.Center
+        });
         var streamPreview = new AndroidVideoTextureView(context)
         {
             Visibility = ViewStates.Gone
@@ -58,6 +68,7 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, FrameLay
             context,
             lifecycleOwner,
             preview,
+            uvcPreview,
             streamPreview,
             settings.NetworkStreamUrl,
             () => settings.RecognitionFramesPerSecond,

@@ -16,6 +16,11 @@ The Android models are mechanically derived from the pinned ONNX models above. T
 | SixLabors.ImageSharp 3.1.12 | [Six Labors ImageSharp](https://github.com/SixLabors/ImageSharp/tree/v3.1.12) | Six Labors Split License 1.0 |
 | Leaflet 1.9.4 | [Leaflet](https://github.com/Leaflet/Leaflet/tree/v1.9.4) | BSD-2-Clause |
 | Leaflet.markercluster 1.5.3 | [Leaflet.markercluster](https://github.com/Leaflet/Leaflet.markercluster/tree/v1.5.3) | MIT |
+| UVCAndroid 1.0.13 Android USB-camera library | [shiyinghan/UVCAndroid](https://github.com/shiyinghan/UVCAndroid) | Apache-2.0 |
+| libusb (included by UVCAndroid as a shared native library) | [libusb/libusb](https://github.com/libusb/libusb) | LGPL-2.1-or-later |
+| libuvc (included by UVCAndroid as a shared native library) | [libuvc/libuvc](https://github.com/libuvc/libuvc) | BSD-3-Clause |
+| libyuv (included by UVCAndroid as a shared native library) | [chromium/libyuv](https://chromium.googlesource.com/libyuv/libyuv/) | BSD-3-Clause |
+| libjpeg-turbo (included by UVCAndroid as a shared native library) | [libjpeg-turbo/libjpeg-turbo](https://github.com/libjpeg-turbo/libjpeg-turbo) | IJG/BSD-3-Clause/Zlib |
 
 The RDW database builder uses these additional inputs:
 

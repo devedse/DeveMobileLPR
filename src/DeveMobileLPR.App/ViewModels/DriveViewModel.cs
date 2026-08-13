@@ -81,6 +81,26 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     }
 
     public string ZoomLabel => $"{Zoom:0.0}×";
+    public string ZoomKindLabel => _snapshot.ZoomState.Kind switch
+    {
+        DriveZoomKind.Optical => "Optical zoom",
+        DriveZoomKind.Digital => "Digital zoom",
+        DriveZoomKind.Hybrid => "Optical + digital",
+        DriveZoomKind.CameraManaged => "Camera zoom",
+        DriveZoomKind.Pending => "Checking zoom…",
+        _ => "Zoom unavailable"
+    };
+    public string ZoomKindDetail => _snapshot.ZoomState.Kind switch
+    {
+        DriveZoomKind.Hybrid =>
+            $"{_snapshot.ZoomState.CameraRatio:0.#}× optical · {_snapshot.ZoomState.DigitalRatio:0.#}× crop",
+        DriveZoomKind.Optical => $"{_snapshot.ZoomState.CameraRatio:0.#}× lens",
+        DriveZoomKind.Digital => _snapshot.ZoomState.DigitalRatio > 1.001f
+            ? $"{_snapshot.ZoomState.DigitalRatio:0.#}× center crop"
+            : "No crop at 1×",
+        DriveZoomKind.CameraManaged => $"{_snapshot.ZoomState.CameraRatio:0.#}× reported by camera",
+        _ => string.Empty
+    };
 
     public string NetworkStreamUrl
     {
@@ -168,7 +188,8 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
             nameof(Diagnostics), nameof(ShowRecognitionStatistics),
             nameof(Overlays), nameof(ShowRoadGuide), nameof(IsNetworkStreamPreview),
             nameof(UniqueVehicles), nameof(LocationState), nameof(HasLatest), nameof(LatestPlate),
-            nameof(LatestVehicle), nameof(LatestPrice), nameof(TopValue)
+            nameof(LatestVehicle), nameof(LatestPrice), nameof(TopValue),
+            nameof(ZoomKindLabel), nameof(ZoomKindDetail)
         }) OnPropertyChanged(property);
         ToggleDriveCommand.RaiseCanExecuteChanged();
 

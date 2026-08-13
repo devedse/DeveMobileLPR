@@ -98,6 +98,8 @@
                         <VerticalStackLayout Grid.Column="1" Spacing="4">
                             <Grid ColumnDefinitions="*,Auto"><Label Style="{StaticResource FieldCaption}" Text="Zoom" /><Label Grid.Column="1" FontAttributes="Bold" Text="{Binding ZoomLabel}" TextColor="{DynamicResource Primary}" /></Grid>
                             <Slider Maximum="4" Minimum="1" Value="{Binding Zoom}" />
+                            <Label FontAttributes="Bold" FontSize="11" Text="{Binding ZoomKindLabel}" TextColor="{DynamicResource TextSecondary}" />
+                            <Label FontSize="10" Text="{Binding ZoomKindDetail}" TextColor="{DynamicResource TextSecondary}" />
                         </VerticalStackLayout>
                     </Grid>
 
@@ -138,6 +140,8 @@
                             <VerticalStackLayout Grid.Column="1" Spacing="2">
                                 <Grid ColumnDefinitions="*,Auto"><Label Style="{StaticResource FieldCaption}" Text="Zoom" /><Label Grid.Column="1" FontAttributes="Bold" Text="{Binding ZoomLabel}" TextColor="{DynamicResource Primary}" /></Grid>
                                 <Slider Maximum="4" Minimum="1" Value="{Binding Zoom}" />
+                                <Label FontAttributes="Bold" FontSize="10" MaxLines="1" Text="{Binding ZoomKindLabel}" TextColor="{DynamicResource TextSecondary}" />
+                                <Label FontSize="9" MaxLines="1" Text="{Binding ZoomKindDetail}" TextColor="{DynamicResource TextSecondary}" />
                             </VerticalStackLayout>
                         </Grid>
                         <Entry
@@ -177,6 +181,8 @@
                         <VerticalStackLayout Spacing="0" WidthRequest="180">
                             <Grid ColumnDefinitions="*,Auto"><Label Style="{StaticResource FieldCaption}" Text="Zoom" /><Label Grid.Column="1" FontAttributes="Bold" Text="{Binding ZoomLabel}" TextColor="{DynamicResource Primary}" /></Grid>
                             <Slider Maximum="4" Minimum="1" Value="{Binding Zoom}" />
+                            <Label FontAttributes="Bold" FontSize="11" Text="{Binding ZoomKindLabel}" TextColor="{DynamicResource TextSecondary}" />
+                            <Label FontSize="10" Text="{Binding ZoomKindDetail}" TextColor="{DynamicResource TextSecondary}" />
                         </VerticalStackLayout>
                     </HorizontalStackLayout>
                 </Border>

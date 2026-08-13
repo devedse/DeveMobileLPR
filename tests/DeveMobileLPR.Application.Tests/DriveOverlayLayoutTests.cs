@@ -43,5 +43,6 @@ public sealed class DriveOverlayLayoutTests
 
     private static DriveSnapshot Snapshot(IReadOnlyList<DriveOverlay> overlays, bool debug) => new(
         false, true, true, false, "Ready", false, DateTimeOffset.UtcNow,
-        DriveDiagnosticsSnapshot.Empty, 0, [], null, overlays, false, true, true, [], "rear", debug, false, false);
+        DriveDiagnosticsSnapshot.Empty, 0, [], null, overlays, false, true, true, [], "rear", debug, false, false,
+        DriveZoomState.Pending(1f));
 }

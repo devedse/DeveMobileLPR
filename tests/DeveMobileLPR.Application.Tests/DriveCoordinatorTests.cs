@@ -9,6 +9,22 @@ namespace DeveMobileLPR.Application.Tests;
 
 public sealed class DriveCoordinatorTests
 {
+    [Fact]
+    public async Task ZoomStateFromPlatformInputIsPublishedInSharedSnapshot()
+    {
+        var input = new TestVideoInput();
+        await using var coordinator = await CreateCoordinatorAsync(
+            new FakeRepository(),
+            input,
+            new TestLocationFactory(),
+            new TestDeviceExperience());
+        var state = new DriveZoomState(DriveZoomKind.Hybrid, 4f, 2f, 2f, 2f);
+
+        input.ReportZoomState(state);
+
+        Assert.Equal(state, coordinator.Snapshot.ZoomState);
+    }
+
     [Theory]
     [InlineData(false, 0)]
     [InlineData(true, 1)]
@@ -505,6 +521,7 @@ public sealed class DriveCoordinatorTests
         public Exception? StopException { get; init; }
         public event EventHandler<DriveInputDiagnostic>? Diagnostic;
         public event EventHandler<IReadOnlyList<CameraChoice>>? CameraChoicesChanged;
+        public event EventHandler<DriveZoomState>? ZoomStateChanged;
         public event EventHandler<DriveFrameCountEventArgs>? SourceFramesAvailable;
         public event EventHandler<DriveFrameCountEventArgs>? PreviewFramesPresented;
         public IReadOnlyList<CameraChoice> CameraChoices { get; } = [new("rear", "Rear")];
@@ -512,6 +529,7 @@ public sealed class DriveCoordinatorTests
         public bool IsReady { get; private set; }
         public bool SupportsNetworkStreams => true;
         public bool ReportsPreviewFrames => true;
+        public DriveZoomState ZoomState { get; private set; } = DriveZoomState.Pending(1f);
         public Task InitializeAsync(string preferredCameraId, CancellationToken cancellationToken = default)
         {
             SelectedCameraId = preferredCameraId;
@@ -532,6 +550,11 @@ public sealed class DriveCoordinatorTests
         public Task SelectCameraAsync(string cameraId, CancellationToken cancellationToken = default)
         { SelectedCameraId = cameraId; return Task.CompletedTask; }
         public void SetZoom(float zoomRatio) { }
+        public void ReportZoomState(DriveZoomState state)
+        {
+            ZoomState = state;
+            ZoomStateChanged?.Invoke(this, state);
+        }
         public void SetNetworkStreamUrl(string value) { }
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

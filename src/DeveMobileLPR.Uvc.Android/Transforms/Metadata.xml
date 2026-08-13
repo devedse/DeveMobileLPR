@@ -1,0 +1,3 @@
+<metadata>
+  <remove-node path="/api/package[not(@name='com.deve.mobilelpr.uvc')]" />
+</metadata>
