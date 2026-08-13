@@ -43,6 +43,7 @@ internal sealed class DriveSourceOptionViewModel : ViewModelBase
                     : null
             }.Where(value => value is not null));
     public bool IsNetwork => Capability.Kind == DriveSourceKind.NetworkLlHls;
+    public bool IsIntegratedCamera => !IsNetwork;
     public IReadOnlyList<VideoResolution> Resolutions { get; }
     public double MinimumZoom => Capability.MinimumZoom;
     public double MaximumZoom => Capability.MaximumZoom;
