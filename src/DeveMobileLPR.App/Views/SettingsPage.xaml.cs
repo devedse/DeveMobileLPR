@@ -28,6 +28,16 @@ public partial class SettingsPage : ContentPage
 
     private void OpenPermissionsClicked(object? sender, EventArgs args) => _viewModel.OpenAppSettings();
 
+    private async void CameraCapabilitiesClicked(object? sender, EventArgs args)
+    {
+#if ANDROID
+        await Navigation.PushModalAsync(new NavigationPage(
+            new Platforms.Android.Camera.CameraCapabilitiesPage()));
+#else
+        await Task.CompletedTask;
+#endif
+    }
+
     private async void BackgroundScanningToggled(object? sender, ToggledEventArgs args)
     {
         if (args.Value && !await _viewModel.PrepareBackgroundScanningAsync())

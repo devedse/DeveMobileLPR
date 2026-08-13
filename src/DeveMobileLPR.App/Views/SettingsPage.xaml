@@ -136,6 +136,20 @@
                 </Border>
             </FlexLayout>
 
+            <Border IsVisible="{OnPlatform Android=True, Default=False}" Style="{StaticResource HighlightCard}">
+                <VerticalStackLayout Spacing="12">
+                    <VerticalStackLayout Spacing="3">
+                        <Label Style="{StaticResource SectionTitle}" Text="Android camera laboratory" />
+                        <Label Style="{StaticResource SecondaryText}" Text="Read the camera and lens capabilities reported by this device. The report is designed to fit in a scrolling screenshot." />
+                    </VerticalStackLayout>
+                    <Button
+                        AutomationId="camera_capabilities_button"
+                        Clicked="CameraCapabilitiesClicked"
+                        Style="{StaticResource CompactButton}"
+                        Text="Open camera capability report" />
+                </VerticalStackLayout>
+            </Border>
+
             <Border Style="{StaticResource Card}">
                 <VerticalStackLayout Style="{StaticResource CardContent}">
                     <VerticalStackLayout Spacing="3">
