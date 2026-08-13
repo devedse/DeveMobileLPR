@@ -222,6 +222,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
                 source with { Zoom = zoomRatio }
             ]
         };
+        _integrated.SetZoom(source.SourceId, zoomRatio);
     }
 
     public void SetNetworkStreamUrl(string value)

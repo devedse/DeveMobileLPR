@@ -104,4 +104,13 @@ internal sealed class DriveSourceOptionViewModel : ViewModelBase
 
     public DriveSourceProfile ToProfile() =>
         new(Id, IsEnabled, SelectedResolution, (float)Zoom, IsNetwork ? NetworkUrl.Trim() : null);
+
+    public void SetZoomFromActiveCamera(double value)
+    {
+        var normalized = Math.Clamp(value, MinimumZoom, MaximumZoom);
+        if (SetProperty(ref _zoom, normalized, nameof(Zoom)))
+        {
+            OnPropertyChanged(nameof(ZoomLabel));
+        }
+    }
 }

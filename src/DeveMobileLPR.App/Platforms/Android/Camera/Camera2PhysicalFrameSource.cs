@@ -226,7 +226,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
 
         foreach (var source in _sources)
         {
-            source.RotationDegrees = GetRelativeImageRotation(manager, source);
+            (source.SensorOrientationDegrees, source.RotationDegrees) = GetImageOrientation(manager, source);
             var texture = source.Preview.SurfaceTexture
                 ?? throw new InvalidOperationException($"{source.Capability.Name} preview surface is unavailable.");
             // Preview stays modest; the YUV reader carries the user-selected analysis resolution.
@@ -234,7 +234,12 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             const int previewHeight = 720;
             texture.SetDefaultBufferSize(previewWidth, previewHeight);
             source.Preview.Post(new Java.Lang.Runnable(() =>
-                ConfigurePreviewTransform(source.Preview, previewWidth, previewHeight)));
+                ConfigurePreviewTransform(
+                    source.Preview,
+                    previewWidth,
+                    previewHeight,
+                    source.SensorOrientationDegrees,
+                    source.RotationDegrees)));
             _previewSurfaces.Add(new Surface(texture));
 
             var reader = ImageReader.NewInstance(
@@ -250,7 +255,9 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         }
     }
 
-    private static int GetRelativeImageRotation(CameraManager manager, ConfiguredSource source)
+    private static (int SensorOrientation, int RelativeRotation) GetImageOrientation(
+        CameraManager manager,
+        ConfiguredSource source)
     {
         var physicalId = source.Capability.PhysicalCameraId
             ?? throw new InvalidOperationException("Physical camera ID is missing.");
@@ -266,9 +273,10 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             _ => 0
         };
         var isFront = source.Capability.InferredRole == InferredLensRole.Front;
-        return isFront
+        var relativeRotation = isFront
             ? (sensorOrientation + displayDegrees) % 360
             : (sensorOrientation - displayDegrees + 360) % 360;
+        return (sensorOrientation, relativeRotation);
     }
 
     private async Task WaitForFirstFramesAsync(CancellationToken cancellationToken)
@@ -406,7 +414,12 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         }
     }
 
-    private static void ConfigurePreviewTransform(TextureView preview, int bufferWidth, int bufferHeight)
+    private static void ConfigurePreviewTransform(
+        TextureView preview,
+        int bufferWidth,
+        int bufferHeight,
+        int sensorOrientationDegrees,
+        int relativeRotationDegrees)
     {
         if (preview.Width <= 0 || preview.Height <= 0)
         {
@@ -414,25 +427,47 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         }
 
         var rotation = preview.Display?.Rotation ?? SurfaceOrientation.Rotation0;
+        var displayDegrees = rotation switch
+        {
+            SurfaceOrientation.Rotation90 => 90,
+            SurfaceOrientation.Rotation180 => 180,
+            SurfaceOrientation.Rotation270 => 270,
+            _ => 0
+        };
+        var rotationRequired = relativeRotationDegrees % 180 != 0;
+        var width = preview.Width;
+        var height = preview.Height;
+        float scaleX;
+        float scaleY;
+        if (sensorOrientationDegrees == 0)
+        {
+            scaleX = width / (float)(rotationRequired ? bufferWidth : bufferHeight);
+            scaleY = height / (float)(rotationRequired ? bufferHeight : bufferWidth);
+        }
+        else
+        {
+            scaleX = width / (float)(rotationRequired ? bufferHeight : bufferWidth);
+            scaleY = height / (float)(rotationRequired ? bufferWidth : bufferHeight);
+        }
+        // Fit instead of crop: the same final scale is used on both axes after undoing the
+        // TextureView's default stretch, so circles stay circular and the whole frame remains visible.
+        var finalScale = System.Math.Min(scaleX, scaleY);
         using var matrix = new Matrix();
-        using var viewRect = new global::Android.Graphics.RectF(0, 0, preview.Width, preview.Height);
-        var centerX = viewRect.CenterX();
-        var centerY = viewRect.CenterY();
-        if (rotation is SurfaceOrientation.Rotation90 or SurfaceOrientation.Rotation270)
+        var centerX = width / 2f;
+        var centerY = height / 2f;
+        if (rotationRequired)
         {
-            using var bufferRect = new global::Android.Graphics.RectF(0, 0, bufferHeight, bufferWidth);
-            bufferRect.Offset(centerX - bufferRect.CenterX(), centerY - bufferRect.CenterY());
-            matrix.SetRectToRect(viewRect, bufferRect, Matrix.ScaleToFit.Fill);
-            var scale = System.Math.Min(
-                preview.Height / (float)bufferHeight,
-                preview.Width / (float)bufferWidth);
-            matrix.PostScale(scale, scale, centerX, centerY);
-            matrix.PostRotate(90f * ((int)rotation - 2), centerX, centerY);
+            matrix.SetScale(finalScale / scaleX, finalScale / scaleY, centerX, centerY);
         }
-        else if (rotation == SurfaceOrientation.Rotation180)
+        else
         {
-            matrix.PostRotate(180f, centerX, centerY);
+            matrix.SetScale(
+                height / (float)width / scaleY * finalScale,
+                width / (float)height / scaleX * finalScale,
+                centerX,
+                centerY);
         }
+        matrix.PostRotate(-displayDegrees, centerX, centerY);
         preview.SetTransform(matrix);
     }
 
@@ -481,6 +516,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         public long Sequence;
         public int ReportedResolution;
         public float EffectiveZoom { get; set; } = 1f;
+        public int SensorOrientationDegrees { get; set; }
         public int RotationDegrees { get; set; }
         public TaskCompletionSource<bool> FirstFrame { get; private set; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);

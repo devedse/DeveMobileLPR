@@ -123,6 +123,12 @@ internal sealed class CameraXMultiFrameSource : IDisposable
         }
     }
 
+    public void SetZoom(string sourceId, float zoomRatio)
+    {
+        var binding = _bindings.FirstOrDefault(item => item.Capability.Id == sourceId);
+        binding?.SetZoom(zoomRatio);
+    }
+
     private void Bind(ProcessCameraProvider provider)
     {
         provider.UnbindAll();
@@ -250,6 +256,8 @@ internal sealed class CameraXMultiFrameSource : IDisposable
             ?? throw new InvalidOperationException("Could not create a camera analysis executor.");
         private long _sequence;
         private int _reportedResolution;
+        private float _requestedZoom;
+        private ICamera? _camera;
 
         public SourceBinding(
             DriveSourceCapability capability,
@@ -262,6 +270,7 @@ internal sealed class CameraXMultiFrameSource : IDisposable
         {
             Capability = capability;
             Profile = profile;
+            _requestedZoom = profile.Zoom;
             PreviewView = previewView;
             _recognitionFramesPerSecond = recognitionFramesPerSecond;
             _frameAvailable = frameAvailable;
@@ -306,10 +315,11 @@ internal sealed class CameraXMultiFrameSource : IDisposable
 
         public void ApplyZoom(ICamera camera)
         {
+            _camera = camera;
             var state = camera.CameraInfo?.ZoomState?.Value as IZoomState;
             var target = state is null
-                ? Math.Max(1f, Profile.Zoom)
-                : Math.Clamp(Profile.Zoom, state.MinZoomRatio, state.MaxZoomRatio);
+                ? Math.Max(1f, _requestedZoom)
+                : Math.Clamp(_requestedZoom, state.MinZoomRatio, state.MaxZoomRatio);
             var operation = camera.CameraControl?.SetZoomRatio(target);
             if (operation is not null)
             {
@@ -317,6 +327,15 @@ internal sealed class CameraXMultiFrameSource : IDisposable
                     new Java.Lang.Runnable(() => _diagnostic(
                         $"{Capability.Name}: zoom {target:0.0}× requested.")),
                     ContextCompat.GetMainExecutor(PreviewView.Context));
+            }
+        }
+
+        public void SetZoom(float zoomRatio)
+        {
+            _requestedZoom = Math.Max(1f, zoomRatio);
+            if (_camera is { } camera)
+            {
+                PreviewView.Post(new Java.Lang.Runnable(() => ApplyZoom(camera)));
             }
         }
 
@@ -386,6 +405,7 @@ internal sealed class CameraXMultiFrameSource : IDisposable
 
         public void Reset()
         {
+            _camera = null;
             _frameGate.Reset();
             Interlocked.Exchange(ref _reportedResolution, 0);
             FirstFrame = new(TaskCreationOptions.RunContinuationsAsynchronously);

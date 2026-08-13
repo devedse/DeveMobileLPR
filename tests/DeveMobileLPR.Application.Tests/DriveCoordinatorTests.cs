@@ -9,6 +9,25 @@ namespace DeveMobileLPR.Application.Tests;
 
 public sealed class DriveCoordinatorTests
 {
+    [Fact]
+    public async Task LiveZoomIsAppliedAndPersistedInTheSelectedSourceProfile()
+    {
+        var settings = new TestSettings();
+        var input = new TestVideoInput();
+        await using var coordinator = await CreateCoordinatorAsync(
+            new FakeRepository(),
+            input,
+            new TestLocationFactory(),
+            new TestDeviceExperience(),
+            settings: settings);
+
+        coordinator.SetZoom(2.2f);
+
+        Assert.Equal(2.2f, settings.Zoom);
+        Assert.Equal(2.2f, settings.InputConfiguration.EnabledSources.Single().Zoom);
+        Assert.Equal(2.2f, input.LastZoom);
+    }
+
     [Theory]
     [InlineData(false, 0)]
     [InlineData(true, 1)]
@@ -531,6 +550,7 @@ public sealed class DriveCoordinatorTests
         public TaskCompletionSource Initialized { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int StartCount { get; private set; }
         public int StopCount { get; private set; }
+        public float LastZoom { get; private set; } = 1f;
         public Exception? StartException { get; init; }
         public Exception? StopException { get; init; }
         public event EventHandler<DriveInputDiagnostic>? Diagnostic;
@@ -572,7 +592,7 @@ public sealed class DriveCoordinatorTests
         }
         public Task SelectCameraAsync(string cameraId, CancellationToken cancellationToken = default)
         { SelectedCameraId = cameraId; return Task.CompletedTask; }
-        public void SetZoom(float zoomRatio) { }
+        public void SetZoom(float zoomRatio) => LastZoom = zoomRatio;
         public void SetNetworkStreamUrl(string value) { }
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

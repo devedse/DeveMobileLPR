@@ -85,6 +85,10 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         {
             if (SetProperty(ref _selectedSingleSource, value) && value is not null)
             {
+                _zoom = value.Zoom;
+                _settings.Zoom = (float)_zoom;
+                OnPropertyChanged(nameof(Zoom));
+                OnPropertyChanged(nameof(ZoomLabel));
                 OnPropertyChanged(nameof(SingleSourceIsNetwork));
                 QueueInputConfigurationUpdate();
             }
@@ -132,6 +136,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         {
             if (SetProperty(ref _zoom, value))
             {
+                SelectedSingleSource?.SetZoomFromActiveCamera(value);
                 _coordinator.SetZoom((float)value);
                 OnPropertyChanged(nameof(ZoomLabel));
             }
@@ -228,6 +233,11 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         _selectedSingleSource = SingleSources.FirstOrDefault(source =>
                 source.Id == (configuration.SelectedSingleSourceId ?? "rear"))
             ?? SingleSources.FirstOrDefault();
+        if (_selectedSingleSource is not null)
+        {
+            _zoom = _selectedSingleSource.Zoom;
+            _settings.Zoom = (float)_zoom;
+        }
         InputConfigurationError = GetInputConfigurationError();
         OnPropertyChanged(nameof(IsMultiCamera));
         OnPropertyChanged(nameof(IsSingleCamera));
@@ -294,6 +304,17 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
             allProfiles,
             SelectedSingleSource?.Id ?? "rear");
         _settings.InputConfiguration = configuration;
+        if (!IsMultiCamera && SelectedSingleSource is { IsIntegratedCamera: true } selectedSingle)
+        {
+            _zoom = selectedSingle.Zoom;
+            _settings.Zoom = (float)_zoom;
+            OnPropertyChanged(nameof(Zoom));
+            OnPropertyChanged(nameof(ZoomLabel));
+            if (IsDriving)
+            {
+                _coordinator.SetZoom((float)_zoom);
+            }
+        }
         InputConfigurationError = GetInputConfigurationError();
         OnPropertyChanged(nameof(IsInputConfigurationValid));
         OnPropertyChanged(nameof(CanStart));
@@ -302,6 +323,11 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
 
         _inputConfigurationCancellation?.Cancel();
         _inputConfigurationCancellation?.Dispose();
+        if (IsDriving)
+        {
+            _inputConfigurationCancellation = null;
+            return;
+        }
         if (!IsInputConfigurationValid)
         {
             _inputConfigurationCancellation = null;

@@ -373,6 +373,17 @@ public sealed class DriveCoordinator : IAsyncDisposable
     public void SetZoom(float zoom)
     {
         _settings.Zoom = zoom;
+        var configuration = _settings.InputConfiguration;
+        if (configuration.Mode == DriveInputMode.Single)
+        {
+            var selectedId = configuration.SelectedSingleSourceId ?? "rear";
+            _settings.InputConfiguration = configuration with
+            {
+                Sources = configuration.Sources
+                    .Select(source => source.SourceId == selectedId ? source with { Zoom = zoom } : source)
+                    .ToArray()
+            };
+        }
         _camera?.SetZoom(_settings.Zoom);
     }
 
