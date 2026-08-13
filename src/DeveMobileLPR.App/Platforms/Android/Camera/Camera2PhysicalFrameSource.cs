@@ -102,7 +102,10 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
                 ?? throw new InvalidOperationException("Logical camera ID is missing.");
             _device = await OpenCameraAsync(manager, logicalId, cancellationToken).ConfigureAwait(false);
             _session = await CreateSessionAsync(_device, cancellationToken).ConfigureAwait(false);
-            var requestBuilder = _device.CreateCaptureRequest(CameraTemplate.Preview)
+            var physicalIds = _sources
+                .Select(source => source.Capability.PhysicalCameraId!)
+                .ToArray();
+            var requestBuilder = _device.CreateCaptureRequest(CameraTemplate.Preview, physicalIds)
                 ?? throw new InvalidOperationException("Camera2 could not create a repeating request.");
             foreach (var surface in _previewSurfaces)
             {
@@ -114,7 +117,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             }
             foreach (var source in _sources)
             {
-                ApplyPhysicalZoom(requestBuilder, manager, source);
+                ApplyPhysicalZoom(requestBuilder, manager, logicalId, source);
             }
 
             var request = requestBuilder.Build()
@@ -226,7 +229,11 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             var texture = source.Preview.SurfaceTexture
                 ?? throw new InvalidOperationException($"{source.Capability.Name} preview surface is unavailable.");
             // Preview stays modest; the YUV reader carries the user-selected analysis resolution.
-            texture.SetDefaultBufferSize(1280, 720);
+            const int previewWidth = 1280;
+            const int previewHeight = 720;
+            texture.SetDefaultBufferSize(previewWidth, previewHeight);
+            source.Preview.Post(new Java.Lang.Runnable(() =>
+                ConfigurePreviewTransform(source.Preview, previewWidth, previewHeight)));
             _previewSurfaces.Add(new Surface(texture));
 
             var reader = ImageReader.NewInstance(
@@ -329,6 +336,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
     private void ApplyPhysicalZoom(
         CaptureRequest.Builder builder,
         CameraManager manager,
+        string logicalCameraId,
         ConfiguredSource source)
     {
         if (!OperatingSystem.IsAndroidVersionAtLeast(30) || source.Profile.Zoom <= 1f)
@@ -337,6 +345,20 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         }
 
         var physicalId = source.Capability.PhysicalCameraId!;
+        var logicalCharacteristics = manager.GetCameraCharacteristics(logicalCameraId);
+        var physicalKeys = logicalCharacteristics.AvailablePhysicalCameraRequestKeys;
+#pragma warning disable CA1416
+        var zoomKeyAvailable = physicalKeys?.Any(key =>
+            string.Equals(key?.Name, CaptureRequest.ControlZoomRatio?.Name, StringComparison.Ordinal)) == true;
+#pragma warning restore CA1416
+        if (!zoomKeyAvailable)
+        {
+            source.EffectiveZoom = 1f;
+            Diagnostic?.Invoke(this,
+                $"{source.Capability.Name}: this logical camera does not advertise independent physical zoom; using optical 1.0× instead of {source.Profile.Zoom:0.0}×.");
+            return;
+        }
+
         var characteristics = manager.GetCameraCharacteristics(physicalId);
         var range = characteristics.Get(CameraCharacteristics.ControlZoomRatioRange) as global::Android.Util.Range;
         var maximum = range?.Upper is Java.Lang.Float upper ? upper.FloatValue() : source.Capability.MaximumZoom;
@@ -349,15 +371,47 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
                 new Java.Lang.Float(zoom),
                 physicalId);
 #pragma warning restore CA1422
+            source.EffectiveZoom = zoom;
             Diagnostic?.Invoke(this,
                 $"{source.Capability.Name}: independent physical zoom {zoom:0.0}× accepted by request builder.");
         }
         catch (Exception exception) when (exception is Java.Lang.IllegalArgumentException
             or Java.Lang.IllegalStateException)
         {
+            source.EffectiveZoom = 1f;
             Diagnostic?.Invoke(this,
                 $"{source.Capability.Name}: independent physical zoom {zoom:0.0}× is not supported by this device; using optical 1.0×. Android said: {exception.Message}");
         }
+    }
+
+    private static void ConfigurePreviewTransform(TextureView preview, int bufferWidth, int bufferHeight)
+    {
+        if (preview.Width <= 0 || preview.Height <= 0)
+        {
+            return;
+        }
+
+        var rotation = preview.Display?.Rotation ?? SurfaceOrientation.Rotation0;
+        using var matrix = new Matrix();
+        using var viewRect = new global::Android.Graphics.RectF(0, 0, preview.Width, preview.Height);
+        var centerX = viewRect.CenterX();
+        var centerY = viewRect.CenterY();
+        if (rotation is SurfaceOrientation.Rotation90 or SurfaceOrientation.Rotation270)
+        {
+            using var bufferRect = new global::Android.Graphics.RectF(0, 0, bufferHeight, bufferWidth);
+            bufferRect.Offset(centerX - bufferRect.CenterX(), centerY - bufferRect.CenterY());
+            matrix.SetRectToRect(viewRect, bufferRect, Matrix.ScaleToFit.Fill);
+            var scale = System.Math.Min(
+                preview.Height / (float)bufferHeight,
+                preview.Width / (float)bufferWidth);
+            matrix.PostScale(scale, scale, centerX, centerY);
+            matrix.PostRotate(90f * ((int)rotation - 2), centerX, centerY);
+        }
+        else if (rotation == SurfaceOrientation.Rotation180)
+        {
+            matrix.PostRotate(180f, centerX, centerY);
+        }
+        preview.SetTransform(matrix);
     }
 
     private void FrameAvailable(string sourceId, Yuv420Frame frame)
@@ -373,7 +427,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             return;
         }
 
-        var message = $"LIVE · analysis {width}×{height}";
+        var message = $"LIVE · analysis {width}×{height} · zoom {source.EffectiveZoom:0.0}×";
         SourceStatusChanged?.Invoke(source.Capability.Id, message, false);
         Diagnostic?.Invoke(this,
             $"{source.Capability.Name}: actual analysis {width}x{height}, requested {source.Profile.Resolution}.");
@@ -404,6 +458,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         public FrameRateGate Gate { get; } = new(timestampFrequency: 1000);
         public long Sequence;
         public int ReportedResolution;
+        public float EffectiveZoom { get; set; } = 1f;
         public TaskCompletionSource<bool> FirstFrame { get; private set; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -411,6 +466,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         {
             Gate.Reset();
             Interlocked.Exchange(ref ReportedResolution, 0);
+            EffectiveZoom = 1f;
             FirstFrame = new(TaskCreationOptions.RunContinuationsAsynchronously);
         }
     }
