@@ -62,6 +62,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
 
         _integrated.Diagnostic += IntegratedDiagnostic;
         _integrated.SourceFramesAvailable += ChildSourceFramesAvailable;
+        _integrated.SourceStatusChanged += PhysicalSourceStatusChanged;
         _physicalPair.Diagnostic += IntegratedDiagnostic;
         _physicalPair.SourceFramesAvailable += ChildSourceFramesAvailable;
         _physicalPair.SourceStatusChanged += PhysicalSourceStatusChanged;
@@ -337,16 +338,17 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
         _camera2Previews.Clear();
         _sourceStatusLabels.Clear();
         var sources = _configuration.EnabledSources;
-        var rows = (sources.Count + 1) / 2;
+        var columns = sources.Count == 1 ? 1 : 2;
+        var rows = (sources.Count + columns - 1) / columns;
         for (var rowIndex = 0; rowIndex < rows; rowIndex++)
         {
             var row = new LinearLayout(_context) { Orientation = Orientation.Horizontal };
             _previewGrid.AddView(
                 row,
                 new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, 0, 1));
-            for (var column = 0; column < 2; column++)
+            for (var column = 0; column < columns; column++)
             {
-                var index = rowIndex * 2 + column;
+                var index = rowIndex * columns + column;
                 if (index >= sources.Count)
                 {
                     row.AddView(
@@ -500,6 +502,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
             await StopCoreAsync().ConfigureAwait(false);
             _integrated.Diagnostic -= IntegratedDiagnostic;
             _integrated.SourceFramesAvailable -= ChildSourceFramesAvailable;
+            _integrated.SourceStatusChanged -= PhysicalSourceStatusChanged;
             _physicalPair.Diagnostic -= IntegratedDiagnostic;
             _physicalPair.SourceFramesAvailable -= ChildSourceFramesAvailable;
             _physicalPair.SourceStatusChanged -= PhysicalSourceStatusChanged;

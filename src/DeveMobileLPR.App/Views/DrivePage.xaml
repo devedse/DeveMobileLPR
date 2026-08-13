@@ -65,8 +65,8 @@
                             </VerticalStackLayout>
                             <BoxView BackgroundColor="{DynamicResource Divider}" WidthRequest="1" />
                             <VerticalStackLayout Spacing="0">
-                                <Label FontAttributes="Bold" FontSize="18" Text="{Binding Diagnostics.Recognition.TotalMilliseconds, Converter={StaticResource Milliseconds}}" TextColor="{DynamicResource Primary}" />
-                                <Label Style="{StaticResource DriveCaption}" Text="AI processing" />
+                                <Label FontAttributes="Bold" FontSize="18" Text="{Binding Diagnostics.SlowestRecognition.TotalMilliseconds, Converter={StaticResource Milliseconds}}" TextColor="{DynamicResource Primary}" />
+                                <Label Style="{StaticResource DriveCaption}" Text="AI max / source" />
                             </VerticalStackLayout>
                         </HorizontalStackLayout>
                     </Border>

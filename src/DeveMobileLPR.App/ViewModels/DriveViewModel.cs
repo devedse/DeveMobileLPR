@@ -277,10 +277,17 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        var multiSourceIds = MultiSources.Select(source => source.Id).ToHashSet(StringComparer.Ordinal);
         var allProfiles = SingleSources
             .Concat(MultiSources)
             .DistinctBy(source => source.Id)
-            .Select(source => source.ToProfile())
+            .Select(source =>
+            {
+                var profile = source.ToProfile();
+                return IsMultiCamera && !multiSourceIds.Contains(source.Id)
+                    ? profile with { Enabled = false }
+                    : profile;
+            })
             .ToArray();
         var configuration = new DriveInputConfiguration(
             DriveInputConfiguration.CurrentVersion,

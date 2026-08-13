@@ -39,9 +39,11 @@ public sealed class DriveCoordinator : IAsyncDisposable
     private bool _driving;
     private bool _stopping;
     private bool _disposed;
+    private bool _cameraConfigurationReady;
     private string _status = "Preparing the on-device recognition engine…";
     private bool _hasError;
     private DriveDiagnosticsSnapshot _diagnostics = DriveDiagnosticsSnapshot.Empty;
+    private readonly Dictionary<string, RecognitionStreamDiagnostics> _recognitionDiagnosticsBySource = new(StringComparer.Ordinal);
     private IReadOnlyList<CameraChoice> _cameraChoices = [new("rear", "Rear cameras · automatic lens")];
     public DriveCoordinator(
         ISightingRepository repository,
@@ -148,6 +150,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(camera);
         _camera = camera;
+        _cameraConfigurationReady = false;
         camera.Diagnostic += CameraDiagnostic;
         camera.CameraChoicesChanged += CameraChoicesChanged;
         camera.SourceFramesAvailable += SourceFramesAvailable;
@@ -169,6 +172,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
         {
             _camera = null;
             _cameraInitialization = null;
+            _cameraConfigurationReady = false;
         }
     }
 
@@ -245,6 +249,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
                 _driving = true;
                 _stopping = false;
                 _diagnostics = DriveDiagnosticsSnapshot.Empty;
+                _recognitionDiagnosticsBySource.Clear();
                 _hasError = false;
                 _status = "Scanning · video stays on this device";
             }
@@ -267,6 +272,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
                 _driving = false;
                 _stopping = false;
                 _diagnostics = DriveDiagnosticsSnapshot.Empty;
+                _recognitionDiagnosticsBySource.Clear();
             }
             SetStatus(
                 cleanupFailures.Count == 0
@@ -297,6 +303,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
                 _status = "Finishing your trip…";
                 _trip?.ClearOverlays();
                 _diagnostics = DriveDiagnosticsSnapshot.Empty;
+                _recognitionDiagnosticsBySource.Clear();
             }
             _performance.Stop();
             Publish();
@@ -335,10 +342,29 @@ public sealed class DriveCoordinator : IAsyncDisposable
         }
 
         var camera = _camera ?? throw new InvalidOperationException("The camera preview is not available yet.");
-        await camera.ApplyConfigurationAsync(configuration, cancellationToken).ConfigureAwait(false);
-        _settings.InputConfiguration = configuration;
-        _settings.CameraId = camera.SelectedCameraId;
+        _cameraConfigurationReady = false;
         Publish();
+        try
+        {
+            await camera.ApplyConfigurationAsync(configuration, cancellationToken).ConfigureAwait(false);
+            _settings.InputConfiguration = configuration;
+            _settings.CameraId = camera.SelectedCameraId;
+            _cameraConfigurationReady = true;
+            lock (_stateGate)
+            {
+                _hasError = false;
+                _status = _vehicleDataStatus.IsAvailable
+                    ? "Ready · video inputs configured · vehicle details available"
+                    : "Ready · video inputs configured";
+            }
+            Publish();
+        }
+        catch (Exception exception)
+        {
+            _cameraConfigurationReady = false;
+            SetStatus($"Could not apply video inputs: {exception.Message}", true);
+            throw;
+        }
     }
     public void SetZoom(float zoom)
     {
@@ -369,12 +395,15 @@ public sealed class DriveCoordinator : IAsyncDisposable
     {
         try
         {
+            _cameraConfigurationReady = false;
+            Publish();
             await camera.SelectCameraAsync(cameraId);
             if (!ReferenceEquals(_camera, camera))
             {
                 return;
             }
             _settings.CameraId = camera.SelectedCameraId;
+            _cameraConfigurationReady = true;
             ResetInputPerformance();
             Publish();
         }
@@ -382,6 +411,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
         {
             if (ReferenceEquals(_camera, camera))
             {
+                _cameraConfigurationReady = false;
                 SetStatus($"Could not switch video input: {exception.Message}", true);
             }
         }
@@ -394,6 +424,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
         lock (_stateGate)
         {
             _diagnostics = DriveDiagnosticsSnapshot.Empty;
+            _recognitionDiagnosticsBySource.Clear();
             _trip?.ClearOverlays();
         }
     }
@@ -407,6 +438,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
     {
         try
         {
+            _cameraConfigurationReady = false;
             await camera.InitializeAsync(preferredCameraId).ConfigureAwait(false);
             await camera.ApplyConfigurationAsync(_settings.InputConfiguration).ConfigureAwait(false);
             if (!ReferenceEquals(_camera, camera))
@@ -415,6 +447,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
             }
 
             _settings.CameraId = camera.SelectedCameraId;
+            _cameraConfigurationReady = true;
             if (_driving && !_stopping)
             {
                 await camera.StartAsync().ConfigureAwait(false);
@@ -425,6 +458,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
         {
             if (ReferenceEquals(_camera, camera))
             {
+                _cameraConfigurationReady = false;
                 SetStatus($"Could not initialize video input: {exception.Message}", true);
             }
         }
@@ -590,6 +624,17 @@ public sealed class DriveCoordinator : IAsyncDisposable
                     recognition.SourceWidth,
                     recognition.SourceHeight).ToArray();
             _diagnostics = _diagnostics with { Recognition = progress.Diagnostics };
+            _recognitionDiagnosticsBySource[progress.SourceId] = progress.Diagnostics;
+            _diagnostics = _diagnostics with
+            {
+                RecognitionSources = _recognitionDiagnosticsBySource
+                    .Select(pair => new DriveSourceRecognitionDiagnostics(
+                        pair.Key,
+                        _camera?.SourceCapabilities.FirstOrDefault(source => source.Id == pair.Key)?.Name ?? pair.Key,
+                        pair.Value))
+                    .OrderBy(source => source.SourceName, StringComparer.Ordinal)
+                    .ToArray()
+            };
         }
         Publish();
     }
@@ -724,7 +769,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
         _trip?.MostExpensive,
         CreateOverlays(),
         CurrentLocation() is not null,
-        _camera?.IsReady == true,
+        _camera?.IsReady == true && _cameraConfigurationReady,
         _camera?.SupportsNetworkStreams == true,
         _cameraChoices.ToArray(),
         _camera?.SelectedCameraId ?? _settings.CameraId,

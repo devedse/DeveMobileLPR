@@ -43,6 +43,7 @@ internal sealed class CameraXMultiFrameSource : IDisposable
 
     public event EventHandler<string>? Diagnostic;
     public event EventHandler<DriveFrameCountEventArgs>? SourceFramesAvailable;
+    public event Action<string, string, bool>? SourceStatusChanged;
 
     public async Task PrepareAsync(CancellationToken cancellationToken)
     {
@@ -74,6 +75,7 @@ internal sealed class CameraXMultiFrameSource : IDisposable
                 source.Preview,
                 _recognitionFramesPerSecond,
                 FrameAvailable,
+                FrameObserved,
                 message => Diagnostic?.Invoke(this, message)));
         }
     }
@@ -85,9 +87,30 @@ internal sealed class CameraXMultiFrameSource : IDisposable
         await MainThread.InvokeOnMainThreadAsync(() =>
         {
             cancellationToken.ThrowIfCancellationRequested();
+            foreach (var binding in _bindings)
+            {
+                SourceStatusChanged?.Invoke(binding.Capability.Id, "WAITING FOR CAMERA FRAMES", false);
+            }
             Bind(_provider ?? throw new InvalidOperationException("CameraX is unavailable."));
             _running = true;
         });
+        try
+        {
+            await Task.WhenAll(_bindings.Select(binding => binding.FirstFrame.Task))
+                .WaitAsync(TimeSpan.FromSeconds(6), cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (System.TimeoutException)
+        {
+            var missing = _bindings.Where(binding => !binding.FirstFrame.Task.IsCompletedSuccessfully).ToArray();
+            foreach (var binding in missing)
+            {
+                SourceStatusChanged?.Invoke(binding.Capability.Id, "NO ANALYSIS FRAMES", true);
+            }
+            Stop();
+            throw new System.TimeoutException(
+                $"No frames arrived from {string.Join(" and ", missing.Select(binding => binding.Capability.Name))}.");
+        }
     }
 
     public void Stop()
@@ -157,6 +180,15 @@ internal sealed class CameraXMultiFrameSource : IDisposable
         _submitFrame(sourceId, frame);
     }
 
+    private void FrameObserved(SourceBinding binding, int width, int height)
+    {
+        if (!binding.FirstFrame.TrySetResult(true))
+        {
+            return;
+        }
+        SourceStatusChanged?.Invoke(binding.Capability.Id, $"LIVE · analysis {width}×{height}", false);
+    }
+
     private Task<ProcessCameraProvider> GetProviderAsync()
     {
         lock (_providerGate)
@@ -211,6 +243,7 @@ internal sealed class CameraXMultiFrameSource : IDisposable
     {
         private readonly Func<int> _recognitionFramesPerSecond;
         private readonly Action<string, Yuv420Frame> _frameAvailable;
+        private readonly Action<SourceBinding, int, int> _frameObserved;
         private readonly Action<string> _diagnostic;
         private readonly FrameRateGate _frameGate = new(timestampFrequency: 1000);
         private readonly IExecutorService _executor = Executors.NewSingleThreadExecutor()
@@ -224,6 +257,7 @@ internal sealed class CameraXMultiFrameSource : IDisposable
             PreviewView previewView,
             Func<int> recognitionFramesPerSecond,
             Action<string, Yuv420Frame> frameAvailable,
+            Action<SourceBinding, int, int> frameObserved,
             Action<string> diagnostic)
         {
             Capability = capability;
@@ -231,6 +265,7 @@ internal sealed class CameraXMultiFrameSource : IDisposable
             PreviewView = previewView;
             _recognitionFramesPerSecond = recognitionFramesPerSecond;
             _frameAvailable = frameAvailable;
+            _frameObserved = frameObserved;
             _diagnostic = diagnostic;
             Selector = BuildSelector(capability);
         }
@@ -241,6 +276,8 @@ internal sealed class CameraXMultiFrameSource : IDisposable
         public CameraSelector Selector { get; }
         public Preview PreviewUseCase { get; private set; } = null!;
         public ImageAnalysis AnalysisUseCase { get; private set; } = null!;
+        public TaskCompletionSource<bool> FirstFrame { get; private set; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public void BuildUseCases(Context context)
         {
@@ -292,6 +329,7 @@ internal sealed class CameraXMultiFrameSource : IDisposable
 
             try
             {
+                _frameObserved(this, image.Width, image.Height);
                 if (!_frameGate.TryAcquire(Environment.TickCount64, _recognitionFramesPerSecond()))
                 {
                     return;
@@ -350,6 +388,7 @@ internal sealed class CameraXMultiFrameSource : IDisposable
         {
             _frameGate.Reset();
             Interlocked.Exchange(ref _reportedResolution, 0);
+            FirstFrame = new(TaskCreationOptions.RunContinuationsAsynchronously);
         }
 
         protected override void Dispose(bool disposing)

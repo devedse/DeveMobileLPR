@@ -42,15 +42,30 @@ public enum DriveOverlayKind
 
 public sealed record DriveIntervalDiagnostics(string Label, double? IntervalMilliseconds);
 
+public sealed record DriveSourceRecognitionDiagnostics(
+    string SourceId,
+    string SourceName,
+    RecognitionStreamDiagnostics Diagnostics)
+{
+    public double TotalMilliseconds => Diagnostics.TotalMilliseconds;
+}
+
 public sealed record DriveDiagnosticsSnapshot(
     DriveIntervalDiagnostics Source,
     DriveIntervalDiagnostics Preview,
-    RecognitionStreamDiagnostics? Recognition)
+    RecognitionStreamDiagnostics? Recognition,
+    IReadOnlyList<DriveSourceRecognitionDiagnostics> RecognitionSources)
 {
     public static DriveDiagnosticsSnapshot Empty { get; } = new(
         new("Capture interval", null),
         new("Preview interval", null),
-        null);
+        null,
+        []);
+
+    public RecognitionStreamDiagnostics? SlowestRecognition => RecognitionSources
+        .OrderByDescending(source => source.TotalMilliseconds)
+        .Select(source => source.Diagnostics)
+        .FirstOrDefault() ?? Recognition;
 
     public DriveDiagnosticsSnapshot WithSourceLabel(string label) =>
         this with { Source = Source with { Label = label } };
