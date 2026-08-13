@@ -4,51 +4,45 @@ namespace DeveMobileLPR.App.Platforms.Android.Camera;
 
 internal sealed class DualCameraPreviewPage : ContentPage
 {
-    private static readonly CameraPairOption[] CameraPairs =
+    private static readonly CameraOption[] Cameras =
     [
-        new("2 + 4 · full main + full tele", "2", "4"),
-        new("5 + 4 · cropped main mode + full tele", "5", "4"),
-        new("2 + 6 · full main + cropped tele mode", "2", "6"),
-        new("5 + 6 · cropped main + cropped tele", "5", "6"),
-        new("3 + 4 · ultrawide + full tele", "3", "4")
+        new("2", "main · full mode", true),
+        new("3", "ultrawide · full mode", false),
+        new("4", "tele · full mode", true),
+        new("5", "main · cropped mode", false),
+        new("6", "tele · cropped mode", false),
+        new("9", "ultrawide · cropped mode", false)
     ];
 
     private static readonly ResolutionOption[] Resolutions =
     [
-        new("1920×1080 · compatibility test", 1920, 1080),
-        new("3840×2160 · dual 4K test", 3840, 2160)
+        new("1280×720 · multi-stream compatibility", 1280, 720),
+        new("1920×1080 · Full HD test", 1920, 1080),
+        new("3840×2160 · 4K test", 3840, 2160)
     ];
 
+    private readonly Dictionary<string, CheckBox> _cameraChecks = [];
     private readonly DualCameraPreview _preview;
-    private readonly Picker _pairPicker;
     private readonly Picker _resolutionPicker;
     private readonly Label _statusLabel;
 
     public DualCameraPreviewPage()
     {
-        Title = "Dual rear camera test";
+        Title = "Multi rear camera test";
         BackgroundColor = Color.FromArgb("#0B0D10");
 
-        _pairPicker = new Picker
-        {
-            Title = "Physical camera pair",
-            ItemsSource = CameraPairs,
-            ItemDisplayBinding = new Binding(nameof(CameraPairOption.Label)),
-            SelectedIndex = 0,
-            TextColor = Colors.White
-        };
         _resolutionPicker = new Picker
         {
             Title = "Requested preview resolution",
             ItemsSource = Resolutions,
             ItemDisplayBinding = new Binding(nameof(ResolutionOption.Label)),
-            SelectedIndex = 0,
+            SelectedIndex = 1,
             TextColor = Colors.White
         };
 
         _statusLabel = new Label
         {
-            Text = "Choose a pair and tap Start. Any CameraX rejection will appear here.",
+            Text = "Select 2–4 physical IDs and tap Start. Any Camera2/HAL rejection will appear here.",
             FontFamily = "monospace",
             FontSize = 12,
             TextColor = Color.FromArgb("#EEF1F4")
@@ -103,33 +97,21 @@ internal sealed class DualCameraPreviewPage : ContentPage
                 {
                     new Label
                     {
-                        Text = "Two physical lenses, one logical rear camera",
+                        Text = "Select physical lenses behind logical rear camera 0",
                         FontSize = 21,
                         FontAttributes = FontAttributes.Bold,
                         TextColor = Colors.White
                     },
                     new Label
                     {
-                        Text = "This is a technology test. Both panels must show live, different fields of view for the pair to count as working.",
+                        Text = "CameraX supports only two physical cameras. This screen uses lower-level Camera2 to test whether this Pixel accepts up to four physical preview streams.",
                         FontSize = 13,
                         TextColor = Color.FromArgb("#C8CFD7")
                     },
-                    _pairPicker,
+                    CreateCameraChoices(),
                     _resolutionPicker,
                     buttons,
-                    new Grid
-                    {
-                        ColumnDefinitions =
-                        {
-                            new ColumnDefinition(GridLength.Star),
-                            new ColumnDefinition(GridLength.Star)
-                        },
-                        Children =
-                        {
-                            CreatePreviewLabel("LEFT · first ID"),
-                            CreatePreviewLabel("RIGHT · second ID", 1)
-                        }
-                    },
+                    CreatePreviewLabel("Panels follow selected ID order · each preview is labelled"),
                     _preview,
                     new Border
                     {
@@ -141,7 +123,7 @@ internal sealed class DualCameraPreviewPage : ContentPage
                     },
                     new Label
                     {
-                        Text = "Try 2 + 4 first. If 4K fails, retry the same pair at 1080p. Then compare 5 + 4 with 2 + 4 to see whether ID 5 is a cropped main-sensor mode.",
+                        Text = "Start with 2 + 4. For four streams, select 2 + 3 + 4 + one cropped mode and try 720p first. A configured session proves simultaneous previews only; continuous YUV analysis has separate bandwidth limits.",
                         FontSize = 12,
                         TextColor = Color.FromArgb("#AAB2BD")
                     }
@@ -167,20 +149,72 @@ internal sealed class DualCameraPreviewPage : ContentPage
             return;
         }
 
-        if (_pairPicker.SelectedItem is not CameraPairOption pair ||
-            _resolutionPicker.SelectedItem is not ResolutionOption resolution)
+        var selectedIds = Cameras
+            .Where(camera => _cameraChecks[camera.Id].IsChecked)
+            .Select(camera => camera.Id)
+            .ToArray();
+        if (selectedIds.Length is < 2 or > 4)
         {
-            _statusLabel.Text = "Select both a camera pair and a resolution.";
+            _statusLabel.Text = $"Select between 2 and 4 cameras. Currently selected: {selectedIds.Length}.";
             return;
         }
 
-        _statusLabel.Text = $"Binding physical IDs {pair.PrimaryId} + {pair.SecondaryId} at {resolution.Width}×{resolution.Height}…";
-        _preview.Start(pair.PrimaryId, pair.SecondaryId, resolution.Width, resolution.Height);
+        if (_resolutionPicker.SelectedItem is not ResolutionOption resolution)
+        {
+            _statusLabel.Text = "Select a resolution.";
+            return;
+        }
+
+        _statusLabel.Text =
+            $"Opening logical camera 0 with physical IDs {string.Join(" + ", selectedIds)} at {resolution.Width}×{resolution.Height}…";
+        _preview.Start(selectedIds, resolution.Width, resolution.Height);
     }
 
-    private static Label CreatePreviewLabel(string text, int column = 0)
+    private View CreateCameraChoices()
     {
-        var label = new Label
+        var grid = new Grid
+        {
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(GridLength.Star)
+            },
+            RowSpacing = 4,
+            ColumnSpacing = 8
+        };
+
+        for (var index = 0; index < Cameras.Length; index++)
+        {
+            var camera = Cameras[index];
+            var checkBox = new CheckBox
+            {
+                IsChecked = camera.SelectedByDefault,
+                Color = Color.FromArgb("#F5B942")
+            };
+            _cameraChecks.Add(camera.Id, checkBox);
+            var choice = new HorizontalStackLayout
+            {
+                Spacing = 2,
+                Children =
+                {
+                    checkBox,
+                    new Label
+                    {
+                        Text = $"ID {camera.Id} · {camera.Description}",
+                        VerticalTextAlignment = TextAlignment.Center,
+                        FontSize = 12,
+                        TextColor = Colors.White
+                    }
+                }
+            };
+            grid.Add(choice, index % 2, index / 2);
+        }
+
+        return grid;
+    }
+
+    private static Label CreatePreviewLabel(string text) =>
+        new()
         {
             Text = text,
             FontSize = 12,
@@ -188,14 +222,8 @@ internal sealed class DualCameraPreviewPage : ContentPage
             HorizontalTextAlignment = TextAlignment.Center,
             TextColor = Color.FromArgb("#F5B942")
         };
-        Grid.SetColumn(label, column);
-        return label;
-    }
 
-    private sealed record CameraPairOption(string Label, string PrimaryId, string SecondaryId)
-    {
-        public override string ToString() => Label;
-    }
+    private sealed record CameraOption(string Id, string Description, bool SelectedByDefault);
 
     private sealed record ResolutionOption(string Label, int Width, int Height)
     {

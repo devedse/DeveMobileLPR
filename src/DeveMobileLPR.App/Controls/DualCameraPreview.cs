@@ -2,11 +2,8 @@ namespace DeveMobileLPR.App.Controls;
 
 internal sealed class DualCameraPreview : View
 {
-    public static readonly BindableProperty PrimaryCameraIdProperty = BindableProperty.Create(
-        nameof(PrimaryCameraId), typeof(string), typeof(DualCameraPreview), "2");
-
-    public static readonly BindableProperty SecondaryCameraIdProperty = BindableProperty.Create(
-        nameof(SecondaryCameraId), typeof(string), typeof(DualCameraPreview), "4");
+    public static readonly BindableProperty CameraIdsProperty = BindableProperty.Create(
+        nameof(CameraIds), typeof(string), typeof(DualCameraPreview), "2,4");
 
     public static readonly BindableProperty RequestedWidthProperty = BindableProperty.Create(
         nameof(RequestedWidth), typeof(int), typeof(DualCameraPreview), 1920);
@@ -19,16 +16,10 @@ internal sealed class DualCameraPreview : View
 
     public event EventHandler<string>? StatusChanged;
 
-    public string PrimaryCameraId
+    public string CameraIds
     {
-        get => (string)GetValue(PrimaryCameraIdProperty);
-        set => SetValue(PrimaryCameraIdProperty, value);
-    }
-
-    public string SecondaryCameraId
-    {
-        get => (string)GetValue(SecondaryCameraIdProperty);
-        set => SetValue(SecondaryCameraIdProperty, value);
+        get => (string)GetValue(CameraIdsProperty);
+        set => SetValue(CameraIdsProperty, value);
     }
 
     public int RequestedWidth
@@ -49,15 +40,20 @@ internal sealed class DualCameraPreview : View
         set => SetValue(IsActiveProperty, value);
     }
 
-    public void Start(string primaryCameraId, string secondaryCameraId, int width, int height)
+    public void Start(IReadOnlyList<string> cameraIds, int width, int height)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(cameraIds.Count, 2);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(cameraIds.Count, 4);
+
         IsActive = false;
-        PrimaryCameraId = primaryCameraId;
-        SecondaryCameraId = secondaryCameraId;
+        CameraIds = string.Join(',', cameraIds);
         RequestedWidth = width;
         RequestedHeight = height;
         IsActive = true;
     }
+
+    internal string[] GetCameraIds() =>
+        CameraIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     public void Stop() => IsActive = false;
 
