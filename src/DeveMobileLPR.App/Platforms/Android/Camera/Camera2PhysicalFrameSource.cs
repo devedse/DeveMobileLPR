@@ -326,7 +326,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         return await completion.Task.ConfigureAwait(false);
     }
 
-    private static void ApplyPhysicalZoom(
+    private void ApplyPhysicalZoom(
         CaptureRequest.Builder builder,
         CameraManager manager,
         ConfiguredSource source)
@@ -341,12 +341,23 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         var range = characteristics.Get(CameraCharacteristics.ControlZoomRatioRange) as global::Android.Util.Range;
         var maximum = range?.Upper is Java.Lang.Float upper ? upper.FloatValue() : source.Capability.MaximumZoom;
         var zoom = System.Math.Clamp(source.Profile.Zoom, 1f, System.Math.Max(1f, maximum));
+        try
+        {
 #pragma warning disable CA1422
-        builder.SetPhysicalCameraKey(
-            CaptureRequest.ControlZoomRatio,
-            new Java.Lang.Float(zoom),
-            physicalId);
+            builder.SetPhysicalCameraKey(
+                CaptureRequest.ControlZoomRatio,
+                new Java.Lang.Float(zoom),
+                physicalId);
 #pragma warning restore CA1422
+            Diagnostic?.Invoke(this,
+                $"{source.Capability.Name}: independent physical zoom {zoom:0.0}× accepted by request builder.");
+        }
+        catch (Exception exception) when (exception is Java.Lang.IllegalArgumentException
+            or Java.Lang.IllegalStateException)
+        {
+            Diagnostic?.Invoke(this,
+                $"{source.Capability.Name}: independent physical zoom {zoom:0.0}× is not supported by this device; using optical 1.0×. Android said: {exception.Message}");
+        }
     }
 
     private void FrameAvailable(string sourceId, Yuv420Frame frame)
@@ -412,14 +423,15 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
     {
         public void OnImageAvailable(ImageReader? reader)
         {
-            using var image = reader?.AcquireLatestImage();
-            if (image is null)
-            {
-                return;
-            }
-
+            global::Android.Media.Image? image = null;
             try
             {
+                image = reader?.AcquireLatestImage();
+                if (image is null)
+                {
+                    return;
+                }
+
                 frameObserved(source, image.Width, image.Height);
                 if (!source.Gate.TryAcquire(System.Environment.TickCount64, source.FramesPerSecond()))
                 {
@@ -461,6 +473,13 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             catch (Exception exception)
             {
                 diagnostic($"{source.Capability.Name}: Camera2 frame ingestion failed: {exception.Message}");
+            }
+            finally
+            {
+                // ImageReader counts an image as acquired until Close() is called. Dispose() alone
+                // is not sufficiently deterministic through the Android binding at 4K frame rates.
+                image?.Close();
+                image?.Dispose();
             }
         }
 
