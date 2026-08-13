@@ -86,6 +86,7 @@ internal sealed class CameraCapabilitiesPage : ContentPage
                     TextColor = Color.FromArgb("#D1D6DC")
                 },
                 buttonGrid,
+                dualPreviewButton,
                 _statusLabel,
                 _reportLayout
             }
