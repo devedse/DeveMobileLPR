@@ -373,7 +373,9 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
                 {
                     var cameraPreview = new PreviewView(_context);
                     cameraPreview.SetImplementationMode(PreviewView.ImplementationMode.Compatible);
-                    cameraPreview.SetScaleType(PreviewView.ScaleType.FitCenter);
+                    cameraPreview.SetScaleType(sources.Count == 1
+                        ? PreviewView.ScaleType.FillCenter
+                        : PreviewView.ScaleType.FitCenter);
                     _cameraPreviews.Add(profile.SourceId, cameraPreview);
                     preview = cameraPreview;
                 }
