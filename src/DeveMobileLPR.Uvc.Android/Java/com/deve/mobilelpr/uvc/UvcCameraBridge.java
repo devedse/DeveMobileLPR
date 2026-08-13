@@ -10,6 +10,7 @@ import android.view.Surface;
 
 import com.serenegiant.usb.Size;
 import com.serenegiant.usb.USBMonitor;
+import com.serenegiant.usb.UVCControl;
 import com.serenegiant.usb.UVCCamera;
 import com.serenegiant.usb.UVCParam;
 
@@ -23,21 +24,29 @@ public final class UvcCameraBridge {
         void onDetached(UsbDevice device);
         void onPermissionDenied(UsbDevice device);
         void onOpened(UsbDevice device, int width, int height, int framesPerSecond);
+        void onZoomState(boolean hardwareSupported, float appliedZoomRatio, float maximumZoomRatio);
         void onFrame(ByteBuffer frame, int width, int height);
         void onError(UsbDevice device, String message);
     }
 
-    private static final int MAX_PREVIEW_WIDTH = 1920;
-    private static final int MAX_PREVIEW_HEIGHT = 1080;
+    private static final int MAX_CAPTURE_WIDTH = 4096;
+    private static final int MAX_CAPTURE_HEIGHT = 2160;
+    private static final float MAX_APP_ZOOM_RATIO = 4.0f;
+    private static final long ZOOM_CONTROL_SETTLE_MILLIS = 350L;
 
     private final USBMonitor monitor;
     private final Listener listener;
     private final HandlerThread callbackThread;
+    private final Handler callbackHandler;
     private UVCCamera camera;
+    private UVCControl cameraControl;
     private UsbDevice selectedDevice;
     private Surface previewSurface;
     private int width;
     private int height;
+    private int zoomMinimum;
+    private int zoomMaximum;
+    private float requestedZoomRatio = 1.0f;
 
     public UvcCameraBridge(Context context, Listener listener) {
         if (context == null || listener == null) {
@@ -46,6 +55,7 @@ public final class UvcCameraBridge {
         this.listener = listener;
         callbackThread = new HandlerThread("DeveMobileLPR-UVC");
         callbackThread.start();
+        callbackHandler = new Handler(callbackThread.getLooper());
         monitor = new USBMonitor(context.getApplicationContext(), new USBMonitor.OnDeviceConnectListener() {
             @Override public void onAttach(UsbDevice device) { handleAttach(device); }
             @Override public void onDetach(UsbDevice device) { handleDetach(device); }
@@ -59,7 +69,7 @@ public final class UvcCameraBridge {
             @Override public void onError(UsbDevice device, USBMonitor.USBException error) {
                 listener.onError(device, error.getMessage() != null ? error.getMessage() : error.toString());
             }
-        }, new Handler(callbackThread.getLooper()));
+        }, callbackHandler);
         monitor.register();
     }
 
@@ -90,6 +100,12 @@ public final class UvcCameraBridge {
         }
     }
 
+    /** Uses UVC CT_ZOOM_ABSOLUTE when the camera advertises it. */
+    public synchronized void setZoom(float zoomRatio) {
+        requestedZoomRatio = Math.max(1.0f, Math.min(MAX_APP_ZOOM_RATIO, zoomRatio));
+        applyHardwareZoom();
+    }
+
     public synchronized void closeCamera() {
         if (camera != null) {
             try { camera.setFrameCallback(null, 0); } catch (Exception ignored) { }
@@ -97,6 +113,9 @@ public final class UvcCameraBridge {
             try { camera.destroy(true); } catch (Exception ignored) { }
             camera = null;
         }
+        cameraControl = null;
+        zoomMinimum = 0;
+        zoomMaximum = 0;
         width = 0;
         height = 0;
     }
@@ -144,6 +163,7 @@ public final class UvcCameraBridge {
             newCamera.startPreview();
             camera = newCamera;
             listener.onOpened(device, size.width, size.height, size.fps);
+            callbackHandler.postDelayed(() -> initializeZoomControl(newCamera), ZOOM_CONTROL_SETTLE_MILLIS);
         } catch (Exception error) {
             closeCamera();
             listener.onError(device, error.getMessage() != null ? error.getMessage() : error.toString());
@@ -166,17 +186,55 @@ public final class UvcCameraBridge {
         if (frameWidth > 0 && frameHeight > 0) target.onFrame(frame, frameWidth, frameHeight);
     }
 
+    private synchronized void initializeZoomControl(UVCCamera expectedCamera) {
+        if (camera != expectedCamera) return;
+        try {
+            UVCControl control = expectedCamera.getControl();
+            int[] limits = control != null && control.isZoomAbsoluteEnable()
+                    ? control.updateZoomAbsoluteLimit()
+                    : null;
+            if (limits == null || limits.length < 2 || limits[0] <= 0 || limits[1] <= limits[0]) {
+                cameraControl = null;
+                listener.onZoomState(false, 1.0f, 1.0f);
+                return;
+            }
+
+            cameraControl = control;
+            zoomMinimum = limits[0];
+            zoomMaximum = limits[1];
+            applyHardwareZoom();
+        } catch (Exception ignored) {
+            cameraControl = null;
+            zoomMinimum = 0;
+            zoomMaximum = 0;
+            listener.onZoomState(false, 1.0f, 1.0f);
+        }
+    }
+
+    private synchronized void applyHardwareZoom() {
+        if (cameraControl == null || zoomMinimum <= 0 || zoomMaximum <= zoomMinimum) return;
+        float maximumRatio = (float) zoomMaximum / (float) zoomMinimum;
+        float appliedRatio = Math.min(requestedZoomRatio, maximumRatio);
+        int target = Math.max(zoomMinimum, Math.min(zoomMaximum, Math.round(zoomMinimum * appliedRatio)));
+        cameraControl.setZoomAbsolute(target);
+        int actual = cameraControl.getZoomAbsolute();
+        if (actual < zoomMinimum || actual > zoomMaximum) actual = target;
+        listener.onZoomState(true, (float) actual / (float) zoomMinimum, maximumRatio);
+    }
+
     private static Size choosePreviewSize(List<Size> sizes) {
         if (sizes == null || sizes.isEmpty()) return null;
         Size best = null;
         long bestScore = Long.MIN_VALUE;
         for (Size size : sizes) {
             if (size == null || size.width <= 0 || size.height <= 0) continue;
-            boolean withinLimit = size.width <= MAX_PREVIEW_WIDTH && size.height <= MAX_PREVIEW_HEIGHT;
+            boolean withinLimit = size.width <= MAX_CAPTURE_WIDTH && size.height <= MAX_CAPTURE_HEIGHT;
             long pixels = (long) size.width * size.height;
-            long score = withinLimit ? 100_000_000_000L + pixels : -pixels;
-            if (size.type == UVCCamera.FRAME_FORMAT_MJPEG) score += 10_000_000_000L;
-            score += Math.min(Math.max(size.fps, 0), 60) * 1_000L;
+            // Resolution is the primary criterion. MJPEG wins only at the same resolution because
+            // it is much more likely to fit a 4K stream over the available USB bandwidth.
+            long score = withinLimit ? 100_000_000_000_000L + pixels * 1_000L : -pixels * 1_000L;
+            if (size.type == UVCCamera.FRAME_FORMAT_MJPEG) score += 100L;
+            score += Math.min(Math.max(size.fps, 0), 60);
             if (best == null || score > bestScore) {
                 best = size;
                 bestScore = score;

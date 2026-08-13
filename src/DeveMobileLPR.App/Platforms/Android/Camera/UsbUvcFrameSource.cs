@@ -22,6 +22,10 @@ internal sealed class UsbUvcFrameSource : Java.Lang.Object, IDriveFrameSourceTel
     private TaskCompletionSource? _opened;
     private string? _selectedCameraId;
     private long _sequence;
+    private float _zoomRatio = 1f;
+    private float _appliedHardwareZoomRatio = 1f;
+    private int _zoomCapabilityKnown;
+    private int _zoomCapabilityReported;
     private volatile bool _running;
     private bool _disposed;
 
@@ -67,6 +71,17 @@ internal sealed class UsbUvcFrameSource : Java.Lang.Object, IDriveFrameSourceTel
         _selectedCameraId = cameraId;
     }
 
+    public void SetZoom(float zoomRatio)
+    {
+        var zoom = Math.Clamp(zoomRatio, 1f, 4f);
+        Volatile.Write(ref _zoomRatio, zoom);
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            _bridge.SetZoom(zoom);
+            _preview.SetZoom(GetDigitalZoomRatio());
+        });
+    }
+
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -76,6 +91,10 @@ internal sealed class UsbUvcFrameSource : Java.Lang.Object, IDriveFrameSourceTel
             ?? throw new InvalidOperationException("The selected USB/UVC camera is no longer connected.");
 
         _recognitionFrameGate.Reset();
+        Volatile.Write(ref _appliedHardwareZoomRatio, 1f);
+        Volatile.Write(ref _zoomCapabilityKnown, 0);
+        Volatile.Write(ref _zoomCapabilityReported, 0);
+        MainThread.BeginInvokeOnMainThread(() => _preview.SetZoom(1f));
         _opened = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _running = true;
         await MainThread.InvokeOnMainThreadAsync(() =>
@@ -107,6 +126,7 @@ internal sealed class UsbUvcFrameSource : Java.Lang.Object, IDriveFrameSourceTel
         _opened?.TrySetCanceled();
         _opened = null;
         _bridge.CloseCamera();
+        MainThread.BeginInvokeOnMainThread(() => _preview.SetZoom(1f));
     }
 
     private void PreviewSurfaceChanged(object? sender, global::Android.Views.Surface? surface)
@@ -191,6 +211,20 @@ internal sealed class UsbUvcFrameSource : Java.Lang.Object, IDriveFrameSourceTel
             "USB camera access was denied. Reconnect the camera and allow DeveMobileLPR to use it."));
     }
 
+    private void OnZoomState(bool hardwareSupported, float appliedZoomRatio, float maximumZoomRatio)
+    {
+        Volatile.Write(ref _appliedHardwareZoomRatio, hardwareSupported ? Math.Max(1f, appliedZoomRatio) : 1f);
+        Volatile.Write(ref _zoomCapabilityKnown, 1);
+        MainThread.BeginInvokeOnMainThread(() => _preview.SetZoom(GetDigitalZoomRatio()));
+
+        if (Interlocked.Exchange(ref _zoomCapabilityReported, 1) == 0)
+        {
+            Diagnostic?.Invoke(this, hardwareSupported
+                ? $"USB/UVC hardware zoom enabled · up to {maximumZoomRatio:0.##}x"
+                : "USB/UVC camera does not advertise hardware zoom; using lossless-input center crop.");
+        }
+    }
+
     private void OnError(UsbDevice? device, string? message)
     {
         var exception = new IOException(string.IsNullOrWhiteSpace(message)
@@ -227,11 +261,17 @@ internal sealed class UsbUvcFrameSource : Java.Lang.Object, IDriveFrameSourceTel
             var packed = GC.AllocateUninitializedArray<byte>(requiredLength);
             buffer.Rewind();
             buffer.Get(packed, 0, requiredLength);
-            var frame = Nv21FrameFactory.Create(
+            var zoom = GetDigitalZoomRatio();
+            GetCenterCrop(width, height, zoom, out var cropX, out var cropY, out var cropWidth, out var cropHeight);
+            var frame = Nv21FrameFactory.CreateCropped(
                 packed,
                 width,
                 width,
                 height,
+                cropX,
+                cropY,
+                cropWidth,
+                cropHeight,
                 Interlocked.Increment(ref _sequence),
                 DateTimeOffset.UtcNow,
                 rotationDegrees: 0);
@@ -241,6 +281,35 @@ internal sealed class UsbUvcFrameSource : Java.Lang.Object, IDriveFrameSourceTel
         {
             Diagnostic?.Invoke(this, $"Could not process a USB/UVC frame: {exception.Message}");
         }
+    }
+
+    private float GetDigitalZoomRatio()
+    {
+        if (Volatile.Read(ref _zoomCapabilityKnown) == 0)
+        {
+            return 1f;
+        }
+
+        var requested = Volatile.Read(ref _zoomRatio);
+        var hardware = Math.Max(1f, Volatile.Read(ref _appliedHardwareZoomRatio));
+        return Math.Clamp(requested / hardware, 1f, 4f);
+    }
+
+    private static void GetCenterCrop(
+        int width,
+        int height,
+        float zoomRatio,
+        out int x,
+        out int y,
+        out int cropWidth,
+        out int cropHeight)
+    {
+        cropWidth = Math.Max(2, (int)(width / Math.Max(1f, zoomRatio))) & ~1;
+        cropHeight = Math.Max(2, (int)(height / Math.Max(1f, zoomRatio))) & ~1;
+        cropWidth = Math.Min(cropWidth, width & ~1);
+        cropHeight = Math.Min(cropHeight, height & ~1);
+        x = ((width - cropWidth) / 2) & ~1;
+        y = ((height - cropHeight) / 2) & ~1;
     }
 
     protected override void Dispose(bool disposing)
@@ -264,6 +333,8 @@ internal sealed class UsbUvcFrameSource : Java.Lang.Object, IDriveFrameSourceTel
         public void OnPermissionDenied(UsbDevice? device) => owner.OnPermissionDenied(device);
         public void OnOpened(UsbDevice? device, int width, int height, int framesPerSecond) =>
             owner.OnOpened(device, width, height, framesPerSecond);
+        public void OnZoomState(bool hardwareSupported, float appliedZoomRatio, float maximumZoomRatio) =>
+            owner.OnZoomState(hardwareSupported, appliedZoomRatio, maximumZoomRatio);
         public void OnFrame(Java.Nio.ByteBuffer? frame, int width, int height) => owner.OnFrame(frame, width, height);
         public void OnError(UsbDevice? device, string? message) => owner.OnError(device, message);
     }

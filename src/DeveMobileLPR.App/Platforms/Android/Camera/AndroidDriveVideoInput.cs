@@ -240,8 +240,11 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
 
     public void SetZoom(float zoomRatio)
     {
-        if (!DriveInputIds.IsUsbUvcCamera(_selectedCameraId)
-            && _selectedCameraId != DriveInputIds.NetworkLlHls)
+        if (DriveInputIds.IsUsbUvcCamera(_selectedCameraId))
+        {
+            _uvc.SetZoom(zoomRatio);
+        }
+        else if (_selectedCameraId != DriveInputIds.NetworkLlHls)
         {
             _camera.SetZoom(zoomRatio);
         }
