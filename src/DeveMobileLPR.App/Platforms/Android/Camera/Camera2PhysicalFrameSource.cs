@@ -227,18 +227,25 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
 
         foreach (var source in _sources)
         {
-            source.RotationDegrees = GetImageRotation(manager, source);
+            source.Orientation = GetOrientation(manager, source);
             var texture = source.Preview.SurfaceTexture
                 ?? throw new InvalidOperationException($"{source.Capability.Name} preview surface is unavailable.");
-            // Preview stays modest; the YUV reader carries the user-selected analysis resolution.
-            const int previewWidth = 1280;
-            const int previewHeight = 720;
-            texture.SetDefaultBufferSize(previewWidth, previewHeight);
+            // Preview stays modest but matches the analysis aspect. A fixed 16:9 preview cannot
+            // share overlay geometry with a user-selected 4:3 YUV stream.
+            var previewSize = SelectPreviewSize(manager, source);
+            texture.SetDefaultBufferSize(previewSize.Width, previewSize.Height);
             source.Preview.ConfigureBuffer(
-                previewWidth,
-                previewHeight,
-                source.RotationDegrees,
-                AspectScaleMode.Fit);
+                previewSize.Width,
+                previewSize.Height,
+                source.Orientation.PreviewRotationDegrees,
+                AspectScaleMode.Fit,
+                source.Orientation.PreviewMirrored);
+            Diagnostic?.Invoke(this,
+                $"{source.Capability.Name}: geometry · sensor {source.Orientation.SensorOrientationDegrees}° · " +
+                $"display {source.Orientation.DisplayRotationDegrees}° · preview {source.Orientation.PreviewRotationDegrees}°" +
+                $"{(source.Orientation.PreviewMirrored ? " mirrored" : string.Empty)} · " +
+                $"AI {source.Orientation.AiRotationDegrees}° · preview buffer {previewSize.Width}x{previewSize.Height} · " +
+                $"analysis requested {source.Profile.Resolution} · mode Fit.");
             _previewSurfaces.Add(new Surface(texture));
 
             var reader = ImageReader.NewInstance(
@@ -254,7 +261,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         }
     }
 
-    private static int GetImageRotation(
+    private static CameraOrientationContract GetOrientation(
         CameraManager manager,
         ConfiguredSource source)
     {
@@ -271,10 +278,29 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             SurfaceOrientation.Rotation270 => 270,
             _ => 0
         };
-        var isFront = source.Capability.InferredRole == InferredLensRole.Front;
-        return isFront
-            ? (sensorOrientation + displayDegrees) % 360
-            : (sensorOrientation - displayDegrees + 360) % 360;
+        return CameraOrientationContract.Create(
+            sensorOrientation,
+            displayDegrees,
+            source.Capability.InferredRole == InferredLensRole.Front);
+    }
+
+    private static AndroidSize SelectPreviewSize(CameraManager manager, ConfiguredSource source)
+    {
+        var physicalId = source.Capability.PhysicalCameraId
+            ?? throw new InvalidOperationException("Physical camera ID is missing.");
+        var characteristics = manager.GetCameraCharacteristics(physicalId);
+        var map = characteristics.Get(CameraCharacteristics.ScalerStreamConfigurationMap)
+            as StreamConfigurationMap
+            ?? throw new InvalidOperationException($"Physical ID {physicalId} reports no stream map.");
+        var outputSizes = map.GetOutputSizes(Class.FromType(typeof(SurfaceTexture)))
+            ?? throw new InvalidOperationException($"Physical ID {physicalId} reports no preview sizes.");
+        var targetAspect = source.Profile.Resolution.Width / (double)source.Profile.Resolution.Height;
+        const long targetArea = 1280L * 720;
+        return outputSizes
+            .OrderBy(size => System.Math.Abs(size.Width / (double)size.Height - targetAspect))
+            .ThenBy(size => size.Width <= 1280 ? 0 : 1)
+            .ThenBy(size => System.Math.Abs((long)size.Width * size.Height - targetArea))
+            .First();
     }
 
     private async Task WaitForFirstFramesAsync(CancellationToken cancellationToken)
@@ -407,7 +433,9 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
 #pragma warning restore CA1422
                 source.EffectiveZoom = zoom;
                 Diagnostic?.Invoke(this,
-                    $"{source.Capability.Name}: independent physical crop {zoom:0.0}× requested.");
+                    $"{source.Capability.Name}: independent physical crop {zoom:0.0}× requested · " +
+                    $"active [{activeArray.Left},{activeArray.Top},{activeArray.Right},{activeArray.Bottom}] · " +
+                    $"crop [{crop.Left},{crop.Top},{crop.Right},{crop.Bottom}].");
                 return;
             }
             if (!OperatingSystem.IsAndroidVersionAtLeast(30) || !zoomKeyAvailable)
@@ -452,7 +480,9 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         var message = $"LIVE · analysis {width}×{height} · zoom {source.EffectiveZoom:0.0}×";
         SourceStatusChanged?.Invoke(source.Capability.Id, message, false);
         Diagnostic?.Invoke(this,
-            $"{source.Capability.Name}: actual analysis {width}x{height}, requested {source.Profile.Resolution}; AI rotation {source.RotationDegrees}°.");
+            $"{source.Capability.Name}: actual analysis {width}x{height}, requested {source.Profile.Resolution}; " +
+            $"AI rotation {source.Orientation.AiRotationDegrees}°; preview rotation {source.Orientation.PreviewRotationDegrees}°; " +
+            $"preview panel {source.Preview.Width}x{source.Preview.Height}.");
     }
 
     private void ReportDiagnostic(string message) => Diagnostic?.Invoke(this, message);
@@ -481,7 +511,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         public long Sequence;
         public int ReportedResolution;
         public float EffectiveZoom { get; set; } = 1f;
-        public int RotationDegrees { get; set; }
+        public CameraOrientationContract Orientation { get; set; }
         public TaskCompletionSource<bool> FirstFrame { get; private set; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -533,7 +563,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
                         DateTimeOffset.UtcNow,
                         image.Width,
                         image.Height,
-                        source.RotationDegrees,
+                        source.Orientation.AiRotationDegrees,
                         y.Owner!, y.Length, planes[0].RowStride, planes[0].PixelStride,
                         u.Owner!, u.Length, planes[1].RowStride, planes[1].PixelStride,
                         v.Owner!, v.Length, planes[2].RowStride, planes[2].PixelStride);

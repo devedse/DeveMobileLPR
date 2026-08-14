@@ -25,6 +25,25 @@ public sealed class DriveOverlayLayoutTests
     }
 
     [Fact]
+    public void TryProjectMirrorsFrontPreviewWithoutChangingDetectionSize()
+    {
+        var overlay = new DriveOverlay(
+            new BoundingBox(10, 20, 30, 40),
+            100,
+            100,
+            "front plate",
+            string.Empty,
+            1,
+            DriveOverlayKind.Reading);
+
+        var projected = DriveOverlayLayout.TryProject(
+            overlay, 200, 200, AspectScaleMode.Fit, true, out var bounds);
+
+        Assert.True(projected);
+        Assert.Equal(new BoundingBox(140, 40, 180, 80), bounds);
+    }
+
+    [Fact]
     public void GetVisibleOverlaysHidesDebugItemsUnlessDebugIsEnabled()
     {
         var candidate = Overlay(DriveOverlayKind.Candidate);

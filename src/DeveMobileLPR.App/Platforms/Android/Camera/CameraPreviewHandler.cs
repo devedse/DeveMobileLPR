@@ -55,7 +55,14 @@ internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, FrameLay
             settings.NetworkStreamUrl,
             () => settings.RecognitionFramesPerSecond,
             sourceId => _coordinator.HasPendingRecognitionFrameFor(sourceId),
-            (sourceId, frame) => _coordinator.SubmitFrame(sourceId, frame));
+            (sourceId, frame) => _coordinator.SubmitFrame(sourceId, frame),
+            viewports => MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (VirtualView is not null)
+                {
+                    VirtualView.SourceViewports = viewports;
+                }
+            }));
         _coordinator.AttachCamera(_source);
         return root;
     }

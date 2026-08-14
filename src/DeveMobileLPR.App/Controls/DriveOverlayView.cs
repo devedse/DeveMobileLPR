@@ -50,6 +50,12 @@ internal sealed class DriveOverlayView : GraphicsView, IDrawable
         typeof(DriveOverlayView),
         propertyChanged: static (bindable, _, _) => ((DriveOverlayView)bindable).Invalidate());
 
+    public static readonly BindableProperty SourceViewportsProperty = BindableProperty.Create(
+        nameof(SourceViewports),
+        typeof(IReadOnlyList<PreviewSourceViewport>),
+        typeof(DriveOverlayView),
+        propertyChanged: static (bindable, _, _) => ((DriveOverlayView)bindable).Invalidate());
+
     public DriveOverlayView()
     {
         Drawable = this;
@@ -82,6 +88,13 @@ internal sealed class DriveOverlayView : GraphicsView, IDrawable
     {
         get => (IReadOnlyList<string>?)GetValue(SourceIdsProperty);
         set => SetValue(SourceIdsProperty, value);
+    }
+
+    /// <summary>Native-reported source panels. These take precedence over the legacy grid fallback.</summary>
+    public IReadOnlyList<PreviewSourceViewport>? SourceViewports
+    {
+        get => (IReadOnlyList<PreviewSourceViewport>?)GetValue(SourceViewportsProperty);
+        set => SetValue(SourceViewportsProperty, value);
     }
 
     public void Draw(ICanvas canvas, RectF dirtyRect)
@@ -131,7 +144,12 @@ internal sealed class DriveOverlayView : GraphicsView, IDrawable
 
     private void DrawOverlay(ICanvas canvas, RectF viewport, DriveOverlay overlay)
     {
-        if (!TryGetSourceViewport(viewport, overlay.SourceId, out viewport))
+        if (!TryGetSourceViewport(
+                viewport,
+                overlay.SourceId,
+                out viewport,
+                out var scaleMode,
+                out var mirrorHorizontally))
         {
             return;
         }
@@ -139,7 +157,8 @@ internal sealed class DriveOverlayView : GraphicsView, IDrawable
                 overlay,
                 viewport.Width,
                 viewport.Height,
-                ScaleMode,
+                scaleMode,
+                mirrorHorizontally,
                 out var projected))
         {
             return;
@@ -160,8 +179,30 @@ internal sealed class DriveOverlayView : GraphicsView, IDrawable
         DrawLabel(canvas, viewport, box, overlay, style);
     }
 
-    private bool TryGetSourceViewport(RectF fullViewport, string sourceId, out RectF viewport)
+    private bool TryGetSourceViewport(
+        RectF fullViewport,
+        string sourceId,
+        out RectF viewport,
+        out AspectScaleMode scaleMode,
+        out bool mirrorHorizontally)
     {
+        var reported = SourceViewports?.FirstOrDefault(candidate =>
+            string.Equals(candidate.SourceId, sourceId, StringComparison.Ordinal));
+        if (reported is not null)
+        {
+            var bounds = reported.Resolve(fullViewport.Width, fullViewport.Height);
+            viewport = new RectF(
+                fullViewport.Left + bounds.Left,
+                fullViewport.Top + bounds.Top,
+                bounds.Width,
+                bounds.Height);
+            scaleMode = reported.ScaleMode;
+            mirrorHorizontally = reported.MirrorHorizontally;
+            return viewport.Width > 0 && viewport.Height > 0;
+        }
+
+        scaleMode = ScaleMode;
+        mirrorHorizontally = false;
         var sourceIds = SourceIds;
         if (sourceIds is null || sourceIds.Count <= 1)
         {

@@ -4,6 +4,7 @@ using Android.Widget;
 using AndroidX.Camera.View;
 using AndroidX.Lifecycle;
 using DeveMobileLPR.Application;
+using DeveMobileLPR.Geometry;
 using DeveMobileLPR.Imaging;
 
 namespace DeveMobileLPR.App.Platforms.Android.Camera;
@@ -17,14 +18,18 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
     private readonly CameraXIntegratedFrameSource _integrated;
     private readonly Camera2PhysicalFrameSource _physicalPair;
     private readonly AndroidHlsFrameSource _network;
+    private readonly Action<IReadOnlyList<PreviewSourceViewport>> _previewViewportsChanged;
+    private readonly PreviewLayoutChangeListener _previewLayoutListener;
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly Dictionary<string, PreviewView> _cameraPreviews = new(StringComparer.Ordinal);
     private readonly Dictionary<string, AspectRatioTextureView> _camera2Previews = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TextView> _sourceStatusLabels = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, FrameLayout> _previewPanels = new(StringComparer.Ordinal);
     private IReadOnlyList<DriveSourceCapability> _sourceCapabilities = [];
     private IReadOnlyList<CameraChoice> _cameraChoices = [new("rear", "Rear cameras - automatic lens")];
     private DriveInputConfiguration _configuration = DriveInputConfiguration.Default;
     private string _selectedCameraId = "rear";
+    private string _lastViewportSignature = string.Empty;
     private bool _running;
     private bool _disposed;
 
@@ -37,12 +42,16 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
         string networkStreamUrl,
         Func<int> recognitionFramesPerSecond,
         Func<string, bool> hasPendingRecognitionFrame,
-        Func<string, Yuv420Frame, bool> submitFrame)
+        Func<string, Yuv420Frame, bool> submitFrame,
+        Action<IReadOnlyList<PreviewSourceViewport>> previewViewportsChanged)
     {
         _context = context;
         _sourceCatalog = sourceCatalog;
         _previewGrid = previewGrid;
         _networkPreview = networkPreview;
+        _previewViewportsChanged = previewViewportsChanged;
+        _previewLayoutListener = new PreviewLayoutChangeListener(PublishPreviewViewports);
+        _previewGrid.AddOnLayoutChangeListener(_previewLayoutListener);
         _integrated = new CameraXIntegratedFrameSource(
             context,
             lifecycleOwner,
@@ -339,6 +348,9 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
         _cameraPreviews.Clear();
         _camera2Previews.Clear();
         _sourceStatusLabels.Clear();
+        _previewPanels.Clear();
+        _previewViewportsChanged([]);
+        _lastViewportSignature = string.Empty;
         var sources = _configuration.EnabledSources;
         var columns = sources.Count == 1 ? 1 : 2;
         var rows = (sources.Count + columns - 1) / columns;
@@ -389,7 +401,8 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
                 var panel = new FrameLayout(_context);
                 panel.AddView(preview, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MatchParent,
-                    ViewGroup.LayoutParams.MatchParent));
+                    ViewGroup.LayoutParams.MatchParent,
+                    GravityFlags.Center));
                 var capability = FindCapability(profile.SourceId);
                 var label = new TextView(_context)
                 {
@@ -405,8 +418,64 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
                     ViewGroup.LayoutParams.WrapContent,
                     GravityFlags.Top | GravityFlags.Left));
                 _sourceStatusLabels[profile.SourceId] = label;
+                _previewPanels[profile.SourceId] = panel;
                 row.AddView(panel, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MatchParent, 1));
             }
+        }
+        _previewGrid.Post(new Java.Lang.Runnable(PublishPreviewViewports));
+    }
+
+    private void PublishPreviewViewports()
+    {
+        if (_previewGrid.Width <= 0 || _previewGrid.Height <= 0)
+        {
+            return;
+        }
+
+        var gridLocation = new int[2];
+        _previewGrid.GetLocationInWindow(gridLocation);
+        var viewports = new List<PreviewSourceViewport>(_configuration.EnabledSources.Count);
+        foreach (var profile in _configuration.EnabledSources)
+        {
+            if (!_previewPanels.TryGetValue(profile.SourceId, out var panel)
+                || panel.Width <= 0
+                || panel.Height <= 0)
+            {
+                continue;
+            }
+
+            var panelLocation = new int[2];
+            panel.GetLocationInWindow(panelLocation);
+            var left = (panelLocation[0] - gridLocation[0]) / (float)_previewGrid.Width;
+            var top = (panelLocation[1] - gridLocation[1]) / (float)_previewGrid.Height;
+            var right = left + panel.Width / (float)_previewGrid.Width;
+            var bottom = top + panel.Height / (float)_previewGrid.Height;
+            var capability = FindCapability(profile.SourceId);
+            var isSingleIntegrated = _configuration.EnabledSources.Count == 1
+                && capability?.IsIntegratedCamera == true;
+            viewports.Add(new PreviewSourceViewport(
+                profile.SourceId,
+                new BoundingBox(left, top, right, bottom),
+                isSingleIntegrated ? AspectScaleMode.Fill : AspectScaleMode.Fit,
+                capability?.InferredRole == InferredLensRole.Front));
+        }
+
+        if (viewports.Count != _configuration.EnabledSources.Count)
+        {
+            return;
+        }
+
+        _previewViewportsChanged(viewports);
+        var signature = string.Join(";", viewports.Select(viewport =>
+            $"{viewport.SourceId}=[{viewport.NormalizedBounds.Left:0.###},{viewport.NormalizedBounds.Top:0.###}," +
+            $"{viewport.NormalizedBounds.Right:0.###},{viewport.NormalizedBounds.Bottom:0.###}] " +
+            $"{viewport.ScaleMode}{(viewport.MirrorHorizontally ? " mirrored" : string.Empty)}"));
+        if (!string.Equals(signature, _lastViewportSignature, StringComparison.Ordinal))
+        {
+            _lastViewportSignature = signature;
+            Diagnostic?.Invoke(this, new DriveInputDiagnostic(
+                $"Preview geometry · host {_previewGrid.Width}x{_previewGrid.Height} · {signature}",
+                false));
         }
     }
 
@@ -520,6 +589,8 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
             _network.PreviewFramesPresented -= ChildPreviewFramesPresented;
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
+                _previewGrid.RemoveOnLayoutChangeListener(_previewLayoutListener);
+                _previewViewportsChanged([]);
                 _integrated.Dispose();
                 _physicalPair.Dispose();
                 _network.Dispose();
@@ -530,5 +601,20 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
             _lifecycleGate.Release();
             _lifecycleGate.Dispose();
         }
+    }
+
+    private sealed class PreviewLayoutChangeListener(Action changed)
+        : Java.Lang.Object, global::Android.Views.View.IOnLayoutChangeListener
+    {
+        public void OnLayoutChange(
+            global::Android.Views.View? view,
+            int left,
+            int top,
+            int right,
+            int bottom,
+            int oldLeft,
+            int oldTop,
+            int oldRight,
+            int oldBottom) => changed();
     }
 }

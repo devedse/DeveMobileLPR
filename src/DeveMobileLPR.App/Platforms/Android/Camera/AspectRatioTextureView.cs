@@ -15,17 +15,20 @@ internal sealed class AspectRatioTextureView(Context context) : TextureView(cont
     private int _bufferHeight;
     private int _rotationDegrees;
     private AspectScaleMode _scaleMode;
+    private bool _mirrorHorizontally;
 
     public void ConfigureBuffer(
         int bufferWidth,
         int bufferHeight,
         int rotationDegrees,
-        AspectScaleMode scaleMode)
+        AspectScaleMode scaleMode,
+        bool mirrorHorizontally)
     {
         _bufferWidth = bufferWidth;
         _bufferHeight = bufferHeight;
         _rotationDegrees = rotationDegrees;
         _scaleMode = scaleMode;
+        _mirrorHorizontally = mirrorHorizontally;
         ApplyAspectTransform();
     }
 
@@ -42,19 +45,25 @@ internal sealed class AspectRatioTextureView(Context context) : TextureView(cont
             return;
         }
 
+        // A Camera2 SurfaceTexture is not an ordinary bitmap: Android's camera producer
+        // supplies its own buffer transform. Correct the producer's aspect first, then apply
+        // the display rotation. Feeding the display rotation into the generic bitmap transform
+        // swaps width/height a second time and makes an upright landscape preview tall/narrow.
         var correction = AspectRatioCorrection.Create(
             _bufferWidth,
             _bufferHeight,
             Width,
             Height,
-            _rotationDegrees,
-            _scaleMode);
+            clockwiseRotationDegrees: 0,
+            _scaleMode,
+            _mirrorHorizontally);
         using var matrix = new Matrix();
         matrix.SetValues([
             correction.ScaleX, correction.SkewX, correction.TranslateX,
             correction.SkewY, correction.ScaleY, correction.TranslateY,
             0f, 0f, 1f
         ]);
+        matrix.PostRotate(_rotationDegrees, Width / 2f, Height / 2f);
         SetTransform(matrix);
     }
 }

@@ -40,6 +40,12 @@ internal sealed class CameraPreview : View
         false,
         propertyChanged: static (bindable, _, _) => ((CameraPreview)bindable).OnPropertyChanged(nameof(ScaleMode)));
 
+    public static readonly BindableProperty SourceViewportsProperty = BindableProperty.Create(
+        nameof(SourceViewports),
+        typeof(IReadOnlyList<PreviewSourceViewport>),
+        typeof(CameraPreview),
+        Array.Empty<PreviewSourceViewport>());
+
     public CameraPreview()
     {
         AutomationId = "drive_camera_preview";
@@ -68,6 +74,13 @@ internal sealed class CameraPreview : View
     {
         get => (bool)GetValue(IsMultiSourceProperty);
         set => SetValue(IsMultiSourceProperty, value);
+    }
+
+    /// <summary>Actual native source panels, normalized to this preview host.</summary>
+    public IReadOnlyList<PreviewSourceViewport> SourceViewports
+    {
+        get => (IReadOnlyList<PreviewSourceViewport>)GetValue(SourceViewportsProperty);
+        set => SetValue(SourceViewportsProperty, value);
     }
 
     /// <summary>The fit currently applied to the visible surface; bind an overlay's scale mode to this.</summary>

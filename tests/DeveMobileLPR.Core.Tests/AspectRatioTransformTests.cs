@@ -5,6 +5,50 @@ namespace DeveMobileLPR.Tests;
 public sealed class AspectRatioTransformTests
 {
     [Fact]
+    public void CameraOrientation_SeparatesPixelPreviewRegressionFromAiRotation()
+    {
+        var orientation = CameraOrientationContract.Create(
+            sensorOrientationDegrees: 90,
+            displayRotationDegrees: 0,
+            isFrontFacing: false);
+
+        Assert.Equal(0, orientation.PreviewRotationDegrees);
+        Assert.Equal(90, orientation.AiRotationDegrees);
+        Assert.False(orientation.PreviewMirrored);
+    }
+
+    [Fact]
+    public void CameraOrientation_LandscapeDisplayKeepsSeparateTransforms()
+    {
+        var orientation = CameraOrientationContract.Create(90, 90, false);
+
+        Assert.Equal(270, orientation.PreviewRotationDegrees);
+        Assert.Equal(0, orientation.AiRotationDegrees);
+    }
+
+    [Fact]
+    public void Correction_MirrorFlipsHorizontalCoordinatesOnly()
+    {
+        var correction = AspectRatioCorrection.Create(
+            100, 100, 200, 100, 0, AspectScaleMode.Fit, mirrorHorizontally: true);
+
+        Assert.Equal((150f, 0f), correction.Project(0, 0));
+        Assert.Equal((50f, 100f), correction.Project(200, 100));
+    }
+
+    [Fact]
+    public void PreviewViewport_ResolvesActualNativePanelOffset()
+    {
+        var viewport = new PreviewSourceViewport(
+            "tele",
+            new BoundingBox(0.5f, 0, 1, 1),
+            AspectScaleMode.Fit,
+            false);
+
+        Assert.Equal(new BoundingBox(600, 0, 1200, 600), viewport.Resolve(1200, 600));
+    }
+
+    [Fact]
     public void Correction_Fit_UndoesTextureStretchWithoutChangingProportions()
     {
         var correction = AspectRatioCorrection.Create(

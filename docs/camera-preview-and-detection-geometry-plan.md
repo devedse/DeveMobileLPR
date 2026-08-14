@@ -1,7 +1,9 @@
 # Camera preview and detection geometry plan
 
-Status: implementation plan. Do not make another isolated rotation, stretch, or overlay-offset
-change before the contracts and tests below exist.
+Status: core orientation, aspect, native-panel reporting, and overlay-projection contracts are
+implemented on this branch. Pixel 9 Pro acceptance testing remains required before the geometry
+work is considered complete. Do not make another isolated rotation, stretch, or overlay-offset
+change outside these contracts.
 
 ## Why this document exists
 
