@@ -31,7 +31,7 @@ public partial class DriveSetupPage : ContentPage
         _opening = true;
         try
         {
-            await Navigation.PushModalAsync(new NavigationPage(_drivePageFactory()));
+            await Navigation.PushModalAsync(_drivePageFactory());
         }
         finally
         {

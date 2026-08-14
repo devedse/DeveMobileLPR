@@ -19,7 +19,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
     private readonly AndroidHlsFrameSource _network;
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly Dictionary<string, PreviewView> _cameraPreviews = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, TextureView> _camera2Previews = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, AspectRatioTextureView> _camera2Previews = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TextView> _sourceStatusLabels = new(StringComparer.Ordinal);
     private IReadOnlyList<DriveSourceCapability> _sourceCapabilities = [];
     private IReadOnlyList<CameraChoice> _cameraChoices = [new("rear", "Rear cameras - automatic lens")];
@@ -367,7 +367,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
                 }
                 else if (UsesCamera2PhysicalPair)
                 {
-                    var texturePreview = new TextureView(_context);
+                    var texturePreview = new AspectRatioTextureView(_context);
                     _camera2Previews.Add(profile.SourceId, texturePreview);
                     preview = texturePreview;
                 }

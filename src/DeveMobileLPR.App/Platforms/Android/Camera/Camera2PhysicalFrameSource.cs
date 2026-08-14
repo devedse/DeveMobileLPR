@@ -8,6 +8,7 @@ using Android.Media;
 using Android.OS;
 using Android.Views;
 using DeveMobileLPR.Application;
+using DeveMobileLPR.Geometry;
 using DeveMobileLPR.Imaging;
 using Java.Lang;
 using Java.Util.Concurrent;
@@ -49,7 +50,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
     public event Action<string, string, bool>? SourceStatusChanged;
 
     public void Configure(
-        IReadOnlyList<(DriveSourceCapability Capability, DriveSourceProfile Profile, TextureView Preview)> sources)
+        IReadOnlyList<(DriveSourceCapability Capability, DriveSourceProfile Profile, AspectRatioTextureView Preview)> sources)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (_running)
@@ -226,20 +227,18 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
 
         foreach (var source in _sources)
         {
-            (source.SensorOrientationDegrees, source.RotationDegrees) = GetImageOrientation(manager, source);
+            source.RotationDegrees = GetImageRotation(manager, source);
             var texture = source.Preview.SurfaceTexture
                 ?? throw new InvalidOperationException($"{source.Capability.Name} preview surface is unavailable.");
             // Preview stays modest; the YUV reader carries the user-selected analysis resolution.
             const int previewWidth = 1280;
             const int previewHeight = 720;
             texture.SetDefaultBufferSize(previewWidth, previewHeight);
-            source.Preview.Post(new Java.Lang.Runnable(() =>
-                ConfigurePreviewTransform(
-                    source.Preview,
-                    previewWidth,
-                    previewHeight,
-                    source.SensorOrientationDegrees,
-                    source.RotationDegrees)));
+            source.Preview.ConfigureBuffer(
+                previewWidth,
+                previewHeight,
+                source.RotationDegrees,
+                AspectScaleMode.Fit);
             _previewSurfaces.Add(new Surface(texture));
 
             var reader = ImageReader.NewInstance(
@@ -255,7 +254,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         }
     }
 
-    private static (int SensorOrientation, int RelativeRotation) GetImageOrientation(
+    private static int GetImageRotation(
         CameraManager manager,
         ConfiguredSource source)
     {
@@ -273,10 +272,9 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             _ => 0
         };
         var isFront = source.Capability.InferredRole == InferredLensRole.Front;
-        var relativeRotation = isFront
+        return isFront
             ? (sensorOrientation + displayDegrees) % 360
             : (sensorOrientation - displayDegrees + 360) % 360;
-        return (sensorOrientation, relativeRotation);
     }
 
     private async Task WaitForFirstFramesAsync(CancellationToken cancellationToken)
@@ -438,52 +436,6 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         }
     }
 
-    private static void ConfigurePreviewTransform(
-        TextureView preview,
-        int bufferWidth,
-        int bufferHeight,
-        int sensorOrientationDegrees,
-        int relativeRotationDegrees)
-    {
-        if (preview.Width <= 0 || preview.Height <= 0)
-        {
-            return;
-        }
-
-        var rotation = preview.Display?.Rotation ?? SurfaceOrientation.Rotation0;
-        var displayDegrees = rotation switch
-        {
-            SurfaceOrientation.Rotation90 => 90,
-            SurfaceOrientation.Rotation180 => 180,
-            SurfaceOrientation.Rotation270 => 270,
-            _ => 0
-        };
-        var rotationRequired = relativeRotationDegrees % 180 != 0;
-        var width = preview.Width;
-        var height = preview.Height;
-        float scaleX;
-        float scaleY;
-        if (sensorOrientationDegrees == 0)
-        {
-            scaleX = width / (float)(rotationRequired ? bufferWidth : bufferHeight);
-            scaleY = height / (float)(rotationRequired ? bufferHeight : bufferWidth);
-        }
-        else
-        {
-            scaleX = width / (float)(rotationRequired ? bufferHeight : bufferWidth);
-            scaleY = height / (float)(rotationRequired ? bufferWidth : bufferHeight);
-        }
-        // Fit instead of crop: the same final scale is used on both axes after undoing the
-        // TextureView's default stretch, so circles stay circular and the whole frame remains visible.
-        var finalScale = System.Math.Min(scaleX, scaleY);
-        using var matrix = new Matrix();
-        var centerX = width / 2f;
-        var centerY = height / 2f;
-        matrix.SetScale(finalScale / scaleX, finalScale / scaleY, centerX, centerY);
-        matrix.PostRotate(-displayDegrees, centerX, centerY);
-        preview.SetTransform(matrix);
-    }
-
     private void FrameAvailable(string sourceId, Yuv420Frame frame)
     {
         SourceFramesAvailable?.Invoke(this, new DriveFrameCountEventArgs(1));
@@ -518,18 +470,17 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
     private sealed class ConfiguredSource(
         DriveSourceCapability capability,
         DriveSourceProfile profile,
-        TextureView preview,
+        AspectRatioTextureView preview,
         Func<int> framesPerSecond)
     {
         public DriveSourceCapability Capability { get; } = capability;
         public DriveSourceProfile Profile { get; } = profile;
-        public TextureView Preview { get; } = preview;
+        public AspectRatioTextureView Preview { get; } = preview;
         public Func<int> FramesPerSecond { get; } = framesPerSecond;
         public FrameRateGate Gate { get; } = new(timestampFrequency: 1000);
         public long Sequence;
         public int ReportedResolution;
         public float EffectiveZoom { get; set; } = 1f;
-        public int SensorOrientationDegrees { get; set; }
         public int RotationDegrees { get; set; }
         public TaskCompletionSource<bool> FirstFrame { get; private set; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);

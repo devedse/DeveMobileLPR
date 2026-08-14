@@ -85,7 +85,7 @@ public partial class DrivePage : ContentPage
         _closing = true;
         try
         {
-            if (Navigation.ModalStack.Contains(Parent))
+            if (Navigation.ModalStack.Contains(this))
             {
                 await Navigation.PopModalAsync();
             }

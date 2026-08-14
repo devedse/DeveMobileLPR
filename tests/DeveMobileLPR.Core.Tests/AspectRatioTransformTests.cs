@@ -5,6 +5,47 @@ namespace DeveMobileLPR.Tests;
 public sealed class AspectRatioTransformTests
 {
     [Fact]
+    public void Correction_Fit_UndoesTextureStretchWithoutChangingProportions()
+    {
+        var correction = AspectRatioCorrection.Create(
+            1280, 720, 562, 440, 0, AspectScaleMode.Fit);
+
+        var topLeft = correction.Project(0, 0);
+        var bottomRight = correction.Project(562, 440);
+
+        Assert.Equal(0, topLeft.X, 3);
+        Assert.Equal(61.9375f, topLeft.Y, 3);
+        Assert.Equal(562, bottomRight.X, 3);
+        Assert.Equal(378.0625f, bottomRight.Y, 3);
+        Assert.Equal(
+            16f / 9f,
+            (bottomRight.X - topLeft.X) / (bottomRight.Y - topLeft.Y),
+            3);
+    }
+
+    [Theory]
+    [InlineData(90)]
+    [InlineData(270)]
+    public void Correction_QuarterTurn_CentresTheRotatedAspect(int rotation)
+    {
+        var correction = AspectRatioCorrection.Create(
+            1280, 720, 440, 562, rotation, AspectScaleMode.Fit);
+
+        var corners = new[]
+        {
+            correction.Project(0, 0),
+            correction.Project(440, 0),
+            correction.Project(0, 562),
+            correction.Project(440, 562)
+        };
+
+        Assert.Equal(61.9375f, corners.Min(static point => point.X), 3);
+        Assert.Equal(378.0625f, corners.Max(static point => point.X), 3);
+        Assert.Equal(0, corners.Min(static point => point.Y), 3);
+        Assert.Equal(562, corners.Max(static point => point.Y), 3);
+    }
+
+    [Fact]
     public void Create_Fit_LetterboxesAndProjectsSourceBounds()
     {
         var transform = AspectRatioTransform.Create(1920, 1080, 1000, 1000, AspectScaleMode.Fit);
