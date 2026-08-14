@@ -51,6 +51,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     public bool IsStopping => _snapshot.IsStopping;
     public bool ShowDriveControls => IsDriving || IsStopping;
     public bool CanStart => IsReady && !IsInitializing && IsInputConfigurationValid;
+    public bool SupportsMultiCamera => _sourceCatalog.SupportsMultipleSources;
     public bool ShowNetworkStreamUrl => _snapshot.SupportsNetworkStreams
         && _snapshot.SelectedCameraId == DriveInputIds.NetworkLlHls;
     public bool IsNetworkStreamPreview => _snapshot.SelectedCameraId == DriveInputIds.NetworkLlHls;
@@ -117,8 +118,8 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     public bool HasInputConfigurationError => !string.IsNullOrWhiteSpace(InputConfigurationError);
     public bool IsInputConfigurationValid => string.IsNullOrEmpty(GetInputConfigurationError());
     public string MultiCameraWarning =>
-        "Most Android phones support at most two integrated cameras simultaneously. " +
-        "LL-HLS does not count as an integrated camera.";
+        $"This device supports at most {_sourceCatalog.MaximumSimultaneousIntegratedSources} " +
+        "simultaneous integrated camera streams. LL-HLS does not consume an integrated-camera slot.";
     public string StartButtonText => IsInitializing ? "Preparing…" : "Start drive";
     public string Duration => _snapshot.StartedAt is null ? "0:00" : FormatClock(DateTimeOffset.UtcNow - _snapshot.StartedAt.Value);
     public DriveDiagnosticsSnapshot Diagnostics => _snapshot.Diagnostics;
@@ -238,7 +239,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
             MultiSources.Add(Create(capability));
         }
 
-        _isMultiCamera = configuration.Mode == DriveInputMode.Multi;
+        _isMultiCamera = SupportsMultiCamera && configuration.Mode == DriveInputMode.Multi;
         _selectedSingleSource = SingleSources.FirstOrDefault(source =>
                 source.Id == (configuration.SelectedSingleSourceId ?? "rear"))
             ?? SingleSources.FirstOrDefault();
@@ -272,9 +273,14 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         {
             return "Select at least one video source.";
         }
-        if (selected.Count(source => source.Capability.IsIntegratedCamera) > 2)
+        if (IsMultiCamera && !SupportsMultiCamera)
         {
-            return "This implementation supports at most two integrated cameras at once. You can also add LL-HLS.";
+            return "Multiple simultaneous sources are not supported on this platform.";
+        }
+        if (selected.Count(source => source.Capability.IsIntegratedCamera)
+            > _sourceCatalog.MaximumSimultaneousIntegratedSources)
+        {
+            return $"Select at most {_sourceCatalog.MaximumSimultaneousIntegratedSources} integrated camera sources.";
         }
         if (selected.Any(source => source.IsNetwork && !IsValidNetworkUrl(source.NetworkUrl)))
         {

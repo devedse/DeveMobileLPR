@@ -5,12 +5,8 @@ namespace DeveMobileLPR.App.Platforms.Windows.Camera;
 
 internal sealed class WindowsDriveSourceCatalog : IDriveSourceCatalog
 {
-    private static readonly IReadOnlyList<VideoResolution> Resolutions =
-    [
-        new(3840, 2160),
-        new(1920, 1080),
-        new(1280, 720)
-    ];
+    public bool SupportsMultipleSources => false;
+    public int MaximumSimultaneousIntegratedSources => 1;
 
     public async Task<IReadOnlyList<DriveSourceCapability>> DiscoverAsync(
         CancellationToken cancellationToken = default)
@@ -31,7 +27,7 @@ internal sealed class WindowsDriveSourceCatalog : IDriveSourceCatalog
                 null,
                 1f,
                 4f,
-                Resolutions)),
+                [])),
             new(
                 DriveInputIds.NetworkLlHls,
                 "OME LL-HLS stream",

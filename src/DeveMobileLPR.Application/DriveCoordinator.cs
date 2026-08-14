@@ -507,10 +507,12 @@ public sealed class DriveCoordinator : IAsyncDisposable
             }
         }
 
-        if (waitForInFlightRecognition)
+        if (waitForInFlightRecognition && _recognition is not null)
         {
-            // Let the one in-flight inference frame persist against the still-active trip.
-            await Task.Delay(350);
+            // Camera capture is stopped and _driving is false, so no new frames can enter.
+            // Drain every source before ending the trip so a late result cannot be assigned to
+            // no trip (or to a newly started trip on a fast restart).
+            await CaptureFailureAsync(() => _recognition.DrainAsync(), failures);
         }
 
         DriveTrip? trip;

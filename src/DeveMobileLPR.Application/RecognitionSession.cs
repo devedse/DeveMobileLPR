@@ -27,7 +27,7 @@ internal sealed class RecognitionSession : IAsyncDisposable
     private readonly Func<bool> _saveVehicleImages;
     private readonly Func<GeoPoint?> _location;
     private readonly Func<long?> _tripId;
-    private readonly ConcurrentDictionary<string, SourceWorker> _sources = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, Lazy<SourceWorker>> _sources = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _persistenceGate = new(1, 1);
     private readonly CancellationTokenSource _cancellation = new();
 
@@ -55,26 +55,48 @@ internal sealed class RecognitionSession : IAsyncDisposable
     public event EventHandler<RecognitionConfirmation>? PlateConfirmed;
     public event EventHandler<Exception>? Failed;
 
-    public bool HasPendingFrame => _sources.Values.Any(source => source.Frames.HasPendingFrame);
+    public bool HasPendingFrame => _sources.Values.Any(source => source.Value.Frames.HasPendingFrame);
 
     public bool HasPendingFrameFor(string sourceId) =>
-        _sources.TryGetValue(sourceId, out var source) && source.Frames.HasPendingFrame;
+        _sources.TryGetValue(sourceId, out var source) && source.Value.Frames.HasPendingFrame;
 
     public bool Submit(string sourceId, Yuv420Frame frame)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
-        var worker = _sources.GetOrAdd(sourceId, id => new SourceWorker(this, id));
-        return worker.Frames.TryWrite(frame);
+        var worker = _sources.GetOrAdd(
+            sourceId,
+            id => new Lazy<SourceWorker>(
+                () => new SourceWorker(this, id),
+                LazyThreadSafetyMode.ExecutionAndPublication));
+        return worker.Value.Submit(frame);
     }
 
     public bool Submit(Yuv420Frame frame) => Submit("default", frame);
 
     public void ResetTracking()
     {
-        foreach (var source in _sources.Values)
+        foreach (var source in _sources.Values.Select(static source => source.Value))
         {
             source.Frames.ResetStatistics();
             Interlocked.Exchange(ref source.ResetRequested, 1);
+        }
+    }
+
+    /// <summary>
+    /// Waits until every source has consumed its latest frame and completed recognition and
+    /// persistence. The caller must stop accepting camera frames before invoking this method.
+    /// </summary>
+    public async Task DrainAsync()
+    {
+        while (true)
+        {
+            var sources = _sources.Values.Select(static source => source.Value).ToArray();
+            await Task.WhenAll(sources.Select(static source => source.WaitForIdleAsync()))
+                .ConfigureAwait(false);
+            if (sources.Length == _sources.Count && sources.All(static source => source.IsIdle))
+            {
+                return;
+            }
         }
     }
 
@@ -90,24 +112,31 @@ internal sealed class RecognitionSession : IAsyncDisposable
                     break;
                 }
 
-                if (Interlocked.Exchange(ref source.ResetRequested, 0) != 0)
+                try
                 {
-                    source.Processor.Reset();
-                    source.SightingIdsByTrack.Clear();
-                }
-
-                var result = await source.Processor.ProcessAsync(frame, _cancellation.Token).ConfigureAwait(false);
-                result = result with
-                {
-                    Diagnostics = result.Diagnostics with
+                    if (Interlocked.Exchange(ref source.ResetRequested, 0) != 0)
                     {
-                        ReplacedInputFrames = source.Frames.ReplacedFrameCount
+                        source.Processor.Reset();
+                        source.SightingIdsByTrack.Clear();
                     }
-                };
-                Progress?.Invoke(this, new RecognitionProgress(source.SourceId, result));
-                foreach (var confirmation in result.Confirmations)
+
+                    var result = await source.Processor.ProcessAsync(frame, _cancellation.Token).ConfigureAwait(false);
+                    result = result with
+                    {
+                        Diagnostics = result.Diagnostics with
+                        {
+                            ReplacedInputFrames = source.Frames.ReplacedFrameCount
+                        }
+                    };
+                    Progress?.Invoke(this, new RecognitionProgress(source.SourceId, result));
+                    foreach (var confirmation in result.Confirmations)
+                    {
+                        await PersistConfirmationAsync(source, frame, confirmation).ConfigureAwait(false);
+                    }
+                }
+                finally
                 {
-                    await PersistConfirmationAsync(source, frame, confirmation).ConfigureAwait(false);
+                    source.CompleteFrame();
                 }
             }
             catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
@@ -215,7 +244,7 @@ internal sealed class RecognitionSession : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         _cancellation.Cancel();
-        var workers = _sources.Values.ToArray();
+        var workers = _sources.Values.Select(static source => source.Value).ToArray();
         foreach (var source in workers)
         {
             try
@@ -245,6 +274,9 @@ internal sealed class RecognitionSession : IAsyncDisposable
 
     private sealed class SourceWorker
     {
+        private readonly object _idleGate = new();
+        private TaskCompletionSource<bool> _idle = CompletedIdleSource();
+
         public SourceWorker(RecognitionSession owner, string sourceId)
         {
             SourceId = sourceId;
@@ -260,5 +292,63 @@ internal sealed class RecognitionSession : IAsyncDisposable
         public Dictionary<Guid, long> SightingIdsByTrack { get; } = [];
         public Task Worker { get; }
         public int ResetRequested;
+
+        public bool IsIdle
+        {
+            get
+            {
+                lock (_idleGate)
+                {
+                    return _idle.Task.IsCompletedSuccessfully && !Frames.HasPendingFrame;
+                }
+            }
+        }
+
+        public bool Submit(Yuv420Frame frame)
+        {
+            lock (_idleGate)
+            {
+                if (_idle.Task.IsCompleted)
+                {
+                    _idle = new TaskCompletionSource<bool>(
+                        TaskCreationOptions.RunContinuationsAsynchronously);
+                }
+
+                if (Frames.TryWrite(frame))
+                {
+                    return true;
+                }
+
+                _idle.TrySetResult(true);
+                return false;
+            }
+        }
+
+        public Task WaitForIdleAsync()
+        {
+            lock (_idleGate)
+            {
+                return _idle.Task;
+            }
+        }
+
+        public void CompleteFrame()
+        {
+            lock (_idleGate)
+            {
+                if (!Frames.HasPendingFrame)
+                {
+                    _idle.TrySetResult(true);
+                }
+            }
+        }
+
+        private static TaskCompletionSource<bool> CompletedIdleSource()
+        {
+            var completion = new TaskCompletionSource<bool>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            completion.SetResult(true);
+            return completion;
+        }
     }
 }

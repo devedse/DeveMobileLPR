@@ -17,6 +17,9 @@ internal sealed class AndroidDriveSourceCatalog(Context context) : IDriveSourceC
     private readonly CameraManager _manager = context.GetSystemService(Context.CameraService) as CameraManager
         ?? throw new InvalidOperationException("Android returned no CameraManager.");
 
+    public bool SupportsMultipleSources => true;
+    public int MaximumSimultaneousIntegratedSources => 2;
+
     public Task<IReadOnlyList<DriveSourceCapability>> DiscoverAsync(
         CancellationToken cancellationToken = default)
     {

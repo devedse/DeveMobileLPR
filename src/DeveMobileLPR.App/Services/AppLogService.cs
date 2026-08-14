@@ -22,14 +22,23 @@ internal sealed class AppLogService : IApplicationLog
                 return;
             }
 
-            Directory.CreateDirectory(directory);
-            _path = Path.Combine(directory, "app-diagnostics.log");
-            if (File.Exists(_path))
+            try
             {
-                foreach (var line in File.ReadLines(_path).TakeLast(MaximumRecentEntries))
+                Directory.CreateDirectory(directory);
+                _path = Path.Combine(directory, "app-diagnostics.log");
+                if (File.Exists(_path))
                 {
-                    Recent.Enqueue(line);
+                    foreach (var line in File.ReadLines(_path).TakeLast(MaximumRecentEntries))
+                    {
+                        Recent.Enqueue(line);
+                    }
                 }
+            }
+            catch
+            {
+                // Diagnostics must never prevent the application from starting. Keep the
+                // in-memory log available when persistent storage is unavailable.
+                _path = null;
             }
         }
         WriteCore("App", $"Session started · {AppInfo.Current.VersionString} ({AppInfo.Current.BuildString})", false);
@@ -56,10 +65,17 @@ internal sealed class AppLogService : IApplicationLog
             Recent.Clear();
             if (_path is not null)
             {
-                File.WriteAllText(_path, string.Empty);
+                try
+                {
+                    File.WriteAllText(_path, string.Empty);
+                }
+                catch
+                {
+                    // Clearing diagnostics is best-effort and must not crash Settings.
+                }
             }
         }
-        Changed?.Invoke(this, EventArgs.Empty);
+        RaiseChanged();
     }
 
     private static void WriteCore(string category, string message, bool isError)
@@ -81,11 +97,35 @@ internal sealed class AppLogService : IApplicationLog
 
             if (_path is not null)
             {
-                RotateIfNeeded(_path);
-                File.AppendAllText(_path, line + Environment.NewLine, Encoding.UTF8);
+                try
+                {
+                    RotateIfNeeded(_path);
+                    File.AppendAllText(_path, line + Environment.NewLine, Encoding.UTF8);
+                }
+                catch
+                {
+                    // Crash reporting runs from fatal exception callbacks. Never let a storage
+                    // problem replace or amplify the original application failure.
+                    _path = null;
+                }
             }
         }
-        Changed?.Invoke(null, EventArgs.Empty);
+        RaiseChanged();
+    }
+
+    private static void RaiseChanged()
+    {
+        foreach (EventHandler handler in Changed?.GetInvocationList() ?? [])
+        {
+            try
+            {
+                handler(null, EventArgs.Empty);
+            }
+            catch
+            {
+                // A diagnostics observer must not make logging or crash capture fail.
+            }
+        }
     }
 
     private static void RotateIfNeeded(string path)

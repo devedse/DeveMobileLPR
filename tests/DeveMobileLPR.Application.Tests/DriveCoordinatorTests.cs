@@ -179,6 +179,34 @@ public sealed class DriveCoordinatorTests
     }
 
     [Fact]
+    public async Task StopDriveWaitsForEverySourceBeforeEndingTrip()
+    {
+        var repository = new FakeRepository();
+        var pipeline = new ConcurrentProbePipeline();
+        var input = new TestVideoInput();
+        await using var coordinator = await CreateCoordinatorAsync(
+            repository,
+            input,
+            new TestLocationFactory(),
+            new TestDeviceExperience(),
+            pipeline: pipeline);
+        await coordinator.StartDriveAsync();
+
+        Assert.True(coordinator.SubmitFrame("main", CreateFrame(1)));
+        Assert.True(coordinator.SubmitFrame("tele", CreateFrame(2)));
+        await pipeline.BothStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        var stopping = coordinator.StopDriveAsync();
+        var completed = await Task.WhenAny(stopping, Task.Delay(450));
+        Assert.NotSame(stopping, completed);
+        Assert.Equal(0, repository.EndTripCount);
+
+        pipeline.Release.TrySetResult();
+        await stopping.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(1, repository.EndTripCount);
+    }
+
+    [Fact]
     public async Task RecognitionContinuesWithLatestFrameAfterPipelineFailure()
     {
         var pipeline = new FailsOncePipeline();

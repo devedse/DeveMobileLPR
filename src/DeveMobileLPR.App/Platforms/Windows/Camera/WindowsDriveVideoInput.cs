@@ -190,8 +190,7 @@ internal sealed class WindowsDriveVideoInput : IDriveVideoInput
         [
             .. webcamChoices.Select(choice => new DriveSourceCapability(
                 choice.Id, choice.Name, DriveSourceKind.LogicalCamera, true, choice.Id, null,
-                null, null, null, 1f, 4f,
-                [new(3840, 2160), new(1920, 1080), new(1280, 720)])),
+                null, null, null, 1f, 4f, [])),
             new(DriveInputIds.NetworkLlHls, "OME LL-HLS stream", DriveSourceKind.NetworkLlHls,
                 false, null, null, null, null, null, 1f, 1f, [])
         ];

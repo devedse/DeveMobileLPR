@@ -78,5 +78,7 @@ public sealed record SourceFrame(string SourceId, Yuv420Frame Frame);
 
 public interface IDriveSourceCatalog
 {
+    bool SupportsMultipleSources { get; }
+    int MaximumSimultaneousIntegratedSources { get; }
     Task<IReadOnlyList<DriveSourceCapability>> DiscoverAsync(CancellationToken cancellationToken = default);
 }
