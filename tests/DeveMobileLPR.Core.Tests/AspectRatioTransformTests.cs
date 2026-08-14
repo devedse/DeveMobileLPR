@@ -5,6 +5,28 @@ namespace DeveMobileLPR.Tests;
 public sealed class AspectRatioTransformTests
 {
     [Fact]
+    public void CameraSurfaceTransform_ShapesQuarterTurnBeforeRotation()
+    {
+        var transform = CameraSurfaceTransform.Create(
+            3840, 2160, 560, 440, 270, AspectScaleMode.Fit);
+
+        Assert.Equal(0.5625f, transform.ProducerScaleX, 4);
+        Assert.Equal(1.272727f, transform.ProducerScaleY, 4);
+        Assert.Equal(new BoundingBox(0, 62.5f, 560, 377.5f), transform.FinalContentBounds);
+    }
+
+    [Fact]
+    public void CameraSurfaceTransform_DoesNotSwapUnrotatedContent()
+    {
+        var transform = CameraSurfaceTransform.Create(
+            3840, 2160, 560, 440, 0, AspectScaleMode.Fit);
+
+        Assert.Equal(1f, transform.ProducerScaleX, 4);
+        Assert.Equal(0.715909f, transform.ProducerScaleY, 4);
+        Assert.Equal(new BoundingBox(0, 62.5f, 560, 377.5f), transform.FinalContentBounds);
+    }
+
+    [Fact]
     public void CameraOrientation_SeparatesPixelPreviewRegressionFromAiRotation()
     {
         var orientation = CameraOrientationContract.Create(

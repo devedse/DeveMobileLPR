@@ -13,19 +13,27 @@ internal sealed class AspectRatioTextureView(Context context) : TextureView(cont
 {
     private int _bufferWidth;
     private int _bufferHeight;
+    private int _uprightContentWidth;
+    private int _uprightContentHeight;
     private int _rotationDegrees;
     private AspectScaleMode _scaleMode;
     private bool _mirrorHorizontally;
 
+    public CameraSurfaceTransform? AppliedTransform { get; private set; }
+
     public void ConfigureBuffer(
         int bufferWidth,
         int bufferHeight,
+        int uprightContentWidth,
+        int uprightContentHeight,
         int rotationDegrees,
         AspectScaleMode scaleMode,
         bool mirrorHorizontally)
     {
         _bufferWidth = bufferWidth;
         _bufferHeight = bufferHeight;
+        _uprightContentWidth = uprightContentWidth;
+        _uprightContentHeight = uprightContentHeight;
         _rotationDegrees = rotationDegrees;
         _scaleMode = scaleMode;
         _mirrorHorizontally = mirrorHorizontally;
@@ -45,25 +53,26 @@ internal sealed class AspectRatioTextureView(Context context) : TextureView(cont
             return;
         }
 
-        // A Camera2 SurfaceTexture is not an ordinary bitmap: Android's camera producer
-        // supplies its own buffer transform. Correct the producer's aspect first, then apply
-        // the display rotation. Feeding the display rotation into the generic bitmap transform
-        // swaps width/height a second time and makes an upright landscape preview tall/narrow.
-        var correction = AspectRatioCorrection.Create(
-            _bufferWidth,
-            _bufferHeight,
+        // TextureView has already stretched the producer buffer to this view. Work backwards
+        // from the desired final upright rectangle: for a quarter turn the producer must be
+        // shaped portrait-first so that the rotation finishes as an undistorted landscape image.
+        var correction = CameraSurfaceTransform.Create(
+            _uprightContentWidth,
+            _uprightContentHeight,
             Width,
             Height,
-            clockwiseRotationDegrees: 0,
-            _scaleMode,
-            _mirrorHorizontally);
+            _rotationDegrees,
+            _scaleMode);
+        AppliedTransform = correction;
         using var matrix = new Matrix();
-        matrix.SetValues([
-            correction.ScaleX, correction.SkewX, correction.TranslateX,
-            correction.SkewY, correction.ScaleY, correction.TranslateY,
-            0f, 0f, 1f
-        ]);
-        matrix.PostRotate(_rotationDegrees, Width / 2f, Height / 2f);
+        var centerX = Width / 2f;
+        var centerY = Height / 2f;
+        matrix.SetScale(correction.ProducerScaleX, correction.ProducerScaleY, centerX, centerY);
+        matrix.PostRotate(correction.ClockwiseRotationDegrees, centerX, centerY);
+        if (_mirrorHorizontally)
+        {
+            matrix.PostScale(-1f, 1f, centerX, centerY);
+        }
         SetTransform(matrix);
     }
 }

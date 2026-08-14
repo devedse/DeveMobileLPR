@@ -234,9 +234,14 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             // share overlay geometry with a user-selected 4:3 YUV stream.
             var previewSize = SelectPreviewSize(manager, source);
             texture.SetDefaultBufferSize(previewSize.Width, previewSize.Height);
+            var aiQuarterTurn = source.Orientation.AiRotationDegrees % 180 != 0;
+            var uprightContentWidth = aiQuarterTurn ? previewSize.Height : previewSize.Width;
+            var uprightContentHeight = aiQuarterTurn ? previewSize.Width : previewSize.Height;
             source.Preview.ConfigureBuffer(
                 previewSize.Width,
                 previewSize.Height,
+                uprightContentWidth,
+                uprightContentHeight,
                 source.Orientation.PreviewRotationDegrees,
                 AspectScaleMode.Fit,
                 source.Orientation.PreviewMirrored);
@@ -245,6 +250,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
                 $"display {source.Orientation.DisplayRotationDegrees}° · preview {source.Orientation.PreviewRotationDegrees}°" +
                 $"{(source.Orientation.PreviewMirrored ? " mirrored" : string.Empty)} · " +
                 $"AI {source.Orientation.AiRotationDegrees}° · preview buffer {previewSize.Width}x{previewSize.Height} · " +
+                $"upright content {uprightContentWidth}x{uprightContentHeight} · " +
                 $"analysis requested {source.Profile.Resolution} · mode Fit.");
             _previewSurfaces.Add(new Surface(texture));
 
@@ -479,10 +485,16 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
 
         var message = $"LIVE · analysis {width}×{height} · zoom {source.EffectiveZoom:0.0}×";
         SourceStatusChanged?.Invoke(source.Capability.Id, message, false);
+        var surfaceTransform = source.Preview.AppliedTransform;
+        var previewGeometry = surfaceTransform is { } transform
+            ? $"; producer scale {transform.ProducerScaleX:0.###}x{transform.ProducerScaleY:0.###}; " +
+              $"final content [{transform.FinalContentBounds.Left:0.#},{transform.FinalContentBounds.Top:0.#}," +
+              $"{transform.FinalContentBounds.Right:0.#},{transform.FinalContentBounds.Bottom:0.#}]"
+            : string.Empty;
         Diagnostic?.Invoke(this,
             $"{source.Capability.Name}: actual analysis {width}x{height}, requested {source.Profile.Resolution}; " +
             $"AI rotation {source.Orientation.AiRotationDegrees}°; preview rotation {source.Orientation.PreviewRotationDegrees}°; " +
-            $"preview panel {source.Preview.Width}x{source.Preview.Height}.");
+            $"preview panel {source.Preview.Width}x{source.Preview.Height}{previewGeometry}.");
     }
 
     private void ReportDiagnostic(string message) => Diagnostic?.Invoke(this, message);

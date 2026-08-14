@@ -211,3 +211,48 @@ public sealed record PreviewSourceViewport(
         NormalizedBounds.Right * viewportWidth,
         NormalizedBounds.Bottom * viewportHeight);
 }
+
+/// <summary>
+/// Pre-rotation correction for an Android camera SurfaceTexture. TextureView first stretches its
+/// producer buffer to the view, so a quarter-turn preview must be shaped to the inverse of the
+/// desired final content rectangle before Android rotates it.
+/// </summary>
+public readonly record struct CameraSurfaceTransform(
+    float ProducerScaleX,
+    float ProducerScaleY,
+    int ClockwiseRotationDegrees,
+    BoundingBox FinalContentBounds)
+{
+    public static CameraSurfaceTransform Create(
+        int uprightContentWidth,
+        int uprightContentHeight,
+        float viewportWidth,
+        float viewportHeight,
+        int clockwiseRotationDegrees,
+        AspectScaleMode mode)
+    {
+        var rotation = ((clockwiseRotationDegrees % 360) + 360) % 360;
+        if (rotation % 90 != 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(clockwiseRotationDegrees));
+        }
+
+        var finalBounds = AspectRatioTransform.Create(
+            uprightContentWidth,
+            uprightContentHeight,
+            viewportWidth,
+            viewportHeight,
+            mode).Project(new BoundingBox(0, 0, uprightContentWidth, uprightContentHeight));
+        var finalWidth = finalBounds.Width;
+        var finalHeight = finalBounds.Height;
+        var quarterTurn = rotation % 180 != 0;
+        var preRotationWidth = quarterTurn ? finalHeight : finalWidth;
+        var preRotationHeight = quarterTurn ? finalWidth : finalHeight;
+
+        return new CameraSurfaceTransform(
+            preRotationWidth / viewportWidth,
+            preRotationHeight / viewportHeight,
+            rotation,
+            finalBounds);
+    }
+}
