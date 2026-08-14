@@ -239,7 +239,9 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
 
         if (integrated.Length > 0)
         {
-            if (await Permissions.RequestAsync<Permissions.Camera>() != PermissionStatus.Granted)
+            var cameraPermission = await MainThread.InvokeOnMainThreadAsync(
+                Permissions.RequestAsync<Permissions.Camera>);
+            if (cameraPermission != PermissionStatus.Granted)
             {
                 throw new UnauthorizedAccessException(
                     "Camera access is required to recognize plates.");
@@ -265,7 +267,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
         }
         catch
         {
-            _integrated.Stop();
+            await MainThread.InvokeOnMainThreadAsync(_integrated.Stop);
             _physicalPair.Stop();
             throw;
         }
@@ -274,7 +276,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
     private async Task StopCoreAsync()
     {
         _running = false;
-        _integrated.Stop();
+        await MainThread.InvokeOnMainThreadAsync(_integrated.Stop);
         _physicalPair.Stop();
         await _network.StopAsync().ConfigureAwait(false);
     }

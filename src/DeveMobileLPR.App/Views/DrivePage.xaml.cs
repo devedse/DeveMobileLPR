@@ -7,6 +7,7 @@ public partial class DrivePage : ContentPage
 {
     private readonly DriveViewModel _viewModel;
     private readonly IDriveDisplayMode _displayMode;
+    private bool _closing;
 
     internal DrivePage(DriveViewModel viewModel, IDriveDisplayMode displayMode)
     {
@@ -22,9 +23,9 @@ public partial class DrivePage : ContentPage
         ApplyDriveMode(true);
         await _viewModel.InitializeAsync();
         await _viewModel.StartDriveAsync();
-        if (!_viewModel.IsDriving && Navigation.ModalStack.Count > 0)
+        if (!_viewModel.IsDriving)
         {
-            await Navigation.PopModalAsync();
+            await CloseOnceAsync();
         }
     }
 
@@ -37,9 +38,9 @@ public partial class DrivePage : ContentPage
     private async void DriveModeChanged(object? sender, bool isDriving)
     {
         ApplyDriveMode(isDriving);
-        if (!isDriving && Navigation.ModalStack.Count > 0)
+        if (!isDriving)
         {
-            await Navigation.PopModalAsync();
+            await CloseOnceAsync();
         }
     }
 
@@ -71,9 +72,27 @@ public partial class DrivePage : ContentPage
             return;
         }
 
-        if (Navigation.ModalStack.Count > 0)
+        await CloseOnceAsync();
+    }
+
+    private async Task CloseOnceAsync()
+    {
+        if (_closing)
         {
-            await Navigation.PopModalAsync();
+            return;
+        }
+
+        _closing = true;
+        try
+        {
+            if (Navigation.ModalStack.Contains(Parent))
+            {
+                await Navigation.PopModalAsync();
+            }
+        }
+        finally
+        {
+            _closing = false;
         }
     }
 }

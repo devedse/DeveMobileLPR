@@ -332,7 +332,58 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
 
     }
 
-    public Task StartDriveAsync() => IsDriving ? Task.CompletedTask : ToggleDriveAsync();
+    public async Task StartDriveAsync()
+    {
+        if (IsDriving)
+        {
+            return;
+        }
+
+        // The setup page deliberately has no camera view. When the live modal opens, MAUI can
+        // invoke OnAppearing before CameraPreviewHandler has created and attached its platform
+        // camera. Wait for that asynchronous attachment/configuration instead of treating the
+        // normal page-construction race as a camera failure.
+        if (!_coordinator.Snapshot.IsInputReady
+            && !await WaitForInputReadyAsync(TimeSpan.FromSeconds(15)))
+        {
+            return;
+        }
+
+        await ToggleDriveAsync();
+    }
+
+    private async Task<bool> WaitForInputReadyAsync(TimeSpan timeout)
+    {
+        var completion = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        void Observe(object? sender, DriveSnapshot snapshot)
+        {
+            if (snapshot.IsInputReady)
+            {
+                completion.TrySetResult(true);
+            }
+        }
+
+        _coordinator.SnapshotChanged += Observe;
+        try
+        {
+            var snapshot = _coordinator.Snapshot;
+            if (snapshot.IsInputReady)
+            {
+                return true;
+            }
+            return await completion.Task.WaitAsync(timeout);
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
+        finally
+        {
+            _coordinator.SnapshotChanged -= Observe;
+        }
+    }
 
     private async Task ToggleDriveAsync()
     {
@@ -352,7 +403,6 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
                 throw new UnauthorizedAccessException(
                     "Camera access is required to continue recognition in the background.");
             }
-            _backgroundScanning.Start();
         }
 
         try
@@ -364,6 +414,9 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
             }
             else if (keepRunning)
             {
+                // Start the foreground service only after camera startup succeeds. Starting it
+                // before the drive can leave Android waiting for StartForeground when startup is
+                // rejected, which Android reports later as a fatal process exception.
                 _backgroundScanning.Start();
             }
         }
