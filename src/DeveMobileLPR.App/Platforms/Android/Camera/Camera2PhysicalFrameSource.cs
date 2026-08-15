@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics;
 using System.Runtime.Versioning;
 using Android.Content;
 using Android.Graphics;
@@ -11,8 +12,6 @@ using DeveMobileLPR.Application;
 using DeveMobileLPR.Geometry;
 using DeveMobileLPR.Imaging;
 using Java.Lang;
-using Java.Util.Concurrent;
-using AndroidSize = Android.Util.Size;
 using Exception = System.Exception;
 
 namespace DeveMobileLPR.App.Platforms.Android.Camera;
@@ -23,16 +22,15 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
     private readonly Func<int> _recognitionFramesPerSecond;
     private readonly Func<string, Yuv420Frame, bool> _submitFrame;
     private readonly List<ConfiguredSource> _sources = [];
-    private readonly List<Surface> _previewSurfaces = [];
     private readonly List<ImageReader> _readers = [];
     private readonly List<ImageAvailableListener> _listeners = [];
+    private readonly List<HandlerThread> _imageThreads = [];
+    private readonly List<Handler> _imageHandlers = [];
     private CameraDevice? _device;
     private CameraCaptureSession? _session;
     private CameraDevice.StateCallback? _deviceCallback;
     private CameraCaptureSession.StateCallback? _sessionCallback;
     private CameraCaptureSession.CaptureCallback? _captureCallback;
-    private HandlerThread? _imageThread;
-    private Handler? _imageHandler;
     private CancellationTokenSource? _healthCancellation;
     private Task? _healthTask;
     private bool _running;
@@ -54,7 +52,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
     public event Action<string, string, bool>? SourceStatusChanged;
 
     public void Configure(
-        IReadOnlyList<(DriveSourceCapability Capability, DriveSourceProfile Profile, AspectRatioTextureView Preview)> sources)
+        IReadOnlyList<(DriveSourceCapability Capability, DriveSourceProfile Profile, PhysicalYuvPreviewView Preview)> sources)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (_running)
@@ -93,19 +91,18 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             return;
         }
 
-        await WaitForTexturesAsync(cancellationToken).ConfigureAwait(false);
         var manager = _context.GetSystemService(Context.CameraService) as CameraManager
             ?? throw new InvalidOperationException("Android returned no CameraManager.");
 
-        PrepareOutputs(manager);
         if (!OperatingSystem.IsAndroidVersionAtLeast(28))
         {
             throw new PlatformNotSupportedException("Physical camera outputs require Android 9 or newer.");
         }
         try
         {
+            PrepareOutputs(manager);
             Diagnostic?.Invoke(this,
-                "Starting Camera2 physical streams: " + string.Join(" + ", _sources.Select(source =>
+                "Starting two-output Camera2 physical YUV session: " + string.Join(" + ", _sources.Select(source =>
                     $"{source.Capability.Name} at {source.Profile.Resolution}, {source.Profile.Zoom:0.0}x")));
             foreach (var source in _sources)
             {
@@ -120,10 +117,6 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
                 .ToArray();
             var requestBuilder = _device.CreateCaptureRequest(CameraTemplate.Preview, physicalIds)
                 ?? throw new InvalidOperationException("Camera2 could not create a repeating request.");
-            foreach (var surface in _previewSurfaces)
-            {
-                requestBuilder.AddTarget(surface);
-            }
             foreach (var reader in _readers)
             {
                 requestBuilder.AddTarget(reader.Surface!);
@@ -136,11 +129,12 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             var request = requestBuilder.Build()
                 ?? throw new InvalidOperationException("Camera2 could not build a repeating request.");
             _captureCallback = new RepeatingCaptureCallback(message => Diagnostic?.Invoke(this, message));
-            _session.SetRepeatingRequest(request, _captureCallback, _imageHandler);
+            _session.SetRepeatingRequest(request, _captureCallback, _imageHandlers[0]);
             _running = true;
             await WaitForFirstFramesAsync(cancellationToken).ConfigureAwait(false);
             Diagnostic?.Invoke(this,
-                $"Camera2 physical pair active: {string.Join(" + ", _sources.Select(source => source.Capability.Name))}");
+                $"Camera2 physical pair active: {string.Join(" + ", _sources.Select(source => source.Capability.Name))}" +
+                " · two YUV outputs total · software previews share the analysis frames");
             StartHealthMonitor();
         }
         catch (Exception exception)
@@ -156,19 +150,16 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
 
     public void Stop()
     {
+        var elapsed = Stopwatch.StartNew();
+        Diagnostic?.Invoke(this, "Stopping Camera2 physical streams…");
         _running = false;
         _healthCancellation?.Cancel();
         _healthCancellation?.Dispose();
         _healthCancellation = null;
         _healthTask = null;
-        try
-        {
-            _session?.StopRepeating();
-        }
-        catch (CameraAccessException)
-        {
-        }
-
+        // CameraCaptureSession.Close() already stops repeating requests. Calling
+        // StopRepeating() first adds a synchronous HAL round-trip which can wait forever
+        // when one physical stream has stalled—the exact state we most need to escape.
         _session?.Close();
         _session?.Dispose();
         _session = null;
@@ -193,44 +184,24 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             reader.Dispose();
         }
         _readers.Clear();
-        foreach (var surface in _previewSurfaces)
+        foreach (var handler in _imageHandlers)
         {
-            surface.Dispose();
+            handler.Dispose();
         }
-        _previewSurfaces.Clear();
-
-        _imageHandler?.Dispose();
-        _imageHandler = null;
-        if (_imageThread is not null)
+        _imageHandlers.Clear();
+        foreach (var thread in _imageThreads)
         {
-            _imageThread.QuitSafely();
-            _imageThread.Dispose();
-            _imageThread = null;
+            thread.QuitSafely();
+            thread.Dispose();
         }
+        _imageThreads.Clear();
 
         foreach (var source in _sources)
         {
             source.Reset();
         }
-    }
-
-    private async Task WaitForTexturesAsync(CancellationToken cancellationToken)
-    {
-        for (var attempt = 0; attempt < 60; attempt++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var ready = await MainThread.InvokeOnMainThreadAsync(
-                () => _sources.Count == 2
-                    && _sources.All(source => source.Preview.IsAvailable
-                        && source.Preview.SurfaceTexture is not null));
-            if (ready)
-            {
-                return;
-            }
-            await Task.Delay(50, cancellationToken).ConfigureAwait(false);
-        }
-
-        throw new System.TimeoutException("Physical camera preview surfaces did not become available.");
+        Diagnostic?.Invoke(this,
+            $"Camera2 physical streams stopped in {elapsed.Elapsed.TotalMilliseconds:0} ms.");
     }
 
     private void PrepareOutputs(CameraManager manager)
@@ -240,39 +211,15 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             throw new PlatformNotSupportedException("Physical camera outputs require Android 9 or newer.");
         }
 
-        _imageThread = new HandlerThread("mobilelpr-physical-images");
-        _imageThread.Start();
-        _imageHandler = new Handler(_imageThread.Looper
-            ?? throw new InvalidOperationException("Camera2 image thread has no looper."));
-
         foreach (var source in _sources)
         {
             source.Orientation = GetOrientation(manager, source);
-            var texture = source.Preview.SurfaceTexture
-                ?? throw new InvalidOperationException($"{source.Capability.Name} preview surface is unavailable.");
-            // Preview stays modest but matches the analysis aspect. A fixed 16:9 preview cannot
-            // share overlay geometry with a user-selected 4:3 YUV stream.
-            var previewSize = SelectPreviewSize(manager, source);
-            texture.SetDefaultBufferSize(previewSize.Width, previewSize.Height);
-            var aiQuarterTurn = source.Orientation.AiRotationDegrees % 180 != 0;
-            var uprightContentWidth = aiQuarterTurn ? previewSize.Height : previewSize.Width;
-            var uprightContentHeight = aiQuarterTurn ? previewSize.Width : previewSize.Height;
-            source.Preview.ConfigureBuffer(
-                previewSize.Width,
-                previewSize.Height,
-                uprightContentWidth,
-                uprightContentHeight,
-                source.Orientation.PreviewRotationDegrees,
-                AspectScaleMode.Fit,
-                source.Orientation.PreviewMirrored);
             Diagnostic?.Invoke(this,
                 $"{source.Capability.Name}: geometry · sensor {source.Orientation.SensorOrientationDegrees}° · " +
-                $"display {source.Orientation.DisplayRotationDegrees}° · preview {source.Orientation.PreviewRotationDegrees}°" +
+                $"display {source.Orientation.DisplayRotationDegrees}° · " +
                 $"{(source.Orientation.PreviewMirrored ? " mirrored" : string.Empty)} · " +
-                $"AI {source.Orientation.AiRotationDegrees}° · preview buffer {previewSize.Width}x{previewSize.Height} · " +
-                $"upright content {uprightContentWidth}x{uprightContentHeight} · " +
-                $"analysis requested {source.Profile.Resolution} · mode Fit.");
-            _previewSurfaces.Add(new Surface(texture));
+                $"AI/preview rotation {source.Orientation.AiRotationDegrees}° · " +
+                $"one YUV output {source.Profile.Resolution} shared by preview and AI · mode Fit.");
 
             var reader = ImageReader.NewInstance(
                 source.Profile.Resolution.Width,
@@ -281,9 +228,15 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
                 2) ?? throw new InvalidOperationException(
                     $"Could not create {source.Profile.Resolution} YUV reader for {source.Capability.Name}.");
             var listener = new ImageAvailableListener(source, FrameAvailable, FrameObserved, ReportDiagnostic);
-            reader.SetOnImageAvailableListener(listener, _imageHandler);
+            var thread = new HandlerThread($"mobilelpr-physical-{source.Capability.PhysicalCameraId}-images");
+            thread.Start();
+            var handler = new Handler(thread.Looper
+                ?? throw new InvalidOperationException("Camera2 image thread has no looper."));
+            reader.SetOnImageAvailableListener(listener, handler);
             _readers.Add(reader);
             _listeners.Add(listener);
+            _imageThreads.Add(thread);
+            _imageHandlers.Add(handler);
         }
     }
 
@@ -308,25 +261,6 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             sensorOrientation,
             displayDegrees,
             source.Capability.InferredRole == InferredLensRole.Front);
-    }
-
-    private static AndroidSize SelectPreviewSize(CameraManager manager, ConfiguredSource source)
-    {
-        var physicalId = source.Capability.PhysicalCameraId
-            ?? throw new InvalidOperationException("Physical camera ID is missing.");
-        var characteristics = manager.GetCameraCharacteristics(physicalId);
-        var map = characteristics.Get(CameraCharacteristics.ScalerStreamConfigurationMap)
-            as StreamConfigurationMap
-            ?? throw new InvalidOperationException($"Physical ID {physicalId} reports no stream map.");
-        var outputSizes = map.GetOutputSizes(Class.FromType(typeof(SurfaceTexture)))
-            ?? throw new InvalidOperationException($"Physical ID {physicalId} reports no preview sizes.");
-        var targetAspect = source.Profile.Resolution.Width / (double)source.Profile.Resolution.Height;
-        const long targetArea = 1280L * 720;
-        return outputSizes
-            .OrderBy(size => System.Math.Abs(size.Width / (double)size.Height - targetAspect))
-            .ThenBy(size => size.Width <= 1280 ? 0 : 1)
-            .ThenBy(size => System.Math.Abs((long)size.Width * size.Height - targetArea))
-            .First();
     }
 
     private async Task WaitForFirstFramesAsync(CancellationToken cancellationToken)
@@ -385,7 +319,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             {
                 session.Close();
                 completion.TrySetException(new InvalidOperationException(
-                    "Camera2 rejected the selected physical preview/YUV stream combination. Try 1080p."));
+                    "Camera2 rejected the selected two-physical-YUV stream combination. Try 1080p."));
             });
 
         var outputs = new List<OutputConfiguration>();
@@ -393,9 +327,6 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         {
             var physicalId = _sources[index].Capability.PhysicalCameraId
                 ?? throw new InvalidOperationException("Physical camera ID is missing.");
-            var previewOutput = new OutputConfiguration(_previewSurfaces[index]);
-            previewOutput.SetPhysicalCameraId(physicalId);
-            outputs.Add(previewOutput);
             var analysisOutput = new OutputConfiguration(_readers[index].Surface!);
             analysisOutput.SetPhysicalCameraId(physicalId);
             outputs.Add(analysisOutput);
@@ -403,14 +334,41 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
 
         var executor = _context.MainExecutor
             ?? throw new InvalidOperationException("Android returned no main executor.");
-        var configuration = new SessionConfiguration(
+        using var configuration = new SessionConfiguration(
             (int)SessionType.Regular,
             outputs,
             executor,
             _sessionCallback);
-        using var registration = cancellationToken.Register(() => completion.TrySetCanceled(cancellationToken));
-        await MainThread.InvokeOnMainThreadAsync(() => camera.CreateCaptureSession(configuration));
-        return await completion.Task.ConfigureAwait(false);
+        try
+        {
+            if (OperatingSystem.IsAndroidVersionAtLeast(29)
+                && !camera.IsSessionConfigurationSupported(configuration))
+            {
+                throw new NotSupportedException(
+                    "Android reports that the selected two-physical-YUV configuration is unsupported. Try 1080p.");
+            }
+            Diagnostic?.Invoke(this, OperatingSystem.IsAndroidVersionAtLeast(29)
+                ? "Android reports that the two-physical-YUV session configuration is supported."
+                : "Android 9 cannot preflight this physical-camera configuration; session creation will verify it.");
+        }
+        catch (Java.Lang.UnsupportedOperationException)
+        {
+            Diagnostic?.Invoke(this,
+                "Android cannot preflight this physical-camera configuration; session creation will verify it.");
+        }
+        try
+        {
+            using var registration = cancellationToken.Register(() => completion.TrySetCanceled(cancellationToken));
+            await MainThread.InvokeOnMainThreadAsync(() => camera.CreateCaptureSession(configuration));
+            return await completion.Task.ConfigureAwait(false);
+        }
+        finally
+        {
+            foreach (var output in outputs)
+            {
+                output.Dispose();
+            }
+        }
     }
 
     [SupportedOSPlatform("android28.0")]
@@ -563,16 +521,11 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
 
         var message = $"LIVE · analysis {width}×{height} · zoom {source.EffectiveZoom:0.0}×";
         SourceStatusChanged?.Invoke(source.Capability.Id, message, false);
-        var surfaceTransform = source.Preview.AppliedTransform;
-        var previewGeometry = surfaceTransform is { } transform
-            ? $"; producer scale {transform.ProducerScaleX:0.###}x{transform.ProducerScaleY:0.###}; " +
-              $"final content [{transform.FinalContentBounds.Left:0.#},{transform.FinalContentBounds.Top:0.#}," +
-              $"{transform.FinalContentBounds.Right:0.#},{transform.FinalContentBounds.Bottom:0.#}]"
-            : string.Empty;
         Diagnostic?.Invoke(this,
             $"{source.Capability.Name}: actual analysis {width}x{height}, requested {source.Profile.Resolution}; " +
-            $"AI rotation {source.Orientation.AiRotationDegrees}°; preview rotation {source.Orientation.PreviewRotationDegrees}°; " +
-            $"preview panel {source.Preview.Width}x{source.Preview.Height}{previewGeometry}.");
+            $"AI/software-preview rotation {source.Orientation.AiRotationDegrees}°; " +
+            $"preview panel {source.Preview.Width}x{source.Preview.Height}; " +
+            $"render target up to 640x480.");
     }
 
     private void ReportDiagnostic(string message) => Diagnostic?.Invoke(this, message);
@@ -594,14 +547,15 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
     private sealed class ConfiguredSource(
         DriveSourceCapability capability,
         DriveSourceProfile profile,
-        AspectRatioTextureView preview,
+        PhysicalYuvPreviewView preview,
         Func<int> framesPerSecond)
     {
         public DriveSourceCapability Capability { get; } = capability;
         public DriveSourceProfile Profile { get; } = profile;
-        public AspectRatioTextureView Preview { get; } = preview;
+        public PhysicalYuvPreviewView Preview { get; } = preview;
         public Func<int> FramesPerSecond { get; } = framesPerSecond;
-        public FrameRateGate Gate { get; } = new(timestampFrequency: 1000);
+        public FrameRateGate AnalysisGate { get; } = new(timestampFrequency: 1000);
+        public FrameRateGate PreviewGate { get; } = new(timestampFrequency: 1000);
         public long Sequence;
         public int ReportedResolution;
         public float EffectiveZoom { get; set; } = 1f;
@@ -676,7 +630,8 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
 
         public void Reset()
         {
-            Gate.Reset();
+            AnalysisGate.Reset();
+            PreviewGate.Reset();
             Interlocked.Exchange(ref ReportedResolution, 0);
             EffectiveZoom = 1f;
             Interlocked.Exchange(ref HealthState, 0);
@@ -705,7 +660,11 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
 
                 source.MarkAnalysisFrame();
                 frameObserved(source, image.Width, image.Height);
-                if (!source.Gate.TryAcquire(System.Environment.TickCount64, source.FramesPerSecond()))
+                var now = System.Environment.TickCount64;
+                var analyze = source.AnalysisGate.TryAcquire(now, source.FramesPerSecond());
+                var preview = source.Preview.CanAcceptFrame
+                    && source.PreviewGate.TryAcquire(now, 8);
+                if (!analyze && !preview)
                 {
                     return;
                 }
@@ -721,19 +680,50 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
                 var v = CopyPlane(planes[2]);
                 try
                 {
-                    var frame = new Yuv420Frame(
-                        Interlocked.Increment(ref source.Sequence),
-                        DateTimeOffset.UtcNow,
-                        image.Width,
-                        image.Height,
-                        source.Orientation.AiRotationDegrees,
-                        y.Owner!, y.Length, planes[0].RowStride, planes[0].PixelStride,
-                        u.Owner!, u.Length, planes[1].RowStride, planes[1].PixelStride,
-                        v.Owner!, v.Length, planes[2].RowStride, planes[2].PixelStride);
-                    y = default;
-                    u = default;
-                    v = default;
-                    frameAvailable(source.Capability.Id, frame);
+                    if (preview)
+                    {
+                        try
+                        {
+                            source.Preview.TryPresent(
+                                image.Width,
+                                image.Height,
+                                source.Orientation.AiRotationDegrees,
+                                source.Orientation.PreviewMirrored,
+                                y.Owner!.Array,
+                                y.Length,
+                                planes[0].RowStride,
+                                planes[0].PixelStride,
+                                u.Owner!.Array,
+                                u.Length,
+                                planes[1].RowStride,
+                                planes[1].PixelStride,
+                                v.Owner!.Array,
+                                v.Length,
+                                planes[2].RowStride,
+                                planes[2].PixelStride);
+                        }
+                        catch (Exception exception)
+                        {
+                            diagnostic($"{source.Capability.Name}: software preview failed: {exception.Message}");
+                        }
+                    }
+
+                    if (analyze)
+                    {
+                        var frame = new Yuv420Frame(
+                            Interlocked.Increment(ref source.Sequence),
+                            DateTimeOffset.UtcNow,
+                            image.Width,
+                            image.Height,
+                            source.Orientation.AiRotationDegrees,
+                            y.Owner!, y.Length, planes[0].RowStride, planes[0].PixelStride,
+                            u.Owner!, u.Length, planes[1].RowStride, planes[1].PixelStride,
+                            v.Owner!, v.Length, planes[2].RowStride, planes[2].PixelStride);
+                        y = default;
+                        u = default;
+                        v = default;
+                        frameAvailable(source.Capability.Id, frame);
+                    }
                 }
                 finally
                 {
@@ -778,7 +768,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         }
     }
 
-    private readonly record struct PlaneCopy(IMemoryOwner<byte>? Owner, int Length);
+    private readonly record struct PlaneCopy(PooledByteOwner? Owner, int Length);
 
     private sealed class PooledByteOwner(int minimumLength) : IMemoryOwner<byte>
     {

@@ -7,6 +7,9 @@ public sealed class DriveCoordinator : IAsyncDisposable
 {
     private static readonly TimeSpan RouteSampleInterval = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan MinimumRouteInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan CameraShutdownTimeout = TimeSpan.FromSeconds(8);
+    private static readonly TimeSpan RecognitionDrainTimeout = TimeSpan.FromSeconds(12);
+    private static readonly TimeSpan RouteShutdownTimeout = TimeSpan.FromSeconds(5);
     private const float MaximumRouteAccuracyMeters = 75;
     private const double MinimumRouteDistanceMeters = 12;
 
@@ -487,7 +490,12 @@ public sealed class DriveCoordinator : IAsyncDisposable
         var failures = new List<Exception>();
         if (camera is not null)
         {
-            await CaptureFailureAsync(() => camera.StopAsync(), failures);
+            AppendEvent("Stopping camera capture…");
+            await CaptureBoundedFailureAsync(
+                "Camera shutdown",
+                () => camera.StopAsync(),
+                CameraShutdownTimeout,
+                failures);
         }
 
         CaptureFailure(() => _routeCancellation?.Cancel(), failures);
@@ -495,7 +503,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
         {
             try
             {
-                await _routeWorker;
+                await _routeWorker.WaitAsync(RouteShutdownTimeout).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (_routeCancellation?.IsCancellationRequested == true)
             {
@@ -504,6 +512,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
             catch (Exception exception)
             {
                 failures.Add(exception);
+                AppendEvent($"Route shutdown failed: {exception.Message}", true);
             }
         }
 
@@ -512,7 +521,12 @@ public sealed class DriveCoordinator : IAsyncDisposable
             // Camera capture is stopped and _driving is false, so no new frames can enter.
             // Drain every source before ending the trip so a late result cannot be assigned to
             // no trip (or to a newly started trip on a fast restart).
-            await CaptureFailureAsync(() => _recognition.DrainAsync(), failures);
+            AppendEvent("Finishing in-flight recognition…");
+            await CaptureBoundedFailureAsync(
+                "Recognition drain",
+                _recognition.DrainAsync,
+                RecognitionDrainTimeout,
+                failures);
         }
 
         DriveTrip? trip;
@@ -534,6 +548,31 @@ public sealed class DriveCoordinator : IAsyncDisposable
         _routeWorker = null;
         CaptureFailure(() => _deviceExperience.SetKeepScreenOn(false), failures);
         return failures;
+    }
+
+    private async Task CaptureBoundedFailureAsync(
+        string operation,
+        Func<Task> action,
+        TimeSpan timeout,
+        ICollection<Exception> failures)
+    {
+        try
+        {
+            await action().WaitAsync(timeout).ConfigureAwait(false);
+        }
+        catch (TimeoutException exception)
+        {
+            var failure = new TimeoutException(
+                $"{operation} did not finish within {timeout.TotalSeconds:0} seconds; trip finalization continued.",
+                exception);
+            failures.Add(failure);
+            AppendEvent(failure.Message, true);
+        }
+        catch (Exception exception)
+        {
+            failures.Add(exception);
+            AppendEvent($"{operation} failed: {exception.Message}", true);
+        }
     }
 
     private static async Task CaptureFailureAsync(Func<Task> action, ICollection<Exception> failures)

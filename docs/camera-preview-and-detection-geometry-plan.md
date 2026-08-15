@@ -107,23 +107,28 @@ Implementation requirements:
 
 ### Camera2: two physical cameras behind one logical camera
 
-Camera2 has separate preview `SurfaceTexture` and YUV `ImageReader` outputs. Treat them separately.
+The original Camera2 implementation requested a preview `SurfaceTexture` and a 4K YUV
+`ImageReader` for each physical lens. The Pixel accepted those four outputs but eventually stopped
+delivering both outputs for one lens. The physical-camera path now requests exactly two outputs:
+one YUV `ImageReader` per lens. Each copied YUV frame feeds both a throttled software preview and
+the source's latest-frame recognition slot.
 
 Implementation requirements:
 
-1. Log and retain sensor orientation and Android display rotation, but do not automatically apply
-   the YUV relative rotation to `TextureView`.
-2. Determine the preview transform from the preview surface contract. Start from the last
-   device-proven upright behavior and verify it with the Pixel matrix below.
-3. Preserve the producer/SurfaceTexture transform where Android supplies one; add only the
-   correction needed for rotation and uniform Fit/Fill.
-4. Keep the calculated YUV relative rotation on `Yuv420Frame` so AI receives an upright frame.
-5. Use preview and YUV streams with matching oriented aspect ratios. If Android negotiates a
-   different preview aspect, report the real value and content rectangle rather than assuming
-   `1280x720` maps exactly to the analysis stream.
-6. Reapply the preview transform on panel-size or display-rotation changes.
-7. Publish each actual native panel/content rectangle to the shared overlay. Do not have
+1. Calculate orientation once from sensor orientation and Android display rotation. Use that same
+   rotation for the software preview and `Yuv420Frame` consumed by AI.
+2. Downsample into an upright preview bitmap without changing the image proportions. `ImageView`
+   applies uniform `FitCenter`; it may letterbox but may never stretch.
+3. Keep preview rendering throttled and latest-only. A pending UI presentation drops newer preview
+   requests rather than retaining camera images or growing a queue.
+4. Close each Android `Image` immediately after its planes have been copied. Preview rendering and
+   AI may never retain an `ImageReader` image.
+5. Use the YUV frame's oriented aspect for both preview and detections, eliminating separate
+   preview-buffer geometry.
+6. Publish each actual native panel/content rectangle to the shared overlay. Do not have
    `DriveOverlayView` recreate the native grid using only source count.
+7. Keep separate callback threads per physical source so software preview work for one lens cannot
+   delay acquisition and closure for the other lens.
 
 ### LL-HLS
 
