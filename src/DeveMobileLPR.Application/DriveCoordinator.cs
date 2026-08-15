@@ -43,6 +43,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
     private bool _stopping;
     private bool _disposed;
     private bool _cameraConfigurationReady;
+    private bool _cameraTransitioning;
     private string _status = "Preparing the on-device recognition engine…";
     private bool _hasError;
     private DriveDiagnosticsSnapshot _diagnostics = DriveDiagnosticsSnapshot.Empty;
@@ -178,6 +179,16 @@ public sealed class DriveCoordinator : IAsyncDisposable
             _cameraInitialization = null;
             _cameraConfigurationReady = false;
         }
+        Publish();
+    }
+
+    public void SetCameraTransitioning(bool transitioning)
+    {
+        lock (_stateGate)
+        {
+            _cameraTransitioning = transitioning;
+        }
+        Publish();
     }
 
     public bool SubmitFrame(Yuv420Frame frame) => SubmitFrame("default", frame);
@@ -201,7 +212,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
         || _recognition is null
         || _recognition.HasPendingFrame;
 
-    public async Task StartDriveAsync()
+    public async Task StartDriveAsync(long expectedInputGeneration = 0)
     {
         await _driveGate.WaitAsync();
         IDriveVideoInput? startedCamera = null;
@@ -225,11 +236,18 @@ public sealed class DriveCoordinator : IAsyncDisposable
             }
 
             var camera = _camera;
+            if (!MatchesInputGeneration(camera, expectedInputGeneration))
+            {
+                SetStatus("Waiting for this drive page's camera input…", false);
+                return;
+            }
             if (_cameraInitialization is { } cameraInitialization)
             {
                 await cameraInitialization.ConfigureAwait(false);
             }
-            if (!ReferenceEquals(_camera, camera) || !camera.IsReady)
+            if (!ReferenceEquals(_camera, camera)
+                || !MatchesInputGeneration(camera, expectedInputGeneration)
+                || !camera.IsReady)
             {
                 SetStatus("The selected video input is not ready yet.", true);
                 return;
@@ -262,6 +280,16 @@ public sealed class DriveCoordinator : IAsyncDisposable
             _performance.Start();
             startedCamera = camera;
             await camera.StartAsync();
+            if (!ReferenceEquals(_camera, camera)
+                || !MatchesInputGeneration(camera, expectedInputGeneration))
+            {
+                // The handler that owned this input disappeared while native startup was in
+                // progress. Its lifetime service now owns cleanup; do not call through the
+                // released lease from this stale startup attempt.
+                startedCamera = null;
+                throw new InvalidOperationException(
+                    $"Camera input #{InputGeneration(camera)} was replaced while the drive was starting.");
+            }
             camera.SetZoom(_settings.Zoom);
             _routeCancellation = new CancellationTokenSource();
             _routeWorker = Task.Run(() => RecordRouteAsync(trip, startLocation, now, _routeCancellation.Token));
@@ -291,6 +319,12 @@ public sealed class DriveCoordinator : IAsyncDisposable
             _driveGate.Release();
         }
     }
+
+    private static long InputGeneration(IDriveVideoInput? camera) =>
+        camera is DriveVideoInputLease lease ? lease.Generation : 0;
+
+    private static bool MatchesInputGeneration(IDriveVideoInput? camera, long expectedGeneration) =>
+        expectedGeneration == 0 || InputGeneration(camera) == expectedGeneration;
 
     public async Task StopDriveAsync()
     {
@@ -847,6 +881,8 @@ public sealed class DriveCoordinator : IAsyncDisposable
         CreateOverlays(),
         CurrentLocation() is not null,
         _camera?.IsReady == true && _cameraConfigurationReady,
+        _cameraTransitioning,
+        InputGeneration(_camera),
         _camera?.SupportsNetworkStreams == true,
         _cameraChoices.ToArray(),
         _camera?.SelectedCameraId ?? _settings.CameraId,

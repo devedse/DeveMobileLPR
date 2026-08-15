@@ -132,13 +132,6 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
             throw new InvalidOperationException("Enable at least one video source.");
         }
 
-        var integratedCount = enabled.Count(source =>
-            FindCapability(source.SourceId)?.IsIntegratedCamera == true);
-        if (integratedCount > 2)
-        {
-            throw new NotSupportedException(
-                "Android supports at most two simultaneous integrated camera streams.");
-        }
         if (configuration.Mode == DriveInputMode.Single && enabled.Count != 1)
         {
             throw new InvalidOperationException("Single-camera mode requires exactly one source.");

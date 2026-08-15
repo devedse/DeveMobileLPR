@@ -3,8 +3,9 @@ using DeveMobileLPR.Imaging;
 namespace DeveMobileLPR.Application;
 
 /// <summary>
-/// Owns UI-created video inputs. Replacement initialization waits for preceding native teardown,
-/// preventing CameraX, Camera2, or MediaCapture sessions from racing for the same device.
+/// Owns UI-created video inputs. Every attachment receives a generation number, and replacement
+/// initialization waits for every preceding native teardown. This prevents a newly opened drive
+/// page from accidentally starting the input owned by the page that is still disappearing.
 /// </summary>
 public sealed class DriveVideoInputLifetime(
     DriveCoordinator coordinator,
@@ -13,6 +14,8 @@ public sealed class DriveVideoInputLifetime(
     private readonly object _gate = new();
     private Task _teardownTail = Task.CompletedTask;
     private DriveVideoInputLease? _current;
+    private long _nextGeneration;
+    private int _pendingTeardowns;
 
     public DriveVideoInputLease Attach(IDriveVideoInput input)
     {
@@ -24,8 +27,10 @@ public sealed class DriveVideoInputLifetime(
                 ReleaseCore(_current);
             }
 
-            var lease = new DriveVideoInputLease(input, _teardownTail);
+            var generation = Interlocked.Increment(ref _nextGeneration);
+            var lease = new DriveVideoInputLease(input, _teardownTail, generation);
             _current = lease;
+            applicationLog.Write("Camera", $"Input #{generation} attached.");
             coordinator.AttachCamera(lease);
             return lease;
         }
@@ -47,12 +52,15 @@ public sealed class DriveVideoInputLifetime(
             return;
         }
 
+        applicationLog.Write("Camera", $"Input #{lease.Generation} releasing.");
         coordinator.DetachCamera(lease);
         if (ReferenceEquals(_current, lease))
         {
             _current = null;
         }
 
+        Interlocked.Increment(ref _pendingTeardowns);
+        coordinator.SetCameraTransitioning(true);
         _teardownTail = DisposeAfterAsync(_teardownTail, lease);
     }
 
@@ -62,29 +70,54 @@ public sealed class DriveVideoInputLifetime(
         {
             await precedingTeardown.ConfigureAwait(false);
             await lease.DisposeOwnedInputAsync().ConfigureAwait(false);
+            applicationLog.Write("Camera", $"Input #{lease.Generation} disposed.");
         }
         catch (Exception exception)
         {
-            applicationLog.Write("Camera", $"Video input cleanup failed: {exception}", true);
+            applicationLog.Write(
+                "Camera",
+                $"Input #{lease.Generation} cleanup failed: {exception}",
+                true);
+        }
+        finally
+        {
+            if (Interlocked.Decrement(ref _pendingTeardowns) == 0)
+            {
+                coordinator.SetCameraTransitioning(false);
+            }
         }
     }
 }
 
-/// <summary>A platform-neutral lease around one UI-created native video input.</summary>
+/// <summary>
+/// A generation-aware, platform-neutral lease around one UI-created native video input. Async
+/// operations are serialized with release/disposal. The semaphore deliberately lives for the
+/// lease's managed lifetime so a late caller receives a useful stale-generation error rather than
+/// an ObjectDisposedException from SemaphoreSlim.
+/// </summary>
 public sealed class DriveVideoInputLease : IDriveVideoInput
 {
     private readonly IDriveVideoInput _inner;
     private readonly Task _precedingTeardown;
-    private readonly object _gate = new();
+    private readonly object _stateGate = new();
+    private readonly SemaphoreSlim _operationGate = new(1, 1);
     private Task? _initialization;
+    private Task? _disposal;
     private int _released;
     private int _disposed;
 
-    internal DriveVideoInputLease(IDriveVideoInput inner, Task precedingTeardown)
+    internal DriveVideoInputLease(
+        IDriveVideoInput inner,
+        Task precedingTeardown,
+        long generation = 1)
     {
         _inner = inner;
         _precedingTeardown = precedingTeardown;
+        Generation = generation;
     }
+
+    public long Generation { get; }
+    public bool IsActive => Volatile.Read(ref _released) == 0 && Volatile.Read(ref _disposed) == 0;
 
     public event EventHandler<DriveInputDiagnostic>? Diagnostic
     {
@@ -112,74 +145,125 @@ public sealed class DriveVideoInputLease : IDriveVideoInput
 
     public IReadOnlyList<CameraChoice> CameraChoices => _inner.CameraChoices;
     public string SelectedCameraId => _inner.SelectedCameraId;
-    public bool IsReady => _inner.IsReady;
+    public bool IsReady => IsActive && _inner.IsReady;
     public bool SupportsNetworkStreams => _inner.SupportsNetworkStreams;
     public IReadOnlyList<DriveSourceCapability> SourceCapabilities => _inner.SourceCapabilities;
     public bool ReportsPreviewFrames => _inner.ReportsPreviewFrames;
 
     public Task InitializeAsync(string preferredCameraId, CancellationToken cancellationToken = default)
     {
-        lock (_gate)
+        lock (_stateGate)
         {
-            ObjectDisposedException.ThrowIf(_disposed != 0, this);
-            _initialization ??= InitializeCoreAsync(preferredCameraId, cancellationToken);
+            ThrowIfUnavailable();
+            _initialization ??= RunExclusiveAsync(
+                () => _inner.InitializeAsync(preferredCameraId, cancellationToken),
+                cancellationToken,
+                waitForPrecedingTeardown: true);
             return _initialization;
         }
     }
 
-    private async Task InitializeCoreAsync(string preferredCameraId, CancellationToken cancellationToken)
-    {
-        await _precedingTeardown.WaitAsync(cancellationToken).ConfigureAwait(false);
-        await _inner.InitializeAsync(preferredCameraId, cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task StartAsync(CancellationToken cancellationToken = default)
-    {
-        await _precedingTeardown.WaitAsync(cancellationToken).ConfigureAwait(false);
-        await _inner.StartAsync(cancellationToken).ConfigureAwait(false);
-    }
+    public Task StartAsync(CancellationToken cancellationToken = default) =>
+        RunExclusiveAsync(
+            () => _inner.StartAsync(cancellationToken),
+            cancellationToken,
+            waitForPrecedingTeardown: true);
 
     public Task StopAsync(CancellationToken cancellationToken = default) =>
-        _inner.StopAsync(cancellationToken);
+        RunExclusiveAsync(
+            () => _inner.StopAsync(cancellationToken),
+            cancellationToken,
+            waitForPrecedingTeardown: false);
 
     public Task SelectCameraAsync(string cameraId, CancellationToken cancellationToken = default) =>
-        _inner.SelectCameraAsync(cameraId, cancellationToken);
+        RunExclusiveAsync(
+            () => _inner.SelectCameraAsync(cameraId, cancellationToken),
+            cancellationToken,
+            waitForPrecedingTeardown: true);
 
-    public void SetZoom(float zoomRatio) => _inner.SetZoom(zoomRatio);
-    public void SetNetworkStreamUrl(string value) => _inner.SetNetworkStreamUrl(value);
+    public void SetZoom(float zoomRatio)
+    {
+        lock (_stateGate)
+        {
+            ThrowIfUnavailable();
+            _inner.SetZoom(zoomRatio);
+        }
+    }
+
+    public void SetNetworkStreamUrl(string value)
+    {
+        lock (_stateGate)
+        {
+            ThrowIfUnavailable();
+            _inner.SetNetworkStreamUrl(value);
+        }
+    }
 
     public Task ApplyConfigurationAsync(
         DriveInputConfiguration configuration,
         CancellationToken cancellationToken = default) =>
-        _inner.ApplyConfigurationAsync(configuration, cancellationToken);
+        RunExclusiveAsync(
+            () => _inner.ApplyConfigurationAsync(configuration, cancellationToken),
+            cancellationToken,
+            waitForPrecedingTeardown: true);
 
     internal bool TryRelease() => Interlocked.Exchange(ref _released, 1) == 0;
 
-    internal async ValueTask DisposeOwnedInputAsync()
+    internal ValueTask DisposeOwnedInputAsync()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        lock (_stateGate)
         {
-            return;
+            _released = 1;
+            _disposal ??= DisposeCoreAsync();
+            return new ValueTask(_disposal);
         }
+    }
 
-        Task? initialization;
-        lock (_gate)
+    private async Task DisposeCoreAsync()
+    {
+        await _operationGate.WaitAsync().ConfigureAwait(false);
+        try
         {
-            initialization = _initialization;
-        }
-        if (initialization is not null)
-        {
-            try
+            if (Interlocked.Exchange(ref _disposed, 1) == 0)
             {
-                await initialization.ConfigureAwait(false);
-            }
-            catch
-            {
-                // Initialization already surfaced its failure through DriveCoordinator. Native
-                // resources created before that failure still have to be disposed below.
+                await _inner.DisposeAsync().ConfigureAwait(false);
             }
         }
-        await _inner.DisposeAsync().ConfigureAwait(false);
+        finally
+        {
+            _operationGate.Release();
+        }
+    }
+
+    private async Task RunExclusiveAsync(
+        Func<Task> operation,
+        CancellationToken cancellationToken,
+        bool waitForPrecedingTeardown)
+    {
+        await _operationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ThrowIfUnavailable();
+            if (waitForPrecedingTeardown)
+            {
+                await _precedingTeardown.WaitAsync(cancellationToken).ConfigureAwait(false);
+                ThrowIfUnavailable();
+            }
+            await operation().ConfigureAwait(false);
+        }
+        finally
+        {
+            _operationGate.Release();
+        }
+    }
+
+    private void ThrowIfUnavailable()
+    {
+        if (!IsActive)
+        {
+            throw new InvalidOperationException(
+                $"Camera input #{Generation} is no longer active; wait for the newly attached input.");
+        }
     }
 
     public ValueTask DisposeAsync() => DisposeOwnedInputAsync();

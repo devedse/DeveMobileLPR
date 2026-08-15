@@ -51,4 +51,35 @@ public partial class DrivePreviewPresenter : ContentView
         get => (bool)GetValue(ShowGuideProperty);
         set => SetValue(ShowGuideProperty, value);
     }
+
+    internal async Task<long> WaitForInputGenerationAsync(TimeSpan timeout)
+    {
+        if (Preview.InputGeneration > 0)
+        {
+            return Preview.InputGeneration;
+        }
+
+        var completion = new TaskCompletionSource<long>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        void Observe(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
+        {
+            if (args.PropertyName == nameof(CameraPreview.InputGeneration)
+                && Preview.InputGeneration > 0)
+            {
+                completion.TrySetResult(Preview.InputGeneration);
+            }
+        }
+
+        Preview.PropertyChanged += Observe;
+        try
+        {
+            return Preview.InputGeneration > 0
+                ? Preview.InputGeneration
+                : await completion.Task.WaitAsync(timeout);
+        }
+        finally
+        {
+            Preview.PropertyChanged -= Observe;
+        }
+    }
 }

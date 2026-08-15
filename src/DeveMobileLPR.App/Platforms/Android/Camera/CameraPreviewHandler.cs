@@ -33,12 +33,14 @@ internal partial class CameraPreviewHandler
                 }
             }));
         _inputLease = _inputLifetime.Attach(input);
+        virtualView.ReportInputGeneration(_inputLease.Generation);
     }
 
     private partial void DisconnectPlatformView(Platforms.Android.Camera.AndroidCameraPreviewHost platformView)
     {
         if (_inputLease is not null)
         {
+            VirtualView.ReportInputGeneration(0);
             _inputLifetime?.Release(_inputLease);
             _inputLease = null;
         }

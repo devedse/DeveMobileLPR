@@ -34,6 +34,7 @@ internal partial class CameraPreviewHandler : ViewHandler<CameraPreview, Platfor
     protected override void DisconnectHandler(PlatformCameraPreviewHost platformView)
     {
         DisconnectPlatformView(platformView);
+        VirtualView.ReportInputGeneration(0);
         VirtualView.ReportSourceViewports([]);
         base.DisconnectHandler(platformView);
     }
