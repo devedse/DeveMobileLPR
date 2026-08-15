@@ -1,7 +1,6 @@
 using System.Buffers;
 using Android.Content;
 using Android.Graphics;
-using Android.Widget;
 using DeveMobileLPR.Imaging;
 
 namespace DeveMobileLPR.App.Platforms.Android.Camera;
@@ -11,11 +10,12 @@ namespace DeveMobileLPR.App.Platforms.Android.Camera;
 /// This deliberately is not a Camera2 output surface: a physical-camera pair therefore
 /// consumes two YUV outputs in total instead of two preview plus two YUV outputs.
 /// </summary>
-internal sealed class PhysicalYuvPreviewView : ImageView
+internal sealed class PhysicalYuvPreviewView : global::Android.Views.View
 {
     private const int MaximumPreviewWidth = 640;
     private const int MaximumPreviewHeight = 480;
     private readonly object _bitmapGate = new();
+    private readonly global::Android.Graphics.Paint _paint = new() { FilterBitmap = true, Dither = true };
     private Bitmap? _displayed;
     private Bitmap? _spare;
     private int _presentationPending;
@@ -23,8 +23,8 @@ internal sealed class PhysicalYuvPreviewView : ImageView
 
     public PhysicalYuvPreviewView(Context context) : base(context)
     {
-        SetScaleType(ScaleType.FitCenter);
         SetBackgroundColor(global::Android.Graphics.Color.Black);
+        SetWillNotDraw(false);
     }
 
     public event Action? FramePresented;
@@ -154,9 +154,35 @@ internal sealed class PhysicalYuvPreviewView : ImageView
             _displayed = bitmap;
             _spare = old;
         }
-        SetImageBitmap(bitmap);
+        Invalidate();
         Interlocked.Exchange(ref _presentationPending, 0);
         FramePresented?.Invoke();
+    }
+
+    protected override void OnDraw(Canvas canvas)
+    {
+        base.OnDraw(canvas);
+        Bitmap? bitmap;
+        lock (_bitmapGate)
+        {
+            bitmap = _displayed;
+        }
+        if (bitmap is null || bitmap.IsRecycled || Width <= 0 || Height <= 0)
+        {
+            return;
+        }
+
+        // Draw explicitly instead of relying on ImageView drawable measurement. The view always
+        // occupies its complete camera panel; one uniform scale then centers the full image inside
+        // that panel. This is the native equivalent of MAUI AspectFit and can never stretch it.
+        var scale = Math.Min(Width / (float)bitmap.Width, Height / (float)bitmap.Height);
+        var left = (Width - bitmap.Width * scale) / 2f;
+        var top = (Height - bitmap.Height * scale) / 2f;
+        var saveCount = canvas.Save();
+        canvas.Translate(left, top);
+        canvas.Scale(scale, scale);
+        canvas.DrawBitmap(bitmap, 0f, 0f, _paint);
+        canvas.RestoreToCount(saveCount);
     }
 
     private static void FillPixels(
@@ -229,7 +255,6 @@ internal sealed class PhysicalYuvPreviewView : ImageView
         if (disposing && !_disposed)
         {
             _disposed = true;
-            SetImageDrawable(null);
             lock (_bitmapGate)
             {
                 _displayed?.Dispose();
@@ -237,6 +262,7 @@ internal sealed class PhysicalYuvPreviewView : ImageView
                 _spare?.Dispose();
                 _spare = null;
             }
+            _paint.Dispose();
         }
         base.Dispose(disposing);
     }
