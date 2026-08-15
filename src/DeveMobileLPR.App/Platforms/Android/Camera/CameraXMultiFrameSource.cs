@@ -137,7 +137,10 @@ internal sealed class CameraXIntegratedFrameSource : IDisposable
 
     private void UpdateTargetRotations()
     {
-        foreach (var binding in _bindings)
+        // A display callback can already be queued when the preview handler starts teardown.
+        // Snapshot first so re-entrant MAUI/CameraX callbacks cannot invalidate List<T>'s
+        // enumerator while ClearBindings removes the live bindings.
+        foreach (var binding in _bindings.ToArray())
         {
             binding.UpdateTargetRotation();
         }

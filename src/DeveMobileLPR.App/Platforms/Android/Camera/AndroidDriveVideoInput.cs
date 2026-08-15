@@ -74,6 +74,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
         _integrated.SourceStatusChanged += PhysicalSourceStatusChanged;
         _physicalPair.Diagnostic += IntegratedDiagnostic;
         _physicalPair.SourceFramesAvailable += ChildSourceFramesAvailable;
+        _physicalPair.PreviewFramesPresented += ChildPreviewFramesPresented;
         _physicalPair.SourceStatusChanged += PhysicalSourceStatusChanged;
         _network.Diagnostic += ChildDiagnostic;
         _network.SourceFramesAvailable += ChildSourceFramesAvailable;
@@ -537,7 +538,8 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
     private void IntegratedDiagnostic(object? sender, string message) =>
         Diagnostic?.Invoke(this, new DriveInputDiagnostic(
             message,
-            message.Contains("failed", StringComparison.OrdinalIgnoreCase)));
+            message.Contains("failed", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("stalled", StringComparison.OrdinalIgnoreCase)));
 
     private void ChildDiagnostic(object? sender, string message) =>
         Diagnostic?.Invoke(this, new DriveInputDiagnostic(
@@ -583,6 +585,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
             _integrated.SourceStatusChanged -= PhysicalSourceStatusChanged;
             _physicalPair.Diagnostic -= IntegratedDiagnostic;
             _physicalPair.SourceFramesAvailable -= ChildSourceFramesAvailable;
+            _physicalPair.PreviewFramesPresented -= ChildPreviewFramesPresented;
             _physicalPair.SourceStatusChanged -= PhysicalSourceStatusChanged;
             _network.Diagnostic -= ChildDiagnostic;
             _network.SourceFramesAvailable -= ChildSourceFramesAvailable;

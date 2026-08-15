@@ -30,8 +30,11 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
     private CameraCaptureSession? _session;
     private CameraDevice.StateCallback? _deviceCallback;
     private CameraCaptureSession.StateCallback? _sessionCallback;
+    private CameraCaptureSession.CaptureCallback? _captureCallback;
     private HandlerThread? _imageThread;
     private Handler? _imageHandler;
+    private CancellationTokenSource? _healthCancellation;
+    private Task? _healthTask;
     private bool _running;
     private bool _disposed;
 
@@ -47,6 +50,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
 
     public event EventHandler<string>? Diagnostic;
     public event EventHandler<DriveFrameCountEventArgs>? SourceFramesAvailable;
+    public event EventHandler<DriveFrameCountEventArgs>? PreviewFramesPresented;
     public event Action<string, string, bool>? SourceStatusChanged;
 
     public void Configure(
@@ -65,12 +69,20 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
                 "The Camera2 physical path requires two physical lenses behind one logical camera.");
         }
 
+        foreach (var source in _sources)
+        {
+            source.DetachPreviewHeartbeat();
+        }
         _sources.Clear();
         _sources.AddRange(sources.Select(source => new ConfiguredSource(
             source.Capability,
             source.Profile,
             source.Preview,
             _recognitionFramesPerSecond)));
+        foreach (var source in _sources)
+        {
+            source.AttachPreviewHeartbeat(() => PreviewFramePresented(source));
+        }
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -123,11 +135,13 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
 
             var request = requestBuilder.Build()
                 ?? throw new InvalidOperationException("Camera2 could not build a repeating request.");
-            _session.SetRepeatingRequest(request, null, _imageHandler);
+            _captureCallback = new RepeatingCaptureCallback(message => Diagnostic?.Invoke(this, message));
+            _session.SetRepeatingRequest(request, _captureCallback, _imageHandler);
             _running = true;
             await WaitForFirstFramesAsync(cancellationToken).ConfigureAwait(false);
             Diagnostic?.Invoke(this,
                 $"Camera2 physical pair active: {string.Join(" + ", _sources.Select(source => source.Capability.Name))}");
+            StartHealthMonitor();
         }
         catch (Exception exception)
         {
@@ -143,6 +157,10 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
     public void Stop()
     {
         _running = false;
+        _healthCancellation?.Cancel();
+        _healthCancellation?.Dispose();
+        _healthCancellation = null;
+        _healthTask = null;
         try
         {
             _session?.StopRepeating();
@@ -161,6 +179,8 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         _deviceCallback = null;
         _sessionCallback?.Dispose();
         _sessionCallback = null;
+        _captureCallback?.Dispose();
+        _captureCallback = null;
 
         foreach (var listener in _listeners)
         {
@@ -476,6 +496,64 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         _submitFrame(sourceId, frame);
     }
 
+    private void PreviewFramePresented(ConfiguredSource source)
+    {
+        if (!_running)
+        {
+            return;
+        }
+        source.MarkPreviewFrame();
+        PreviewFramesPresented?.Invoke(this, new DriveFrameCountEventArgs(1));
+    }
+
+    private void StartHealthMonitor()
+    {
+        _healthCancellation?.Cancel();
+        _healthCancellation?.Dispose();
+        var cancellation = new CancellationTokenSource();
+        var cancellationToken = cancellation.Token;
+        _healthCancellation = cancellation;
+        var sources = _sources.ToArray();
+        var now = System.Environment.TickCount64;
+        foreach (var source in sources)
+        {
+            source.StartHealthMonitoring(now);
+        }
+
+        _healthTask = Task.Run(async () =>
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+            try
+            {
+                while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    if (!_running)
+                    {
+                        continue;
+                    }
+                    var current = System.Environment.TickCount64;
+                    foreach (var source in sources)
+                    {
+                        var change = source.CheckHealth(current);
+                        if (change is null)
+                        {
+                            continue;
+                        }
+
+                        Diagnostic?.Invoke(this, $"{source.Capability.Name}: {change.Value.Message}");
+                        SourceStatusChanged?.Invoke(
+                            source.Capability.Id,
+                            change.Value.Status,
+                            change.Value.IsError);
+                    }
+                }
+            }
+            catch (System.OperationCanceledException) when (cancellation.IsCancellationRequested)
+            {
+            }
+        });
+    }
+
     private void FrameObserved(ConfiguredSource source, int width, int height)
     {
         if (!source.FirstFrame.TrySetResult(true))
@@ -507,6 +585,10 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         }
         _disposed = true;
         Stop();
+        foreach (var source in _sources)
+        {
+            source.DetachPreviewHeartbeat();
+        }
     }
 
     private sealed class ConfiguredSource(
@@ -527,14 +609,82 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         public TaskCompletionSource<bool> FirstFrame { get; private set; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+        public void MarkAnalysisFrame() =>
+            Interlocked.Exchange(ref LastAnalysisFrameTick, System.Environment.TickCount64);
+
+        public void MarkPreviewFrame() =>
+            Interlocked.Exchange(ref LastPreviewFrameTick, System.Environment.TickCount64);
+
+        public void StartHealthMonitoring(long now)
+        {
+            Interlocked.Exchange(ref LastAnalysisFrameTick, now);
+            Interlocked.Exchange(ref LastPreviewFrameTick, now);
+            Interlocked.Exchange(ref HealthState, 0);
+        }
+
+        public HealthChange? CheckHealth(long now)
+        {
+            const long stalledAfterMilliseconds = 3000;
+            var analysisAge = now - Interlocked.Read(ref LastAnalysisFrameTick);
+            var previewAge = now - Interlocked.Read(ref LastPreviewFrameTick);
+            var next = (analysisAge >= stalledAfterMilliseconds ? 1 : 0)
+                | (previewAge >= stalledAfterMilliseconds ? 2 : 0);
+            var previous = Interlocked.Exchange(ref HealthState, next);
+            if (next == previous)
+            {
+                return null;
+            }
+
+            if (next == 0)
+            {
+                return new HealthChange("LIVE", false, "preview and analysis frames recovered.");
+            }
+
+            var stalled = next switch
+            {
+                1 => "ANALYSIS STALLED",
+                2 => "PREVIEW STALLED",
+                _ => "PREVIEW + ANALYSIS STALLED"
+            };
+            return new HealthChange(
+                stalled,
+                true,
+                $"{stalled.ToLowerInvariant()} · last preview {previewAge / 1000d:0.0}s ago · " +
+                $"last analysis {analysisAge / 1000d:0.0}s ago.");
+        }
+
+        public long LastAnalysisFrameTick;
+        public long LastPreviewFrameTick;
+        public int HealthState;
+        private Action? _previewHeartbeat;
+
+        public void AttachPreviewHeartbeat(Action heartbeat)
+        {
+            DetachPreviewHeartbeat();
+            _previewHeartbeat = heartbeat;
+            Preview.FramePresented += heartbeat;
+        }
+
+        public void DetachPreviewHeartbeat()
+        {
+            if (_previewHeartbeat is { } heartbeat)
+            {
+                Preview.FramePresented -= heartbeat;
+                _previewHeartbeat = null;
+            }
+        }
+
         public void Reset()
         {
             Gate.Reset();
             Interlocked.Exchange(ref ReportedResolution, 0);
             EffectiveZoom = 1f;
+            Interlocked.Exchange(ref HealthState, 0);
             FirstFrame = new(TaskCreationOptions.RunContinuationsAsynchronously);
         }
     }
+
+    private readonly record struct HealthChange(string Status, bool IsError, string Message);
 
     private sealed class ImageAvailableListener(
         ConfiguredSource source,
@@ -553,6 +703,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
                     return;
                 }
 
+                source.MarkAnalysisFrame();
                 frameObserved(source, image.Width, image.Height);
                 if (!source.Gate.TryAcquire(System.Environment.TickCount64, source.FramesPerSecond()))
                 {
@@ -661,5 +812,20 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
     {
         public override void OnConfigured(CameraCaptureSession session) => configured(session);
         public override void OnConfigureFailed(CameraCaptureSession session) => failed(session);
+    }
+
+    private sealed class RepeatingCaptureCallback(Action<string> diagnostic)
+        : CameraCaptureSession.CaptureCallback
+    {
+        public override void OnCaptureFailed(
+            CameraCaptureSession session,
+            CaptureRequest request,
+            CaptureFailure failure) =>
+            diagnostic(
+                $"Camera2 repeating capture failed · reason {failure.Reason} · " +
+                $"frame {failure.FrameNumber} · sequence {failure.SequenceId}.");
+
+        public override void OnCaptureSequenceAborted(CameraCaptureSession session, int sequenceId) =>
+            diagnostic($"Camera2 repeating capture sequence {sequenceId} was aborted.");
     }
 }

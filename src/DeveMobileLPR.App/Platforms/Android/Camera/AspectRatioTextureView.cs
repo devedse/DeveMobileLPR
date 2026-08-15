@@ -9,7 +9,7 @@ namespace DeveMobileLPR.App.Platforms.Android.Camera;
 /// Displays a camera buffer without changing its proportions. It reapplies the transform whenever
 /// Android changes the panel size, which keeps rotation and split-screen layout changes coherent.
 /// </summary>
-internal sealed class AspectRatioTextureView(Context context) : TextureView(context)
+internal sealed class AspectRatioTextureView : TextureView, TextureView.ISurfaceTextureListener
 {
     private int _bufferWidth;
     private int _bufferHeight;
@@ -19,7 +19,13 @@ internal sealed class AspectRatioTextureView(Context context) : TextureView(cont
     private AspectScaleMode _scaleMode;
     private bool _mirrorHorizontally;
 
+    public AspectRatioTextureView(Context context) : base(context)
+    {
+        SurfaceTextureListener = this;
+    }
+
     public CameraSurfaceTransform? AppliedTransform { get; private set; }
+    public event Action? FramePresented;
 
     public void ConfigureBuffer(
         int bufferWidth,
@@ -45,6 +51,16 @@ internal sealed class AspectRatioTextureView(Context context) : TextureView(cont
         base.OnSizeChanged(width, height, oldWidth, oldHeight);
         ApplyAspectTransform();
     }
+
+    public void OnSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) =>
+        ApplyAspectTransform();
+
+    public bool OnSurfaceTextureDestroyed(SurfaceTexture surface) => true;
+
+    public void OnSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) =>
+        ApplyAspectTransform();
+
+    public void OnSurfaceTextureUpdated(SurfaceTexture surface) => FramePresented?.Invoke();
 
     private void ApplyAspectTransform()
     {

@@ -436,9 +436,15 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     private void SnapshotChanged(object? sender, DriveSnapshot snapshot)
     {
         var wasDriving = IsDriving;
+        var wasStopping = IsStopping;
         _snapshot = snapshot;
         ApplySnapshot(snapshot);
-        if (wasDriving != IsDriving)
+        // Do not tell DrivePage to remove its native camera view when stopping merely
+        // begins. Camera shutdown is asynchronous; closing here races CameraX/Camera2
+        // teardown against MAUI handler disconnection. Report "stopped" only once the
+        // coordinator has finished releasing the camera surfaces.
+        if ((!wasDriving && IsDriving)
+            || (!IsDriving && !IsStopping && (wasDriving || wasStopping)))
         {
             DriveModeChanged?.Invoke(this, IsDriving);
         }
