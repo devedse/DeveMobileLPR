@@ -113,7 +113,18 @@ internal sealed class CameraXIntegratedFrameSource : IDisposable
             {
                 SourceStatusChanged?.Invoke(binding.Capability.Id, "NO ANALYSIS FRAMES", true);
             }
-            Stop();
+            // WaitAsync resumes on a pool thread. CameraX bind/unbind operations belong to the
+            // Android main thread, so cleanup must explicitly return there as well.
+            try
+            {
+                await MainThread.InvokeOnMainThreadAsync(Stop);
+            }
+            catch (Exception cleanupException)
+            {
+                Diagnostic?.Invoke(
+                    this,
+                    $"CameraX timeout cleanup failed: {cleanupException.Message}");
+            }
             throw new System.TimeoutException(
                 $"No frames arrived from {string.Join(" and ", missing.Select(binding => binding.Capability.Name))}.");
         }
@@ -121,6 +132,11 @@ internal sealed class CameraXIntegratedFrameSource : IDisposable
 
     public void Stop()
     {
+        if (!MainThread.IsMainThread)
+        {
+            throw new InvalidOperationException("CameraX capture must be stopped on Android's main thread.");
+        }
+
         _running = false;
         _provider?.UnbindAll();
         foreach (var binding in _bindings)
@@ -137,6 +153,12 @@ internal sealed class CameraXIntegratedFrameSource : IDisposable
 
     private void UpdateTargetRotations()
     {
+        if (!MainThread.IsMainThread)
+        {
+            MainThread.BeginInvokeOnMainThread(UpdateTargetRotations);
+            return;
+        }
+
         // A display callback can already be queued when the preview handler starts teardown.
         // Snapshot first so re-entrant MAUI/CameraX callbacks cannot invalidate List<T>'s
         // enumerator while ClearBindings removes the live bindings.

@@ -22,7 +22,16 @@ public partial class DrivePage : ContentPage
         _viewModel.DriveModeChanged += DriveModeChanged;
         ApplyDriveMode(true);
         await _viewModel.InitializeAsync();
-        await _viewModel.StartDriveAsync();
+        try
+        {
+            var inputGeneration = await PreviewPresenter.WaitForInputGenerationAsync(TimeSpan.FromSeconds(15));
+            await _viewModel.StartDriveAsync(inputGeneration);
+        }
+        catch (TimeoutException)
+        {
+            // The view model will remain stopped and this modal will close. A subsequent start is
+            // safe because it will receive a new handler generation instead of reusing this page.
+        }
         if (!_viewModel.IsDriving)
         {
             await CloseOnceAsync();

@@ -50,7 +50,10 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     public bool IsDriving => _snapshot.IsDriving;
     public bool IsStopping => _snapshot.IsStopping;
     public bool ShowDriveControls => IsDriving || IsStopping;
-    public bool CanStart => IsReady && !IsInitializing && IsInputConfigurationValid;
+    public bool CanStart => IsReady
+        && !IsInitializing
+        && !_snapshot.IsInputTransitioning
+        && IsInputConfigurationValid;
     public bool SupportsMultiCamera => _sourceCatalog.SupportsMultipleSources;
     public bool ShowNetworkStreamUrl => _snapshot.SupportsNetworkStreams
         && _snapshot.SelectedCameraId == DriveInputIds.NetworkLlHls;
@@ -120,7 +123,9 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     public string MultiCameraWarning =>
         $"This device supports at most {_sourceCatalog.MaximumSimultaneousIntegratedSources} " +
         "simultaneous integrated camera streams. LL-HLS does not consume an integrated-camera slot.";
-    public string StartButtonText => IsInitializing ? "Preparing…" : "Start drive";
+    public string StartButtonText => _snapshot.IsInputTransitioning
+        ? "Releasing camera…"
+        : IsInitializing ? "Preparing…" : "Start drive";
     public string Duration => _snapshot.StartedAt is null ? "0:00" : FormatClock(DateTimeOffset.UtcNow - _snapshot.StartedAt.Value);
     public DriveDiagnosticsSnapshot Diagnostics => _snapshot.Diagnostics;
     public bool ShowRecognitionStatistics => ShowDriveControls && _snapshot.RecognitionStatisticsEnabled;
@@ -338,7 +343,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
 
     }
 
-    public async Task StartDriveAsync()
+    public async Task StartDriveAsync(long expectedInputGeneration)
     {
         if (IsDriving)
         {
@@ -349,23 +354,23 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         // invoke OnAppearing before CameraPreviewHandler has created and attached its platform
         // camera. Wait for that asynchronous attachment/configuration instead of treating the
         // normal page-construction race as a camera failure.
-        if (!_coordinator.Snapshot.IsInputReady
-            && !await WaitForInputReadyAsync(TimeSpan.FromSeconds(15)))
+        if (!InputIsReady(_coordinator.Snapshot, expectedInputGeneration)
+            && !await WaitForInputReadyAsync(TimeSpan.FromSeconds(15), expectedInputGeneration))
         {
             return;
         }
 
-        await ToggleDriveAsync();
+        await StartDriveCoreAsync(expectedInputGeneration);
     }
 
-    private async Task<bool> WaitForInputReadyAsync(TimeSpan timeout)
+    private async Task<bool> WaitForInputReadyAsync(TimeSpan timeout, long expectedInputGeneration)
     {
         var completion = new TaskCompletionSource<bool>(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
         void Observe(object? sender, DriveSnapshot snapshot)
         {
-            if (snapshot.IsInputReady)
+            if (InputIsReady(snapshot, expectedInputGeneration))
             {
                 completion.TrySetResult(true);
             }
@@ -375,7 +380,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         try
         {
             var snapshot = _coordinator.Snapshot;
-            if (snapshot.IsInputReady)
+            if (InputIsReady(snapshot, expectedInputGeneration))
             {
                 return true;
             }
@@ -391,6 +396,11 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         }
     }
 
+    private static bool InputIsReady(DriveSnapshot snapshot, long expectedInputGeneration) =>
+        snapshot.IsInputReady
+        && !snapshot.IsInputTransitioning
+        && snapshot.InputGeneration == expectedInputGeneration;
+
     private async Task ToggleDriveAsync()
     {
         if (IsDriving)
@@ -400,20 +410,23 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        await StartDriveCoreAsync(expectedInputGeneration: 0);
+    }
+
+    private async Task StartDriveCoreAsync(long expectedInputGeneration)
+    {
         var keepRunning = _backgroundScanning.IsSupported && _settings.ContinueScanningInBackground;
-        if (keepRunning)
+        if (keepRunning
+            && !_backgroundScanning.HasRequiredPermissions
+            && !await _backgroundScanning.RequestPermissionsAsync())
         {
-            if (!_backgroundScanning.HasRequiredPermissions
-                && !await _backgroundScanning.RequestPermissionsAsync())
-            {
-                throw new UnauthorizedAccessException(
-                    "Camera access is required to continue recognition in the background.");
-            }
+            throw new UnauthorizedAccessException(
+                "Camera access is required to continue recognition in the background.");
         }
 
         try
         {
-            await _coordinator.StartDriveAsync();
+            await _coordinator.StartDriveAsync(expectedInputGeneration);
             if (!_coordinator.Snapshot.IsDriving)
             {
                 _backgroundScanning.Stop();

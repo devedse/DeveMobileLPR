@@ -91,6 +91,8 @@ public sealed record DriveSnapshot(
     IReadOnlyList<DriveOverlay> Overlays,
     bool HasLocation,
     bool IsInputReady,
+    bool IsInputTransitioning,
+    long InputGeneration,
     bool SupportsNetworkStreams,
     IReadOnlyList<CameraChoice> CameraChoices,
     string SelectedCameraId,

@@ -38,6 +38,14 @@ internal sealed class CameraPreview : View
 
     public static readonly BindableProperty SourceViewportsProperty = SourceViewportsPropertyKey.BindableProperty;
 
+    private static readonly BindablePropertyKey InputGenerationPropertyKey = BindableProperty.CreateReadOnly(
+        nameof(InputGeneration),
+        typeof(long),
+        typeof(CameraPreview),
+        0L);
+
+    public static readonly BindableProperty InputGenerationProperty = InputGenerationPropertyKey.BindableProperty;
+
     public CameraPreview()
     {
         AutomationId = "drive_camera_preview";
@@ -65,6 +73,12 @@ internal sealed class CameraPreview : View
     /// <summary>The fit actually applied by the platform preview; read-only to XAML consumers.</summary>
     public AspectScaleMode ScaleMode => (AspectScaleMode)GetValue(ScaleModeProperty);
 
+    /// <summary>
+    /// Identity of the native input owned by this exact preview handler. A drive may only start
+    /// against this generation, which prevents a newly opened page from using a retiring camera.
+    /// </summary>
+    public long InputGeneration => (long)GetValue(InputGenerationProperty);
+
     internal void ReportPresentation(
         AspectScaleMode scaleMode,
         IReadOnlyList<PreviewSourceViewport>? sourceViewports = null)
@@ -78,4 +92,7 @@ internal sealed class CameraPreview : View
 
     internal void ReportSourceViewports(IReadOnlyList<PreviewSourceViewport> sourceViewports) =>
         SetValue(SourceViewportsPropertyKey, sourceViewports);
+
+    internal void ReportInputGeneration(long generation) =>
+        SetValue(InputGenerationPropertyKey, generation);
 }

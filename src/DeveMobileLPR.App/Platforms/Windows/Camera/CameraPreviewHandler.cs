@@ -20,6 +20,7 @@ internal partial class CameraPreviewHandler
         _inputLifetime = MauiContext.Services.GetRequiredService<DriveVideoInputLifetime>();
         _platformInput = factory.Create(platformView);
         _inputLease = _inputLifetime.Attach(_platformInput);
+        VirtualView.ReportInputGeneration(_inputLease.Generation);
     }
 
     private partial void DisconnectPlatformView(Platforms.Windows.Camera.WindowsCameraPreviewHost platformView)
@@ -28,6 +29,7 @@ internal partial class CameraPreviewHandler
         _platformInput = null;
         if (_inputLease is not null)
         {
+            VirtualView.ReportInputGeneration(0);
             _inputLifetime?.Release(_inputLease);
             _inputLease = null;
         }

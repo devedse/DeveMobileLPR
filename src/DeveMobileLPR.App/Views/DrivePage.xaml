@@ -8,6 +8,7 @@
     xmlns:vm="clr-namespace:DeveMobileLPR.App.ViewModels">
     <Grid>
         <controls:DrivePreviewPresenter
+            x:Name="PreviewPresenter"
             IsMultiSource="{Binding IsMultiCamera}"
             IsNetworkStream="{Binding IsNetworkStreamPreview}"
             Overlays="{Binding Overlays}"
