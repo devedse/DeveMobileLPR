@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentView
+    x:Class="DeveMobileLPR.App.Controls.DrivePreviewPresenter"
+    x:Name="Presenter"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:controls="clr-namespace:DeveMobileLPR.App.Controls">
+    <Grid>
+        <controls:CameraPreview
+            x:Name="Preview"
+            IsMultiSource="{Binding IsMultiSource, Source={x:Reference Presenter}, x:DataType=controls:DrivePreviewPresenter}"
+            IsNetworkStream="{Binding IsNetworkStream, Source={x:Reference Presenter}, x:DataType=controls:DrivePreviewPresenter}" />
+        <controls:DriveOverlayView
+            AutomationId="drive_detection_overlay"
+            Overlays="{Binding Overlays, Source={x:Reference Presenter}, x:DataType=controls:DrivePreviewPresenter}"
+            ScaleMode="{Binding ScaleMode, Source={x:Reference Preview}, x:DataType=controls:CameraPreview}"
+            ShowGuide="{Binding ShowGuide, Source={x:Reference Presenter}, x:DataType=controls:DrivePreviewPresenter}"
+            SourceIds="{Binding SourceIds, Source={x:Reference Presenter}, x:DataType=controls:DrivePreviewPresenter}"
+            SourceViewports="{Binding SourceViewports, Source={x:Reference Preview}, x:DataType=controls:CameraPreview}" />
+    </Grid>
+</ContentView>

@@ -6,6 +6,7 @@ using DeveMobileLPR.Storage;
 using DeveMobileLPR.Recognition;
 using DeveMobileLPR.App.ViewModels;
 using DeveMobileLPR.App.Infrastructure;
+using DeveMobileLPR.App.Handlers;
 using Plugin.Maui.Audio;
 #if ANDROID
 using DeveMobileLPR.App.Platforms.Android.Background;
@@ -36,7 +37,6 @@ public static class MauiProgram
         builder.ConfigureMauiHandlers(handlers =>
         {
             handlers.AddHandler<CameraPreview, CameraPreviewHandler>();
-            handlers.AddHandler<DualCameraPreview, DualCameraPreviewHandler>();
         });
 #elif WINDOWS
         builder.ConfigureMauiHandlers(handlers => handlers.AddHandler<CameraPreview, CameraPreviewHandler>());
@@ -78,6 +78,12 @@ public static class MauiProgram
             FileSystem.AppDataDirectory,
             services.GetRequiredService<IVehicleImageEncoder>()));
         builder.Services.AddSingleton<DriveCoordinator>();
+        builder.Services.AddSingleton<DriveVideoInputLifetime>();
+#if ANDROID
+        builder.Services.AddSingleton<AndroidDriveVideoInputFactory>();
+#elif WINDOWS
+        builder.Services.AddSingleton<WindowsDriveVideoInputFactory>();
+#endif
         builder.Services.AddSingleton<VideoAnalysisService>();
         builder.Services.AddSingleton(_ => new JsonVideoAnalysisRepository(Path.Combine(FileSystem.AppDataDirectory, "video-analyses")));
         builder.Services.AddSingleton<DriveViewModel>();

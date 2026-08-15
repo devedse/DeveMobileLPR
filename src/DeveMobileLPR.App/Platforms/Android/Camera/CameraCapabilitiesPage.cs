@@ -36,16 +36,6 @@ internal sealed class CameraCapabilitiesPage : ContentPage
             }
         };
 
-        var dualPreviewButton = new Button
-        {
-            Text = "Open dual rear-camera experiment",
-            HeightRequest = 46,
-            BackgroundColor = Color.FromArgb("#7C4DFF"),
-            TextColor = Colors.White
-        };
-        dualPreviewButton.Clicked += async (_, _) =>
-            await Navigation.PushAsync(new DualCameraPreviewPage());
-
         _statusLabel = new Label
         {
             Text = "Reading Camera2 metadata…",
@@ -86,7 +76,6 @@ internal sealed class CameraCapabilitiesPage : ContentPage
                     TextColor = Color.FromArgb("#D1D6DC")
                 },
                 buttonGrid,
-                dualPreviewButton,
                 _statusLabel,
                 _reportLayout
             }
