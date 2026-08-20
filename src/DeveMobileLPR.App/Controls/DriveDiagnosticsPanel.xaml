@@ -31,7 +31,7 @@
                     <BoxView BackgroundColor="{DynamicResource Primary}" CornerRadius="2" HeightRequest="14" VerticalOptions="Center" WidthRequest="4" />
                     <VerticalStackLayout Grid.Column="1" Spacing="0">
                         <Label FontAttributes="Bold" FontSize="12" Text="Processing diagnostics" />
-                        <Label FontSize="9" Text="Latest completed frame · all values are independently measured" TextColor="{DynamicResource TextMuted}" />
+                        <Label FontSize="9" Text="Each camera is measured independently; the header shows the slowest latest source" TextColor="{DynamicResource TextMuted}" />
                     </VerticalStackLayout>
                 </Grid>
 
@@ -51,6 +51,19 @@
                         </VerticalStackLayout>
                     </Border>
                 </Grid>
+                <VerticalStackLayout BindableLayout.ItemsSource="{Binding RecognitionSources}" Spacing="5">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate x:DataType="application:DriveSourceRecognitionDiagnostics">
+                            <Border Style="{StaticResource SectionCard}" Stroke="{DynamicResource Primary}">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" RowDefinitions="Auto,Auto">
+                                    <Label FontSize="10" LineBreakMode="TailTruncation" Text="{Binding SourceName}" TextColor="{DynamicResource TextSecondary}" />
+                                    <Label Grid.Column="1" FontAttributes="Bold" FontSize="13" Text="{Binding TotalMilliseconds, Converter={StaticResource Milliseconds}}" TextColor="{DynamicResource Primary}" />
+                                    <Label Grid.Row="1" Grid.ColumnSpan="2" FontSize="9" Text="{Binding ResultSummary}" TextColor="{DynamicResource TextMuted}" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </VerticalStackLayout>
                 <controls:RecognitionDiagnosticsDetails BindingContext="{Binding Recognition}" />
             </VerticalStackLayout>
         </ScrollView>

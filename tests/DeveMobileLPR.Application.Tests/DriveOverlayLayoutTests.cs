@@ -25,6 +25,25 @@ public sealed class DriveOverlayLayoutTests
     }
 
     [Fact]
+    public void TryProjectMirrorsFrontPreviewWithoutChangingDetectionSize()
+    {
+        var overlay = new DriveOverlay(
+            new BoundingBox(10, 20, 30, 40),
+            100,
+            100,
+            "front plate",
+            string.Empty,
+            1,
+            DriveOverlayKind.Reading);
+
+        var projected = DriveOverlayLayout.TryProject(
+            overlay, 200, 200, AspectScaleMode.Fit, true, out var bounds);
+
+        Assert.True(projected);
+        Assert.Equal(new BoundingBox(140, 40, 180, 80), bounds);
+    }
+
+    [Fact]
     public void GetVisibleOverlaysHidesDebugItemsUnlessDebugIsEnabled()
     {
         var candidate = Overlay(DriveOverlayKind.Candidate);
@@ -43,5 +62,5 @@ public sealed class DriveOverlayLayoutTests
 
     private static DriveSnapshot Snapshot(IReadOnlyList<DriveOverlay> overlays, bool debug) => new(
         false, true, true, false, "Ready", false, DateTimeOffset.UtcNow,
-        DriveDiagnosticsSnapshot.Empty, 0, [], null, overlays, false, true, true, [], "rear", debug, false, false);
+        DriveDiagnosticsSnapshot.Empty, 0, [], null, overlays, false, true, false, 0, true, [], "rear", debug, false, false, false);
 }

@@ -9,6 +9,25 @@ namespace DeveMobileLPR.Application.Tests;
 
 public sealed class DriveCoordinatorTests
 {
+    [Fact]
+    public async Task LiveZoomIsAppliedAndPersistedInTheSelectedSourceProfile()
+    {
+        var settings = new TestSettings();
+        var input = new TestVideoInput();
+        await using var coordinator = await CreateCoordinatorAsync(
+            new FakeRepository(),
+            input,
+            new TestLocationFactory(),
+            new TestDeviceExperience(),
+            settings: settings);
+
+        coordinator.SetZoom(2.2f);
+
+        Assert.Equal(2.2f, settings.Zoom);
+        Assert.Equal(2.2f, settings.InputConfiguration.EnabledSources.Single().Zoom);
+        Assert.Equal(2.2f, input.LastZoom);
+    }
+
     [Theory]
     [InlineData(false, 0)]
     [InlineData(true, 1)]
@@ -131,6 +150,63 @@ public sealed class DriveCoordinatorTests
     }
 
     [Fact]
+    public async Task DifferentSourcesHaveIndependentRecognitionWorkers()
+    {
+        var pipeline = new ConcurrentProbePipeline();
+        var input = new TestVideoInput();
+        await using var coordinator = new DriveCoordinator(
+            new FakeRepository(),
+            new TestVehicleImageStore(),
+            new TestSettings(),
+            new TestVehicleDataStatus(),
+            new RecognitionTuningConfiguration(),
+            new TestPipelineProvider(pipeline),
+            new TestVehicleLookup(),
+            new TestLocationFactory(),
+            new TestDeviceExperience(),
+            new ImmediateDispatcher());
+        coordinator.AttachCamera(input);
+        await input.Initialized.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await coordinator.InitializeAsync();
+        await coordinator.StartDriveAsync();
+
+        Assert.True(coordinator.SubmitFrame("physical:0:2", CreateFrame(1)));
+        Assert.True(coordinator.SubmitFrame("physical:0:4", CreateFrame(2)));
+        await pipeline.BothStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        pipeline.Release.TrySetResult();
+
+        Assert.Equal(2, pipeline.Started);
+    }
+
+    [Fact]
+    public async Task StopDriveWaitsForEverySourceBeforeEndingTrip()
+    {
+        var repository = new FakeRepository();
+        var pipeline = new ConcurrentProbePipeline();
+        var input = new TestVideoInput();
+        await using var coordinator = await CreateCoordinatorAsync(
+            repository,
+            input,
+            new TestLocationFactory(),
+            new TestDeviceExperience(),
+            pipeline: pipeline);
+        await coordinator.StartDriveAsync();
+
+        Assert.True(coordinator.SubmitFrame("main", CreateFrame(1)));
+        Assert.True(coordinator.SubmitFrame("tele", CreateFrame(2)));
+        await pipeline.BothStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        var stopping = coordinator.StopDriveAsync();
+        var completed = await Task.WhenAny(stopping, Task.Delay(450));
+        Assert.NotSame(stopping, completed);
+        Assert.Equal(0, repository.EndTripCount);
+
+        pipeline.Release.TrySetResult();
+        await stopping.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(1, repository.EndTripCount);
+    }
+
+    [Fact]
     public async Task RecognitionContinuesWithLatestFrameAfterPipelineFailure()
     {
         var pipeline = new FailsOncePipeline();
@@ -160,6 +236,32 @@ public sealed class DriveCoordinatorTests
         Assert.True(coordinator.Snapshot.IsDriving);
         Assert.True(coordinator.Snapshot.HasError);
         Assert.Contains("Scanning continues", coordinator.Snapshot.Status);
+    }
+
+    [Fact]
+    public async Task RecoveredCameraDiagnosticClearsAttentionWhileDriveContinues()
+    {
+        var input = new TestVideoInput();
+        await using var coordinator = await CreateCoordinatorAsync(
+            new FakeRepository(),
+            input,
+            new TestLocationFactory(),
+            new TestDeviceExperience());
+        await coordinator.InitializeAsync();
+        await coordinator.StartDriveAsync();
+
+        input.ReportDiagnostic(new DriveInputDiagnostic(
+            "Telephoto paused by device thermal policy.",
+            true));
+        Assert.True(coordinator.Snapshot.HasError);
+
+        input.ReportDiagnostic(new DriveInputDiagnostic(
+            "Both camera streams recovered after automatic retry.",
+            ClearsError: true));
+
+        Assert.True(coordinator.Snapshot.IsDriving);
+        Assert.False(coordinator.Snapshot.HasError);
+        Assert.Contains("recovered", coordinator.Snapshot.Status);
     }
 
     [Fact]
@@ -492,8 +594,10 @@ public sealed class DriveCoordinatorTests
         public int RecognitionFramesPerSecond { get; set; } = 2;
         public bool TrackingDiagnosticsEnabled { get; set; }
         public bool RecognitionStatisticsEnabled { get; set; }
+        public bool ShowDriveEventLog { get; set; }
         public bool ShowRoadGuide { get; set; }
         public string NetworkStreamUrl { get; set; } = string.Empty;
+        public DriveInputConfiguration InputConfiguration { get; set; } = DriveInputConfiguration.Default;
     }
 
     private sealed class TestVideoInput : IDriveVideoInput
@@ -501,6 +605,7 @@ public sealed class DriveCoordinatorTests
         public TaskCompletionSource Initialized { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int StartCount { get; private set; }
         public int StopCount { get; private set; }
+        public float LastZoom { get; private set; } = 1f;
         public Exception? StartException { get; init; }
         public Exception? StopException { get; init; }
         public event EventHandler<DriveInputDiagnostic>? Diagnostic;
@@ -508,6 +613,10 @@ public sealed class DriveCoordinatorTests
         public event EventHandler<DriveFrameCountEventArgs>? SourceFramesAvailable;
         public event EventHandler<DriveFrameCountEventArgs>? PreviewFramesPresented;
         public IReadOnlyList<CameraChoice> CameraChoices { get; } = [new("rear", "Rear")];
+        public IReadOnlyList<DriveSourceCapability> SourceCapabilities { get; } =
+        [
+            new("rear", "Rear", DriveSourceKind.LogicalCamera, true, "0", null, null, null, null, 1, 4, [new(3840, 2160)])
+        ];
         public string SelectedCameraId { get; private set; } = "rear";
         public bool IsReady { get; private set; }
         public bool SupportsNetworkStreams => true;
@@ -517,6 +626,13 @@ public sealed class DriveCoordinatorTests
             SelectedCameraId = preferredCameraId;
             IsReady = true;
             Initialized.TrySetResult();
+            return Task.CompletedTask;
+        }
+        public Task ApplyConfigurationAsync(DriveInputConfiguration configuration, CancellationToken cancellationToken = default)
+        {
+            SelectedCameraId = configuration.Mode == DriveInputMode.Multi
+                ? "multi"
+                : configuration.EnabledSources[0].SourceId;
             return Task.CompletedTask;
         }
         public Task StartAsync(CancellationToken cancellationToken = default)
@@ -531,8 +647,10 @@ public sealed class DriveCoordinatorTests
         }
         public Task SelectCameraAsync(string cameraId, CancellationToken cancellationToken = default)
         { SelectedCameraId = cameraId; return Task.CompletedTask; }
-        public void SetZoom(float zoomRatio) { }
+        public void SetZoom(float zoomRatio) => LastZoom = zoomRatio;
         public void SetNetworkStreamUrl(string value) { }
+        public void ReportDiagnostic(DriveInputDiagnostic diagnostic) =>
+            Diagnostic?.Invoke(this, diagnostic);
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
@@ -547,6 +665,27 @@ public sealed class DriveCoordinatorTests
     {
         public ValueTask<FrameRecognition> ProcessAsync(Yuv420Frame frame, CancellationToken cancellationToken) =>
             ValueTask.FromResult(new FrameRecognition(frame.Sequence, frame.CapturedAt, []));
+    }
+
+    private sealed class ConcurrentProbePipeline : IFrameRecognitionPipeline
+    {
+        private int _started;
+        public int Started => Volatile.Read(ref _started);
+        public TaskCompletionSource BothStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async ValueTask<FrameRecognition> ProcessAsync(
+            Yuv420Frame frame,
+            CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref _started) == 2)
+            {
+                BothStarted.TrySetResult();
+            }
+
+            await Release.Task.WaitAsync(cancellationToken);
+            return new FrameRecognition(frame.Sequence, frame.CapturedAt, []);
+        }
     }
 
     private sealed class FailsOncePipeline : IFrameRecognitionPipeline

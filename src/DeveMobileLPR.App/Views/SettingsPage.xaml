@@ -10,6 +10,16 @@
         <VerticalStackLayout Style="{StaticResource PageScrollContent}">
             <controls:PageHeader Eyebrow="Make it yours" IsBusy="{Binding IsBusy}" Title="Settings" />
 
+            <Border Style="{StaticResource Card}">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                    <VerticalStackLayout Spacing="3">
+                        <Label Style="{StaticResource SectionTitle}" Text="App logs" />
+                        <Label Style="{StaticResource SecondaryText}" Text="View persistent camera, recognition, startup, and crash diagnostics from this and previous runs." />
+                    </VerticalStackLayout>
+                    <Button AutomationId="open_app_logs_button" Clicked="OpenAppLogsClicked" Grid.Column="1" Style="{StaticResource CompactSecondaryButton}" Text="Open logs" VerticalOptions="Center" />
+                </Grid>
+            </Border>
+
             <Border Style="{StaticResource HighlightCard}">
                 <FlexLayout AlignItems="Center" Direction="Row" JustifyContent="Start" SizeChanged="ResponsiveRdwLayoutSizeChanged" Wrap="Wrap">
                     <Grid FlexLayout.Basis="280" FlexLayout.Grow="1" ColumnDefinitions="Auto,*" ColumnSpacing="14" Margin="0,0,16,12" VerticalOptions="Center">
@@ -92,11 +102,13 @@
                     <VerticalStackLayout Spacing="3">
                         <Label Style="{StaticResource SectionTitle}" Text="Your data" />
                         <Label Style="{StaticResource SecondaryText}" Text="{Binding HistoryDetail}" />
-                        <Label Style="{StaticResource MutedText}" Text="CSV export includes timestamps, RDW fields, trip IDs, and saved coordinates." />
+                        <Label Style="{StaticResource MutedText}" Text="Backup ZIP includes the complete trip database and saved vehicle screenshots. RDW data is excluded. CSV is intended for viewing, not restoring." />
                     </VerticalStackLayout>
-                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
-                        <Button Clicked="ExportClicked" Style="{StaticResource CompactSecondaryButton}" Text="Export CSV" />
-                        <Button Grid.Column="1" Clicked="DeleteClicked" Style="{StaticResource CompactDangerButton}" Text="Delete history" />
+                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="12">
+                        <Button AutomationId="export_backup_button" Clicked="BackupClicked" Style="{StaticResource CompactSecondaryButton}" Text="Export backup ZIP" />
+                        <Button AutomationId="import_backup_button" Grid.Column="1" Clicked="ImportBackupClicked" Style="{StaticResource CompactSecondaryButton}" Text="Import backup ZIP" />
+                        <Button Grid.Row="1" Clicked="ExportClicked" Style="{StaticResource CompactSecondaryButton}" Text="Export CSV" />
+                        <Button Grid.Row="1" Grid.Column="1" Clicked="DeleteClicked" Style="{StaticResource CompactDangerButton}" Text="Delete history" />
                     </Grid>
                 </VerticalStackLayout>
             </Border>
@@ -125,6 +137,11 @@
                             Description="Shows the processing statistics panel on the left side of the Drive screen."
                             IsToggled="{Binding RecognitionStatisticsEnabled}"
                             Title="Drive processing statistics" />
+                        <BoxView Style="{StaticResource DividerLine}" />
+                        <controls:SettingsToggleRow
+                            Description="Shows recent camera and recognition events over the live Drive view. Persistent logs are always recorded and remain available under App logs."
+                            IsToggled="{Binding ShowDriveEventLog}"
+                            Title="Live drive event log" />
                     </VerticalStackLayout>
                 </Border>
                 <Border FlexLayout.Basis="320" FlexLayout.Grow="1" Margin="0,0,0,16" Style="{StaticResource Card}">

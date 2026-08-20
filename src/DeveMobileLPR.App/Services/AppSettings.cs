@@ -1,4 +1,5 @@
 using DeveMobileLPR.Application;
+using System.Text.Json;
 
 namespace DeveMobileLPR.App.Services;
 
@@ -14,7 +15,9 @@ internal sealed class AppSettings : IDriveSettings
     private const string RecognitionFramesPerSecondKey = "recognition_frames_per_second";
     private const string RecognitionDebugKey = "recognition_debug";
     private const string RecognitionStatisticsKey = "recognition_statistics";
+    private const string ShowDriveEventLogKey = "show_drive_event_log";
     private const string ContinueScanningInBackgroundKey = "continue_scanning_in_background";
+    private const string InputConfigurationKey = "drive_input_configuration_v1";
     private const int DefaultRecognitionFramesPerSecond = 4;
     private string _networkStreamUrl = string.Empty;
 
@@ -59,8 +62,8 @@ internal sealed class AppSettings : IDriveSettings
 
     public float Zoom
     {
-        get => Math.Clamp(Preferences.Default.Get(ZoomKey, 1f), 1f, 4f);
-        set => Preferences.Default.Set(ZoomKey, Math.Clamp(value, 1f, 4f));
+        get => Math.Clamp(Preferences.Default.Get(ZoomKey, 1f), 1f, 5f);
+        set => Preferences.Default.Set(ZoomKey, Math.Clamp(value, 1f, 5f));
     }
 
     public string CameraId
@@ -100,6 +103,12 @@ internal sealed class AppSettings : IDriveSettings
         set => Preferences.Default.Set(RecognitionStatisticsKey, value);
     }
 
+    public bool ShowDriveEventLog
+    {
+        get => Preferences.Default.Get(ShowDriveEventLogKey, false);
+        set => Preferences.Default.Set(ShowDriveEventLogKey, value);
+    }
+
     public bool ContinueScanningInBackground
     {
         get => Preferences.Default.Get(ContinueScanningInBackgroundKey, false);
@@ -112,6 +121,34 @@ internal sealed class AppSettings : IDriveSettings
         set => _networkStreamUrl = value?.Trim() ?? string.Empty;
     }
 
+    public DriveInputConfiguration InputConfiguration
+    {
+        get
+        {
+            var json = Preferences.Default.Get(InputConfigurationKey, string.Empty);
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                try
+                {
+                    var value = JsonSerializer.Deserialize<DriveInputConfiguration>(json);
+                    if (value is { Version: DriveInputConfiguration.CurrentVersion, Sources.Count: > 0 })
+                    {
+                        return value;
+                    }
+                }
+                catch (JsonException)
+                {
+                }
+            }
+
+            return DriveInputConfiguration.Default;
+        }
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            Preferences.Default.Set(InputConfigurationKey, JsonSerializer.Serialize(value));
+        }
+    }
     private static int NormalizeRecognitionFramesPerSecond(int value) => value switch
     {
         0 or 2 or 4 or 8 or 12 => value,

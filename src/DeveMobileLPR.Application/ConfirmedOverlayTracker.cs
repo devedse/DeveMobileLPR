@@ -34,28 +34,29 @@ internal sealed class ConfirmedOverlayTracker(Func<DateTimeOffset> clock)
     public const float SuppressionIntersectionOverUnion = 0.35f;
 
     private readonly Dictionary<Guid, TrackedPlate> _plates = [];
-    private int _sourceWidth = 1;
-    private int _sourceHeight = 1;
+    private readonly Dictionary<string, (int Width, int Height)> _sourceSizes = new(StringComparer.Ordinal);
 
     public void Clear()
     {
         _plates.Clear();
-        _sourceWidth = 1;
-        _sourceHeight = 1;
+        _sourceSizes.Clear();
     }
 
     /// <summary>
     /// Refreshes the bounds and linger window of plates whose tracks are still alive, and drops
     /// plates whose linger window has passed.
     /// </summary>
-    public void ObserveFrame(int sourceWidth, int sourceHeight, IReadOnlyList<PlateTrackSnapshot> tracks)
+    public void ObserveFrame(int sourceWidth, int sourceHeight, IReadOnlyList<PlateTrackSnapshot> tracks, string sourceId = "")
     {
-        if (sourceWidth != _sourceWidth || sourceHeight != _sourceHeight)
+        var size = (Width: Math.Max(1, sourceWidth), Height: Math.Max(1, sourceHeight));
+        if (_sourceSizes.TryGetValue(sourceId, out var priorSize) && priorSize != size)
         {
-            _plates.Clear();
-            _sourceWidth = Math.Max(1, sourceWidth);
-            _sourceHeight = Math.Max(1, sourceHeight);
+            foreach (var stale in _plates.Where(pair => pair.Value.SourceId == sourceId).Select(pair => pair.Key).ToArray())
+            {
+                _plates.Remove(stale);
+            }
         }
+        _sourceSizes[sourceId] = size;
 
         var now = clock();
         foreach (var track in tracks)
@@ -79,13 +80,17 @@ internal sealed class ConfirmedOverlayTracker(Func<DateTimeOffset> clock)
     /// Records a confirmation, replacing whatever the track previously resolved to. A correction
     /// therefore takes effect immediately, including its plate text and prior-sighting history.
     /// </summary>
-    public void Confirm(ConfirmedPlate confirmation, Sighting sighting, PriorVehicleSightings prior)
+    public void Confirm(ConfirmedPlate confirmation, Sighting sighting, PriorVehicleSightings prior, string sourceId = "")
     {
+        var size = _sourceSizes.GetValueOrDefault(sourceId, (1, 1));
         _plates[confirmation.TrackId] = new TrackedPlate(
             sighting,
             prior,
             confirmation.LastBounds,
-            clock() + LingerWindow);
+            clock() + LingerWindow,
+            sourceId,
+            size.Item1,
+            size.Item2);
         while (_plates.Count > MaxTrackedPlates)
         {
             _plates.Remove(_plates.OrderBy(static pair => pair.Value.ExpiresAt).First().Key);
@@ -93,8 +98,9 @@ internal sealed class ConfirmedOverlayTracker(Func<DateTimeOffset> clock)
     }
 
     /// <summary>True when a live reading covers a plate that is already confirmed.</summary>
-    public bool Suppresses(BoundingBox bounds) => ActivePlates(clock()).Any(plate =>
-        bounds.IntersectionOverUnion(plate.Bounds) >= SuppressionIntersectionOverUnion);
+    public bool Suppresses(BoundingBox bounds, string sourceId = "") => ActivePlates(clock()).Any(plate =>
+        plate.SourceId == sourceId
+        && bounds.IntersectionOverUnion(plate.Bounds) >= SuppressionIntersectionOverUnion);
 
     public IReadOnlyList<DriveOverlay> CreateOverlays()
     {
@@ -102,12 +108,12 @@ internal sealed class ConfirmedOverlayTracker(Func<DateTimeOffset> clock)
         return ActivePlates(now)
             .Select(plate => new DriveOverlay(
                 plate.Bounds,
-                _sourceWidth,
-                _sourceHeight,
+                plate.SourceWidth,
+                plate.SourceHeight,
                 plate.Sighting.DisplayPlate,
                 FormatDetail(plate, now),
                 plate.Sighting.Confidence,
-                ResolveKind(plate)))
+                ResolveKind(plate)) { SourceId = plate.SourceId })
             .ToArray();
     }
 
@@ -165,5 +171,8 @@ internal sealed class ConfirmedOverlayTracker(Func<DateTimeOffset> clock)
         Sighting Sighting,
         PriorVehicleSightings Prior,
         BoundingBox Bounds,
-        DateTimeOffset ExpiresAt);
+        DateTimeOffset ExpiresAt,
+        string SourceId,
+        int SourceWidth,
+        int SourceHeight);
 }

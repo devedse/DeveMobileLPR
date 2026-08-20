@@ -26,6 +26,20 @@ public static class DriveOverlayLayout
         float viewportWidth,
         float viewportHeight,
         AspectScaleMode scaleMode,
+        out BoundingBox projected) => TryProject(
+            overlay,
+            viewportWidth,
+            viewportHeight,
+            scaleMode,
+            false,
+            out projected);
+
+    public static bool TryProject(
+        DriveOverlay overlay,
+        float viewportWidth,
+        float viewportHeight,
+        AspectScaleMode scaleMode,
+        bool mirrorHorizontally,
         out BoundingBox projected)
     {
         if (overlay.SourceWidth <= 1
@@ -45,6 +59,14 @@ public static class DriveOverlayLayout
             viewportWidth,
             viewportHeight,
             scaleMode).Project(overlay.Bounds);
+        if (mirrorHorizontally)
+        {
+            projected = new BoundingBox(
+                viewportWidth - projected.Right,
+                projected.Top,
+                viewportWidth - projected.Left,
+                projected.Bottom);
+        }
         return !projected.IsEmpty;
     }
 }
