@@ -50,6 +50,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
     public event EventHandler<DriveFrameCountEventArgs>? SourceFramesAvailable;
     public event EventHandler<DriveFrameCountEventArgs>? PreviewFramesPresented;
     public event Action<string, string, bool>? SourceStatusChanged;
+    public event Action<string>? SourceStalled;
 
     public void Configure(
         IReadOnlyList<(DriveSourceCapability Capability, DriveSourceProfile Profile, PhysicalYuvPreviewView Preview)> sources)
@@ -503,6 +504,10 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
                             source.Capability.Id,
                             change.Value.Status,
                             change.Value.IsError);
+                        if (change.Value.IsError)
+                        {
+                            SourceStalled?.Invoke(source.Capability.Id);
+                        }
                     }
                 }
             }

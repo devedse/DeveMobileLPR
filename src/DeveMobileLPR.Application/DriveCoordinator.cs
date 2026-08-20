@@ -810,7 +810,10 @@ public sealed class DriveCoordinator : IAsyncDisposable
     private void CameraDiagnostic(object? sender, DriveInputDiagnostic diagnostic)
     {
         AppendEvent(diagnostic.Message, diagnostic.IsError);
-        if (!_driving || diagnostic.IsError || diagnostic.Message.StartsWith("Camera active", StringComparison.Ordinal))
+        if (!_driving
+            || diagnostic.IsError
+            || diagnostic.ClearsError
+            || diagnostic.Message.StartsWith("Camera active", StringComparison.Ordinal))
         {
             SetStatus(diagnostic.Message, diagnostic.IsError, appendEvent: false);
         }

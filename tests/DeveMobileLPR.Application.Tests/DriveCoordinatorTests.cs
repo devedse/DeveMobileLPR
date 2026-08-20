@@ -239,6 +239,32 @@ public sealed class DriveCoordinatorTests
     }
 
     [Fact]
+    public async Task RecoveredCameraDiagnosticClearsAttentionWhileDriveContinues()
+    {
+        var input = new TestVideoInput();
+        await using var coordinator = await CreateCoordinatorAsync(
+            new FakeRepository(),
+            input,
+            new TestLocationFactory(),
+            new TestDeviceExperience());
+        await coordinator.InitializeAsync();
+        await coordinator.StartDriveAsync();
+
+        input.ReportDiagnostic(new DriveInputDiagnostic(
+            "Telephoto paused by device thermal policy.",
+            true));
+        Assert.True(coordinator.Snapshot.HasError);
+
+        input.ReportDiagnostic(new DriveInputDiagnostic(
+            "Both camera streams recovered after automatic retry.",
+            ClearsError: true));
+
+        Assert.True(coordinator.Snapshot.IsDriving);
+        Assert.False(coordinator.Snapshot.HasError);
+        Assert.Contains("recovered", coordinator.Snapshot.Status);
+    }
+
+    [Fact]
     public async Task StopDriveStillFinalizesTripAndReleasesDeviceResourcesWhenVideoInputStopFails()
     {
         var repository = new FakeRepository();
@@ -623,6 +649,8 @@ public sealed class DriveCoordinatorTests
         { SelectedCameraId = cameraId; return Task.CompletedTask; }
         public void SetZoom(float zoomRatio) => LastZoom = zoomRatio;
         public void SetNetworkStreamUrl(string value) { }
+        public void ReportDiagnostic(DriveInputDiagnostic diagnostic) =>
+            Diagnostic?.Invoke(this, diagnostic);
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
