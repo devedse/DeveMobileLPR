@@ -25,6 +25,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
     private readonly Dictionary<string, PreviewView> _cameraPreviews = new(StringComparer.Ordinal);
     private readonly Dictionary<string, PhysicalYuvPreviewView> _camera2Previews = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TextView> _sourceStatusLabels = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, TextView> _sourceAlertLabels = new(StringComparer.Ordinal);
     private readonly Dictionary<string, FrameLayout> _previewPanels = new(StringComparer.Ordinal);
     private CancellationTokenSource? _physicalRetryCancellation;
     private TextView? _thermalStatusLabel;
@@ -353,6 +354,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
         }
         _camera2Previews.Clear();
         _sourceStatusLabels.Clear();
+        _sourceAlertLabels.Clear();
         _previewPanels.Clear();
         _thermalStatusLabel = null;
         _previewViewportsChanged([]);
@@ -424,6 +426,21 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
                     ViewGroup.LayoutParams.WrapContent,
                     GravityFlags.Top | GravityFlags.Left));
                 _sourceStatusLabels[profile.SourceId] = label;
+                var alert = new TextView(_context)
+                {
+                    TextSize = 18,
+                    Gravity = GravityFlags.Center,
+                    Visibility = ViewStates.Gone
+                };
+                alert.SetTypeface(alert.Typeface, global::Android.Graphics.TypefaceStyle.Bold);
+                alert.SetTextColor(global::Android.Graphics.Color.White);
+                alert.SetBackgroundColor(global::Android.Graphics.Color.Argb(205, 30, 12, 15));
+                alert.SetPadding(28, 20, 28, 20);
+                panel.AddView(alert, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MatchParent,
+                    ViewGroup.LayoutParams.WrapContent,
+                    GravityFlags.Center));
+                _sourceAlertLabels[profile.SourceId] = alert;
                 _previewPanels[profile.SourceId] = panel;
                 if (index == 0)
                 {
@@ -586,6 +603,11 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
                     ? global::Android.Graphics.Color.Rgb(255, 141, 141)
                     : global::Android.Graphics.Color.White);
             }
+            if (_sourceAlertLabels.TryGetValue(sourceId, out var alert))
+            {
+                alert.Text = status;
+                alert.Visibility = isError ? ViewStates.Visible : ViewStates.Gone;
+            }
         });
     }
 
@@ -620,18 +642,18 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
         Diagnostic?.Invoke(this, new DriveInputDiagnostic(explanation, true));
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            if (_sourceStatusLabels.TryGetValue(sourceId, out var label))
+            if (_sourceAlertLabels.TryGetValue(sourceId, out var alert))
             {
-                label.Text = thermal.Status >= 2
-                    ? $"{sourceName}\nPAUSED BY DEVICE HEAT · COOLING"
-                    : $"{sourceName}\nCAMERA STALLED · RETRYING SOON";
-                label.SetTextColor(global::Android.Graphics.Color.Rgb(255, 141, 141));
+                alert.Text = thermal.Status >= 2
+                    ? $"CAMERA PAUSED BY DEVICE HEAT\nCooling · automatic retry enabled"
+                    : "CAMERA STALLED\nAutomatic retry enabled";
+                alert.Visibility = ViewStates.Visible;
             }
         });
-        SchedulePhysicalPairRetry();
+        SchedulePhysicalPairRetry(sourceId);
     }
 
-    private void SchedulePhysicalPairRetry()
+    private void SchedulePhysicalPairRetry(string stalledSourceId)
     {
         var cancellation = new CancellationTokenSource();
         if (Interlocked.CompareExchange(ref _physicalRetryCancellation, cancellation, null) is not null)
@@ -640,49 +662,32 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
             return;
         }
 
-        _ = RetryPhysicalPairAsync(cancellation);
+        _ = RetryPhysicalPairAsync(stalledSourceId, cancellation);
     }
 
-    private async Task RetryPhysicalPairAsync(CancellationTokenSource cancellation)
+    private async Task RetryPhysicalPairAsync(
+        string stalledSourceId,
+        CancellationTokenSource cancellation)
     {
         var token = cancellation.Token;
         try
         {
-            await _lifecycleGate.WaitAsync(token).ConfigureAwait(false);
-            try
-            {
-                if (!_running || !UsesCamera2PhysicalPair)
-                {
-                    return;
-                }
-
-                // Release both streams promptly. Leaving the healthy 4K stream and recognition
-                // pipeline running makes it much harder for the device to cool enough to allow
-                // the telephoto camera back out of HAL standby.
-                _physicalPair.Stop();
-                Diagnostic?.Invoke(this, new DriveInputDiagnostic(
-                    $"Physical cameras paused for cooling · {_thermalMonitor.Current.DisplayText}."));
-                await MainThread.InvokeOnMainThreadAsync(() =>
-                {
-                    foreach (var (sourceId, label) in _sourceStatusLabels)
-                    {
-                        var name = FindCapability(sourceId)?.Name ?? sourceId;
-                        label.Text = $"{name}\nPAUSED FOR COOLING · AUTO-RETRY";
-                        label.SetTextColor(global::Android.Graphics.Color.Rgb(245, 197, 66));
-                    }
-                });
-            }
-            finally
-            {
-                _lifecycleGate.Release();
-            }
-
+            Diagnostic?.Invoke(this, new DriveInputDiagnostic(
+                $"Healthy camera streams remain active while waiting to retry · {_thermalMonitor.Current.DisplayText}."));
             await Task.Delay(TimeSpan.FromSeconds(10), token).ConfigureAwait(false);
             while (_thermalMonitor.Current.IsTooHotForCameraRetry)
             {
                 var thermal = _thermalMonitor.Current;
                 Diagnostic?.Invoke(this, new DriveInputDiagnostic(
                     $"Camera retry waiting for the phone to cool · {thermal.DisplayText}."));
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    if (_sourceAlertLabels.TryGetValue(stalledSourceId, out var alert))
+                    {
+                        alert.Text = $"CAMERA PAUSED BY DEVICE HEAT\n{thermal.DisplayText}\nWaiting to retry…";
+                        alert.Visibility = ViewStates.Visible;
+                    }
+                });
                 await Task.Delay(TimeSpan.FromSeconds(10), token).ConfigureAwait(false);
             }
 
@@ -705,6 +710,11 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
                             var name = FindCapability(sourceId)?.Name ?? sourceId;
                             label.Text = $"{name}\nRESTARTING CAMERA…";
                             label.SetTextColor(global::Android.Graphics.Color.Rgb(245, 197, 66));
+                        }
+                        if (_sourceAlertLabels.TryGetValue(stalledSourceId, out var alert))
+                        {
+                            alert.Text = $"RESTARTING CAMERA\nAttempt {attempt}/3…";
+                            alert.Visibility = ViewStates.Visible;
                         }
                     });
                     _physicalPair.Stop();
