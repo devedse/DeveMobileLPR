@@ -60,6 +60,49 @@ public partial class SettingsPage : ContentPage
         await Share.Default.RequestAsync(new ShareFileRequest("DeveMobileLPR history export", new ShareFile(path)));
     }
 
+    private async void BackupClicked(object? sender, EventArgs args)
+    {
+        var path = await _viewModel.CreateBackupAsync();
+        if (path is not null)
+        {
+            await Share.Default.RequestAsync(new ShareFileRequest(
+                "DeveMobileLPR history backup",
+                new ShareFile(path)));
+        }
+    }
+
+    private async void ImportBackupClicked(object? sender, EventArgs args)
+    {
+        var file = await FilePicker.Default.PickAsync(new PickOptions
+        {
+            PickerTitle = "Select a DeveMobileLPR backup ZIP"
+        });
+        if (file is null)
+        {
+            return;
+        }
+
+        var manifest = await _viewModel.InspectBackupAsync(file);
+        if (manifest is null)
+        {
+            return;
+        }
+
+        var confirmed = await DisplayAlertAsync(
+            "Replace current history?",
+            $"Backup from {manifest.CreatedAtUtc.ToLocalTime():g}\n" +
+            $"App {manifest.AppVersion} ({manifest.AppBuild})\n\n" +
+            $"{manifest.TripCount} trips · {manifest.SightingCount} sightings · " +
+            $"{manifest.TripPointCount} route points · {manifest.VehicleSnapshotCount} screenshots\n\n" +
+            "This replaces all current trip history and screenshots. RDW data and preferences are kept.",
+            "Import",
+            "Cancel");
+        if (confirmed)
+        {
+            await _viewModel.ImportBackupAsync(file);
+        }
+    }
+
     private async void DeleteClicked(object? sender, EventArgs args)
     {
         var confirmed = await DisplayAlertAsync("Delete all history?", "This permanently deletes every trip, route point, and sighting. The RDW vehicle database and preferences are kept.", "Delete", "Cancel");

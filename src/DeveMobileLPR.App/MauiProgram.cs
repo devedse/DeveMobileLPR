@@ -90,6 +90,9 @@ public static class MauiProgram
         builder.Services.AddSingleton<AnalyzeViewModel>();
         builder.Services.AddSingleton<HistoryViewModel>();
         builder.Services.AddSingleton<HistoryExportService>();
+        builder.Services.AddSingleton(_ => new HistoryBackupService(
+            FileSystem.AppDataDirectory,
+            Path.Combine(FileSystem.AppDataDirectory, "sightings.sqlite")));
         builder.Services.AddSingleton<SettingsViewModel>();
         builder.Services.AddSingleton<AppShell>();
         builder.Services.AddTransient(services => new DrivePage(

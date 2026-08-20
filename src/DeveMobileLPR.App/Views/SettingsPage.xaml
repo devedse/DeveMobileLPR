@@ -102,11 +102,13 @@
                     <VerticalStackLayout Spacing="3">
                         <Label Style="{StaticResource SectionTitle}" Text="Your data" />
                         <Label Style="{StaticResource SecondaryText}" Text="{Binding HistoryDetail}" />
-                        <Label Style="{StaticResource MutedText}" Text="CSV export includes timestamps, RDW fields, trip IDs, and saved coordinates." />
+                        <Label Style="{StaticResource MutedText}" Text="Backup ZIP includes the complete trip database and saved vehicle screenshots. RDW data is excluded. CSV is intended for viewing, not restoring." />
                     </VerticalStackLayout>
-                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
-                        <Button Clicked="ExportClicked" Style="{StaticResource CompactSecondaryButton}" Text="Export CSV" />
-                        <Button Grid.Column="1" Clicked="DeleteClicked" Style="{StaticResource CompactDangerButton}" Text="Delete history" />
+                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="12">
+                        <Button AutomationId="export_backup_button" Clicked="BackupClicked" Style="{StaticResource CompactSecondaryButton}" Text="Export backup ZIP" />
+                        <Button AutomationId="import_backup_button" Grid.Column="1" Clicked="ImportBackupClicked" Style="{StaticResource CompactSecondaryButton}" Text="Import backup ZIP" />
+                        <Button Grid.Row="1" Clicked="ExportClicked" Style="{StaticResource CompactSecondaryButton}" Text="Export CSV" />
+                        <Button Grid.Row="1" Grid.Column="1" Clicked="DeleteClicked" Style="{StaticResource CompactDangerButton}" Text="Delete history" />
                     </Grid>
                 </VerticalStackLayout>
             </Border>
