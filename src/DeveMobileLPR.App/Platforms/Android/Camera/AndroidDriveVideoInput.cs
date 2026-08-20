@@ -23,7 +23,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
     private readonly PreviewLayoutChangeListener _previewLayoutListener;
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly Dictionary<string, PreviewView> _cameraPreviews = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, PhysicalYuvPreviewView> _camera2Previews = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, PhysicalCameraPreviewView> _camera2Previews = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TextView> _sourceStatusLabels = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TextView> _sourceAlertLabels = new(StringComparer.Ordinal);
     private readonly Dictionary<string, FrameLayout> _previewPanels = new(StringComparer.Ordinal);
@@ -387,9 +387,9 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
                 }
                 else if (UsesCamera2PhysicalPair)
                 {
-                    var yuvPreview = new PhysicalYuvPreviewView(_context);
-                    _camera2Previews.Add(profile.SourceId, yuvPreview);
-                    preview = yuvPreview;
+                    var physicalPreview = new PhysicalCameraPreviewView(_context);
+                    _camera2Previews.Add(profile.SourceId, physicalPreview);
+                    preview = physicalPreview;
                 }
                 else
                 {

@@ -12,6 +12,7 @@ using DeveMobileLPR.Application;
 using DeveMobileLPR.Geometry;
 using DeveMobileLPR.Imaging;
 using Java.Lang;
+using AndroidSize = Android.Util.Size;
 using Exception = System.Exception;
 
 namespace DeveMobileLPR.App.Platforms.Android.Camera;
@@ -23,6 +24,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
     private readonly Func<string, Yuv420Frame, bool> _submitFrame;
     private readonly List<ConfiguredSource> _sources = [];
     private readonly List<ImageReader> _readers = [];
+    private readonly List<Surface> _previewSurfaces = [];
     private readonly List<ImageAvailableListener> _listeners = [];
     private readonly List<HandlerThread> _imageThreads = [];
     private readonly List<Handler> _imageHandlers = [];
@@ -34,6 +36,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
     private CancellationTokenSource? _healthCancellation;
     private Task? _healthTask;
     private bool _running;
+    private bool _usesNativePreview;
     private bool _disposed;
 
     public Camera2PhysicalFrameSource(
@@ -53,7 +56,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
     public event Action<string>? SourceStalled;
 
     public void Configure(
-        IReadOnlyList<(DriveSourceCapability Capability, DriveSourceProfile Profile, PhysicalYuvPreviewView Preview)> sources)
+        IReadOnlyList<(DriveSourceCapability Capability, DriveSourceProfile Profile, PhysicalCameraPreviewView Preview)> sources)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (_running)
@@ -101,9 +104,13 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         }
         try
         {
-            PrepareOutputs(manager);
+            var nativeTexturesReady = await WaitForNativePreviewTexturesAsync(cancellationToken)
+                .ConfigureAwait(false);
+            PrepareOutputs(manager, nativeTexturesReady);
             Diagnostic?.Invoke(this,
-                "Starting two-output Camera2 physical YUV session: " + string.Join(" + ", _sources.Select(source =>
+                $"Starting Camera2 physical session with two YUV analysis outputs" +
+                (nativeTexturesReady ? " and two native preview outputs: " : ": ") +
+                string.Join(" + ", _sources.Select(source =>
                     $"{source.Capability.Name} at {source.Profile.Resolution}, {source.Profile.Zoom:0.0}x")));
             foreach (var source in _sources)
             {
@@ -112,7 +119,35 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             var logicalId = _sources[0].Capability.LogicalCameraId
                 ?? throw new InvalidOperationException("Logical camera ID is missing.");
             _device = await OpenCameraAsync(manager, logicalId, cancellationToken).ConfigureAwait(false);
-            _session = await CreateSessionAsync(_device, cancellationToken).ConfigureAwait(false);
+            _usesNativePreview = nativeTexturesReady;
+            if (_usesNativePreview)
+            {
+                try
+                {
+                    _session = await CreateSessionAsync(_device, includeNativePreviews: true, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception exception) when (exception is NotSupportedException
+                    or PhysicalSessionConfigurationException)
+                {
+                    Diagnostic?.Invoke(this,
+                        $"Native physical previews are unavailable for this stream combination; " +
+                        $"falling back to shared YUV previews. Android said: {exception.Message}");
+                    _sessionCallback?.Dispose();
+                    _sessionCallback = null;
+                    _usesNativePreview = false;
+                }
+            }
+            _session ??= await CreateSessionAsync(_device, includeNativePreviews: false, cancellationToken)
+                .ConfigureAwait(false);
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                foreach (var source in _sources)
+                {
+                    source.UseNativePreview = _usesNativePreview;
+                    source.Preview.UseNativePreview(_usesNativePreview);
+                }
+            });
             var physicalIds = _sources
                 .Select(source => source.Capability.PhysicalCameraId!)
                 .ToArray();
@@ -121,6 +156,13 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             foreach (var reader in _readers)
             {
                 requestBuilder.AddTarget(reader.Surface!);
+            }
+            if (_usesNativePreview)
+            {
+                foreach (var surface in _previewSurfaces)
+                {
+                    requestBuilder.AddTarget(surface);
+                }
             }
             foreach (var source in _sources)
             {
@@ -135,7 +177,9 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             await WaitForFirstFramesAsync(cancellationToken).ConfigureAwait(false);
             Diagnostic?.Invoke(this,
                 $"Camera2 physical pair active: {string.Join(" + ", _sources.Select(source => source.Capability.Name))}" +
-                " · two YUV outputs total · software previews share the analysis frames");
+                (_usesNativePreview
+                    ? " · two 4K YUV outputs + two native preview outputs"
+                    : " · two YUV outputs total · software-preview fallback shares analysis frames"));
             StartHealthMonitor();
         }
         catch (Exception exception)
@@ -185,6 +229,11 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             reader.Dispose();
         }
         _readers.Clear();
+        foreach (var surface in _previewSurfaces)
+        {
+            surface.Dispose();
+        }
+        _previewSurfaces.Clear();
         foreach (var handler in _imageHandlers)
         {
             handler.Dispose();
@@ -205,7 +254,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             $"Camera2 physical streams stopped in {elapsed.Elapsed.TotalMilliseconds:0} ms.");
     }
 
-    private void PrepareOutputs(CameraManager manager)
+    private void PrepareOutputs(CameraManager manager, bool includeNativePreviews)
     {
         if (!OperatingSystem.IsAndroidVersionAtLeast(28))
         {
@@ -219,8 +268,31 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
                 $"{source.Capability.Name}: geometry · sensor {source.Orientation.SensorOrientationDegrees}° · " +
                 $"display {source.Orientation.DisplayRotationDegrees}° · " +
                 $"{(source.Orientation.PreviewMirrored ? " mirrored" : string.Empty)} · " +
-                $"AI/preview rotation {source.Orientation.AiRotationDegrees}° · " +
-                $"one YUV output {source.Profile.Resolution} shared by preview and AI · mode Fit.");
+                $"AI rotation {source.Orientation.AiRotationDegrees}° · " +
+                $"analysis YUV {source.Profile.Resolution} · mode Fit.");
+
+            if (includeNativePreviews)
+            {
+                var texture = source.Preview.Native.SurfaceTexture
+                    ?? throw new InvalidOperationException(
+                        $"{source.Capability.Name} native preview surface is unavailable.");
+                var previewSize = SelectPreviewSize(manager, source);
+                texture.SetDefaultBufferSize(previewSize.Width, previewSize.Height);
+                var quarterTurn = source.Orientation.AiRotationDegrees % 180 != 0;
+                var uprightWidth = quarterTurn ? previewSize.Height : previewSize.Width;
+                var uprightHeight = quarterTurn ? previewSize.Width : previewSize.Height;
+                source.Preview.Native.ConfigureBuffer(
+                    previewSize.Width,
+                    previewSize.Height,
+                    uprightWidth,
+                    uprightHeight,
+                    source.Orientation.PreviewRotationDegrees,
+                    AspectScaleMode.Fit,
+                    source.Orientation.PreviewMirrored);
+                _previewSurfaces.Add(new Surface(texture));
+                Diagnostic?.Invoke(this,
+                    $"{source.Capability.Name}: native preview buffer {previewSize.Width}x{previewSize.Height}.");
+            }
 
             var reader = ImageReader.NewInstance(
                 source.Profile.Resolution.Width,
@@ -239,6 +311,43 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             _imageThreads.Add(thread);
             _imageHandlers.Add(handler);
         }
+    }
+
+    private async Task<bool> WaitForNativePreviewTexturesAsync(CancellationToken cancellationToken)
+    {
+        var timeoutAt = System.Environment.TickCount64 + 2000;
+        while (System.Environment.TickCount64 < timeoutAt)
+        {
+            var ready = await MainThread.InvokeOnMainThreadAsync(() =>
+                _sources.All(source => source.Preview.Native.IsAvailable));
+            if (ready)
+            {
+                return true;
+            }
+            await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+        }
+        Diagnostic?.Invoke(this,
+            "Native physical preview textures were not ready within 2 seconds; using software previews.");
+        return false;
+    }
+
+    private static AndroidSize SelectPreviewSize(CameraManager manager, ConfiguredSource source)
+    {
+        var physicalId = source.Capability.PhysicalCameraId
+            ?? throw new InvalidOperationException("Physical camera ID is missing.");
+        var characteristics = manager.GetCameraCharacteristics(physicalId);
+        var map = characteristics.Get(CameraCharacteristics.ScalerStreamConfigurationMap)
+            as StreamConfigurationMap
+            ?? throw new InvalidOperationException($"Physical ID {physicalId} reports no stream map.");
+        var outputSizes = map.GetOutputSizes(Class.FromType(typeof(SurfaceTexture)))
+            ?? throw new InvalidOperationException($"Physical ID {physicalId} reports no preview sizes.");
+        var targetAspect = source.Profile.Resolution.Width / (double)source.Profile.Resolution.Height;
+        const long targetArea = 1280L * 720;
+        return outputSizes
+            .OrderBy(size => System.Math.Abs(size.Width / (double)size.Height - targetAspect))
+            .ThenBy(size => size.Width <= 1280 ? 0 : 1)
+            .ThenBy(size => System.Math.Abs((long)size.Width * size.Height - targetArea))
+            .First();
     }
 
     private static CameraOrientationContract GetOrientation(
@@ -310,6 +419,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
     [SupportedOSPlatform("android28.0")]
     private async Task<CameraCaptureSession> CreateSessionAsync(
         CameraDevice camera,
+        bool includeNativePreviews,
         CancellationToken cancellationToken)
     {
         var completion = new TaskCompletionSource<CameraCaptureSession>(
@@ -319,8 +429,10 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             session =>
             {
                 session.Close();
-                completion.TrySetException(new InvalidOperationException(
-                    "Camera2 rejected the selected two-physical-YUV stream combination. Try 1080p."));
+                completion.TrySetException(new PhysicalSessionConfigurationException(
+                    includeNativePreviews
+                        ? "Camera2 rejected the two physical YUV plus two native preview outputs."
+                        : "Camera2 rejected the selected two-physical-YUV stream combination. Try 1080p."));
             });
 
         var outputs = new List<OutputConfiguration>();
@@ -331,6 +443,12 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             var analysisOutput = new OutputConfiguration(_readers[index].Surface!);
             analysisOutput.SetPhysicalCameraId(physicalId);
             outputs.Add(analysisOutput);
+            if (includeNativePreviews)
+            {
+                var previewOutput = new OutputConfiguration(_previewSurfaces[index]);
+                previewOutput.SetPhysicalCameraId(physicalId);
+                outputs.Add(previewOutput);
+            }
         }
 
         var executor = _context.MainExecutor
@@ -346,10 +464,12 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
                 && !camera.IsSessionConfigurationSupported(configuration))
             {
                 throw new NotSupportedException(
-                    "Android reports that the selected two-physical-YUV configuration is unsupported. Try 1080p.");
+                    includeNativePreviews
+                        ? "Android reports that the four-output physical-camera session is unsupported."
+                        : "Android reports that the selected two-physical-YUV configuration is unsupported. Try 1080p.");
             }
             Diagnostic?.Invoke(this, OperatingSystem.IsAndroidVersionAtLeast(29)
-                ? "Android reports that the two-physical-YUV session configuration is supported."
+                ? $"Android reports that the {(includeNativePreviews ? "four-output native-preview" : "two-physical-YUV")} session configuration is supported."
                 : "Android 9 cannot preflight this physical-camera configuration; session creation will verify it.");
         }
         catch (Java.Lang.UnsupportedOperationException)
@@ -528,9 +648,9 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         SourceStatusChanged?.Invoke(source.Capability.Id, message, false);
         Diagnostic?.Invoke(this,
             $"{source.Capability.Name}: actual analysis {width}x{height}, requested {source.Profile.Resolution}; " +
-            $"AI/software-preview rotation {source.Orientation.AiRotationDegrees}°; " +
+            $"AI rotation {source.Orientation.AiRotationDegrees}°; " +
             $"preview panel {source.Preview.Width}x{source.Preview.Height}; " +
-            $"render target up to 640x480.");
+            $"preview path {(_usesNativePreview ? "native SurfaceTexture" : "software YUV fallback")}.");
     }
 
     private void ReportDiagnostic(string message) => Diagnostic?.Invoke(this, message);
@@ -552,18 +672,19 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
     private sealed class ConfiguredSource(
         DriveSourceCapability capability,
         DriveSourceProfile profile,
-        PhysicalYuvPreviewView preview,
+        PhysicalCameraPreviewView preview,
         Func<int> framesPerSecond)
     {
         public DriveSourceCapability Capability { get; } = capability;
         public DriveSourceProfile Profile { get; } = profile;
-        public PhysicalYuvPreviewView Preview { get; } = preview;
+        public PhysicalCameraPreviewView Preview { get; } = preview;
         public Func<int> FramesPerSecond { get; } = framesPerSecond;
         public FrameRateGate AnalysisGate { get; } = new(timestampFrequency: 1000);
         public FrameRateGate PreviewGate { get; } = new(timestampFrequency: 1000);
         public long Sequence;
         public int ReportedResolution;
         public float EffectiveZoom { get; set; } = 1f;
+        public bool UseNativePreview { get; set; }
         public CameraOrientationContract Orientation { get; set; }
         public TaskCompletionSource<bool> FirstFrame { get; private set; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -621,14 +742,16 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         {
             DetachPreviewHeartbeat();
             _previewHeartbeat = heartbeat;
-            Preview.FramePresented += heartbeat;
+            Preview.Native.FramePresented += heartbeat;
+            Preview.Software.FramePresented += heartbeat;
         }
 
         public void DetachPreviewHeartbeat()
         {
             if (_previewHeartbeat is { } heartbeat)
             {
-                Preview.FramePresented -= heartbeat;
+                Preview.Native.FramePresented -= heartbeat;
+                Preview.Software.FramePresented -= heartbeat;
                 _previewHeartbeat = null;
             }
         }
@@ -667,7 +790,8 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
                 frameObserved(source, image.Width, image.Height);
                 var now = System.Environment.TickCount64;
                 var analyze = source.AnalysisGate.TryAcquire(now, source.FramesPerSecond());
-                var preview = source.Preview.CanAcceptFrame
+                var preview = !source.UseNativePreview
+                    && source.Preview.Software.CanAcceptFrame
                     && source.PreviewGate.TryAcquire(now, 8);
                 if (!analyze && !preview)
                 {
@@ -689,7 +813,7 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
                     {
                         try
                         {
-                            source.Preview.TryPresent(
+                            source.Preview.Software.TryPresent(
                                 image.Width,
                                 image.Height,
                                 source.Orientation.AiRotationDegrees,
@@ -808,6 +932,8 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
         public override void OnConfigured(CameraCaptureSession session) => configured(session);
         public override void OnConfigureFailed(CameraCaptureSession session) => failed(session);
     }
+
+    private sealed class PhysicalSessionConfigurationException(string message) : Exception(message);
 
     private sealed class RepeatingCaptureCallback(Action<string> diagnostic)
         : CameraCaptureSession.CaptureCallback
