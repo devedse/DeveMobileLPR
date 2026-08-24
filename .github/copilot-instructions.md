@@ -182,6 +182,26 @@ Rules:
 - Never validate destructive controls against user data. Use temporary fixtures or inspect control presence without invoking it.
 - If hardware is absent, verify device enumeration and the exact graceful diagnostic. Do not claim camera frames were tested.
 
+### Android device-testing safety
+
+- Never install a locally debug-signed APK over the production package `nl.deve.mobilelpr`. Android signing-certificate mismatches require uninstalling the existing package, which deletes its database, preferences, screenshots, and drive history.
+- Build local ADB test versions as the separate package `nl.deve.mobilelpr.debug`. Override the package and version only for that build; do not change the production `ApplicationId` in the project.
+- A standalone CoreCLR debug APK must embed its managed assemblies. Use this command shape with a new monotonically increasing local build number:
+
+```powershell
+dotnet build .\src\DeveMobileLPR.App\DeveMobileLPR.App.csproj `
+  -f net10.0-android36.0 -c Debug --no-restore `
+  -p:ApplicationId=nl.deve.mobilelpr.debug `
+  -p:ApplicationVersion=203 `
+  -p:ApplicationDisplayVersion=1.0.203-debug `
+  -p:EmbedAssembliesIntoApk=true `
+  -p:AndroidPackageFormats=apk
+```
+
+- Install or update only the diagnostic package with `adb install -r <nl.deve.mobilelpr.debug-Signed.apk>`. The `-r` update preserves the diagnostic package's data.
+- Before installation, verify the APK/package name is `nl.deve.mobilelpr.debug`. Afterwards, verify `versionCode`, `versionName`, and `DEBUGGABLE` with `adb shell dumpsys package nl.deve.mobilelpr.debug`.
+- Never uninstall, clear data for, replace, downgrade, or otherwise mutate `nl.deve.mobilelpr` during local testing unless the user explicitly requests that exact production-package operation.
+
 ## CI, versioning, and Git
 
 - `.github/workflows/githubactionsbuilds.yml` is the authoritative CI/release workflow.

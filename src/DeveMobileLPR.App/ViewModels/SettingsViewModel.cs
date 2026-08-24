@@ -2,6 +2,7 @@ using DeveMobileLPR.App.Services;
 using DeveMobileLPR.Application;
 using DeveMobileLPR.App.UI;
 using DeveMobileLPR.Recognition;
+using DeveMobileLPR.Storage;
 
 namespace DeveMobileLPR.App.ViewModels;
 
@@ -37,6 +38,7 @@ internal sealed class SettingsViewModel : ViewModelBase
     private readonly DriveCoordinator _coordinator;
     private readonly RdwDatabaseService _rdw;
     private readonly HistoryExportService _export;
+    private readonly HistoryBackupService _backup;
     private readonly IBackgroundScanningManager _backgroundScanning;
     private readonly IPlatformSettingsInfo _platform;
     private readonly IDeviceExperience _deviceExperience;
@@ -54,6 +56,7 @@ internal sealed class SettingsViewModel : ViewModelBase
         DriveCoordinator coordinator,
         RdwDatabaseService rdw,
         HistoryExportService export,
+        HistoryBackupService backup,
         RecognitionTuningConfiguration recognitionTuning,
         IBackgroundScanningManager backgroundScanning,
         IPlatformSettingsInfo platform,
@@ -63,6 +66,7 @@ internal sealed class SettingsViewModel : ViewModelBase
         _coordinator = coordinator;
         _rdw = rdw;
         _export = export;
+        _backup = backup;
         _backgroundScanning = backgroundScanning;
         _platform = platform;
         _deviceExperience = deviceExperience;
@@ -288,6 +292,78 @@ internal sealed class SettingsViewModel : ViewModelBase
         }
     }
 
+    public async Task<string?> CreateBackupAsync()
+    {
+        IsBusy = true;
+        SetStatus("Creating a complete history backup…");
+        try
+        {
+            ThrowIfDriveActive();
+            await _coordinator.InitializeAsync();
+            var path = await _backup.CreateAsync(
+                FileSystem.CacheDirectory,
+                AppInfo.Current.VersionString,
+                AppInfo.Current.BuildString,
+                DateTimeOffset.Now,
+                CancellationToken.None);
+            SetStatus("Backup created. It contains trips, sightings, route points, and vehicle screenshots; RDW data is excluded.");
+            return path;
+        }
+        catch (Exception exception)
+        {
+            SetStatus($"Backup could not be created: {exception.Message}");
+            return null;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public async Task<HistoryBackupManifest?> InspectBackupAsync(FileResult file)
+    {
+        IsBusy = true;
+        SetStatus("Reading and validating the backup…");
+        try
+        {
+            await using var stream = await file.OpenReadAsync();
+            var manifest = await _backup.InspectAsync(stream, CancellationToken.None);
+            SetStatus("Backup is ready to import.");
+            return manifest;
+        }
+        catch (Exception exception)
+        {
+            SetStatus($"Backup import rejected: {exception.Message}");
+            return null;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public async Task ImportBackupAsync(FileResult file)
+    {
+        IsBusy = true;
+        SetStatus("Restoring history from the backup…");
+        try
+        {
+            ThrowIfDriveActive();
+            await using var stream = await file.OpenReadAsync();
+            var result = await _backup.RestoreAsync(stream, CancellationToken.None);
+            await RefreshAsync();
+            SetStatus($"Restored {result.Manifest.TripCount} trips, {result.Manifest.SightingCount} sightings, and {result.Manifest.VehicleSnapshotCount} vehicle screenshots.");
+        }
+        catch (Exception exception)
+        {
+            SetStatus($"Backup import rejected: {exception.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     public async Task DeleteHistoryAsync()
     {
         IsBusy = true;
@@ -317,6 +393,20 @@ internal sealed class SettingsViewModel : ViewModelBase
             RdwDetail = "Import rdw.sqlite to add make, model, value, fuel, year, and body type.";
         }
         OnPropertyChanged(nameof(RdwColor));
+    }
+
+    private void ThrowIfDriveActive()
+    {
+        if (_coordinator.Snapshot.IsDriving || _coordinator.Snapshot.IsStopping)
+        {
+            throw new InvalidOperationException("Stop the active drive before backing up or replacing history.");
+        }
+    }
+
+    private void SetStatus(string message)
+    {
+        StatusMessage = message;
+        OnPropertyChanged(nameof(HasStatus));
     }
 
     private static string FormatBytes(long bytes) => bytes >= 1024L * 1024 * 1024 ? $"{bytes / (1024d * 1024 * 1024):0.0} GB" : $"{bytes / (1024d * 1024):0} MB";

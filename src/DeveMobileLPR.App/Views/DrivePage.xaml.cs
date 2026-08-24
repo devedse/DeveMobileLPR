@@ -75,6 +75,11 @@ public partial class DrivePage : ContentPage
 
     private async Task StopAndCloseAsync()
     {
+        if (_viewModel.IsStopping)
+        {
+            return;
+        }
+
         if (_viewModel.IsDriving)
         {
             _viewModel.ToggleDriveCommand.Execute(null);

@@ -58,7 +58,10 @@ public interface IRecognitionPipelineProvider
         CancellationToken cancellationToken);
 }
 
-public sealed record DriveInputDiagnostic(string Message, bool IsError = false);
+public sealed record DriveInputDiagnostic(
+    string Message,
+    bool IsError = false,
+    bool ClearsError = false);
 
 public interface IApplicationLog
 {

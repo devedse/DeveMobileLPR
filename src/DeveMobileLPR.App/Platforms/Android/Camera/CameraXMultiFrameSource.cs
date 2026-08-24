@@ -66,10 +66,9 @@ internal sealed class CameraXIntegratedFrameSource : IDisposable
             throw new InvalidOperationException("Stop camera capture before changing its configuration.");
         }
 
-        if (sources.Count is < 1 or > 2)
+        if (sources.Count < 1)
         {
-            throw new NotSupportedException(
-                "Android CameraX supports one or two simultaneous integrated cameras.");
+            throw new InvalidOperationException("Configure at least one integrated camera.");
         }
 
         ClearBindings();

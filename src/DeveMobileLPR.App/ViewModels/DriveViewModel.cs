@@ -282,11 +282,6 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         {
             return "Multiple simultaneous sources are not supported on this platform.";
         }
-        if (selected.Count(source => source.Capability.IsIntegratedCamera)
-            > _sourceCatalog.MaximumSimultaneousIntegratedSources)
-        {
-            return $"Select at most {_sourceCatalog.MaximumSimultaneousIntegratedSources} integrated camera sources.";
-        }
         if (selected.Any(source => source.IsNetwork && !IsValidNetworkUrl(source.NetworkUrl)))
         {
             return "Enter a valid HTTP or HTTPS LL-HLS playlist URL.";

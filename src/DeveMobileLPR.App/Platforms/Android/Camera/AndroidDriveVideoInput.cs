@@ -17,14 +17,18 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
     private readonly AndroidVideoTextureView _networkPreview;
     private readonly CameraXIntegratedFrameSource _integrated;
     private readonly Camera2PhysicalFrameSource _physicalPair;
+    private readonly AndroidThermalMonitor _thermalMonitor;
     private readonly AndroidHlsFrameSource _network;
     private readonly Action<IReadOnlyList<PreviewSourceViewport>> _previewViewportsChanged;
     private readonly PreviewLayoutChangeListener _previewLayoutListener;
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly Dictionary<string, PreviewView> _cameraPreviews = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, PhysicalYuvPreviewView> _camera2Previews = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, PhysicalCameraPreviewView> _camera2Previews = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TextView> _sourceStatusLabels = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, TextView> _sourceAlertLabels = new(StringComparer.Ordinal);
     private readonly Dictionary<string, FrameLayout> _previewPanels = new(StringComparer.Ordinal);
+    private CancellationTokenSource? _physicalRetryCancellation;
+    private TextView? _thermalStatusLabel;
     private IReadOnlyList<DriveSourceCapability> _sourceCapabilities = [];
     private IReadOnlyList<CameraChoice> _cameraChoices = [new("rear", "Rear cameras - automatic lens")];
     private DriveInputConfiguration _configuration = DriveInputConfiguration.Default;
@@ -61,6 +65,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
             context,
             recognitionFramesPerSecond,
             submitFrame);
+        _thermalMonitor = new AndroidThermalMonitor(context);
         _network = new AndroidHlsFrameSource(
             context,
             networkPreview,
@@ -76,6 +81,8 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
         _physicalPair.SourceFramesAvailable += ChildSourceFramesAvailable;
         _physicalPair.PreviewFramesPresented += ChildPreviewFramesPresented;
         _physicalPair.SourceStatusChanged += PhysicalSourceStatusChanged;
+        _physicalPair.SourceStalled += PhysicalSourceStalled;
+        _thermalMonitor.Changed += ThermalStatusChanged;
         _network.Diagnostic += ChildDiagnostic;
         _network.SourceFramesAvailable += ChildSourceFramesAvailable;
         _network.PreviewFramesPresented += ChildPreviewFramesPresented;
@@ -132,13 +139,6 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
             throw new InvalidOperationException("Enable at least one video source.");
         }
 
-        var integratedCount = enabled.Count(source =>
-            FindCapability(source.SourceId)?.IsIntegratedCamera == true);
-        if (integratedCount > 2)
-        {
-            throw new NotSupportedException(
-                "Android supports at most two simultaneous integrated camera streams.");
-        }
         if (configuration.Mode == DriveInputMode.Single && enabled.Count != 1)
         {
             throw new InvalidOperationException("Single-camera mode requires exactly one source.");
@@ -286,6 +286,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
     private async Task StopCoreAsync()
     {
         _running = false;
+        CancelPhysicalRetry();
         await MainThread.InvokeOnMainThreadAsync(_integrated.Stop);
         _physicalPair.Stop();
         await _network.StopAsync().ConfigureAwait(false);
@@ -353,7 +354,9 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
         }
         _camera2Previews.Clear();
         _sourceStatusLabels.Clear();
+        _sourceAlertLabels.Clear();
         _previewPanels.Clear();
+        _thermalStatusLabel = null;
         _previewViewportsChanged([]);
         _lastViewportSignature = string.Empty;
         var sources = _configuration.EnabledSources;
@@ -384,9 +387,9 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
                 }
                 else if (UsesCamera2PhysicalPair)
                 {
-                    var yuvPreview = new PhysicalYuvPreviewView(_context);
-                    _camera2Previews.Add(profile.SourceId, yuvPreview);
-                    preview = yuvPreview;
+                    var physicalPreview = new PhysicalCameraPreviewView(_context);
+                    _camera2Previews.Add(profile.SourceId, physicalPreview);
+                    preview = physicalPreview;
                 }
                 else
                 {
@@ -423,7 +426,38 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
                     ViewGroup.LayoutParams.WrapContent,
                     GravityFlags.Top | GravityFlags.Left));
                 _sourceStatusLabels[profile.SourceId] = label;
+                var alert = new TextView(_context)
+                {
+                    TextSize = 18,
+                    Gravity = GravityFlags.Center,
+                    Visibility = ViewStates.Gone
+                };
+                alert.SetTypeface(alert.Typeface, global::Android.Graphics.TypefaceStyle.Bold);
+                alert.SetTextColor(global::Android.Graphics.Color.White);
+                alert.SetBackgroundColor(global::Android.Graphics.Color.Argb(205, 30, 12, 15));
+                alert.SetPadding(28, 20, 28, 20);
+                panel.AddView(alert, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MatchParent,
+                    ViewGroup.LayoutParams.WrapContent,
+                    GravityFlags.Center));
+                _sourceAlertLabels[profile.SourceId] = alert;
                 _previewPanels[profile.SourceId] = panel;
+                if (index == 0)
+                {
+                    _thermalStatusLabel = new TextView(_context)
+                    {
+                        Text = _thermalMonitor.Current.DisplayText,
+                        TextSize = 9,
+                        Gravity = GravityFlags.Right
+                    };
+                    _thermalStatusLabel.SetTextColor(global::Android.Graphics.Color.White);
+                    _thermalStatusLabel.SetBackgroundColor(global::Android.Graphics.Color.Argb(175, 10, 13, 18));
+                    _thermalStatusLabel.SetPadding(10, 6, 10, 6);
+                    panel.AddView(_thermalStatusLabel, new FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WrapContent,
+                        ViewGroup.LayoutParams.WrapContent,
+                        GravityFlags.Top | GravityFlags.Right));
+                }
                 row.AddView(panel, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MatchParent, 1));
             }
         }
@@ -569,7 +603,167 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
                     ? global::Android.Graphics.Color.Rgb(255, 141, 141)
                     : global::Android.Graphics.Color.White);
             }
+            if (_sourceAlertLabels.TryGetValue(sourceId, out var alert))
+            {
+                alert.Text = status;
+                alert.Visibility = isError ? ViewStates.Visible : ViewStates.Gone;
+            }
         });
+    }
+
+    private void ThermalStatusChanged(AndroidThermalSnapshot snapshot)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (_thermalStatusLabel is not null)
+            {
+                _thermalStatusLabel.Text = snapshot.DisplayText;
+                _thermalStatusLabel.SetTextColor(snapshot.Status >= 2
+                    ? global::Android.Graphics.Color.Rgb(255, 141, 141)
+                    : snapshot.Status == 1
+                        ? global::Android.Graphics.Color.Rgb(245, 197, 66)
+                        : global::Android.Graphics.Color.White);
+            }
+        });
+    }
+
+    private void PhysicalSourceStalled(string sourceId)
+    {
+        if (!_running || !UsesCamera2PhysicalPair)
+        {
+            return;
+        }
+
+        var thermal = _thermalMonitor.Current;
+        var sourceName = FindCapability(sourceId)?.Name ?? sourceId;
+        var explanation = thermal.Status >= 2
+            ? $"{sourceName} was paused by the device thermal policy · {thermal.DisplayText}. Cooling before automatic retry."
+            : $"{sourceName} stopped delivering frames · {thermal.DisplayText}. Automatic camera retry scheduled.";
+        Diagnostic?.Invoke(this, new DriveInputDiagnostic(explanation, true));
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (_sourceAlertLabels.TryGetValue(sourceId, out var alert))
+            {
+                alert.Text = thermal.Status >= 2
+                    ? $"CAMERA PAUSED BY DEVICE HEAT\nCooling · automatic retry enabled"
+                    : "CAMERA STALLED\nAutomatic retry enabled";
+                alert.Visibility = ViewStates.Visible;
+            }
+        });
+        SchedulePhysicalPairRetry(sourceId);
+    }
+
+    private void SchedulePhysicalPairRetry(string stalledSourceId)
+    {
+        var cancellation = new CancellationTokenSource();
+        if (Interlocked.CompareExchange(ref _physicalRetryCancellation, cancellation, null) is not null)
+        {
+            cancellation.Dispose();
+            return;
+        }
+
+        _ = RetryPhysicalPairAsync(stalledSourceId, cancellation);
+    }
+
+    private async Task RetryPhysicalPairAsync(
+        string stalledSourceId,
+        CancellationTokenSource cancellation)
+    {
+        var token = cancellation.Token;
+        try
+        {
+            Diagnostic?.Invoke(this, new DriveInputDiagnostic(
+                $"Healthy camera streams remain active while waiting to retry · {_thermalMonitor.Current.DisplayText}."));
+            await Task.Delay(TimeSpan.FromSeconds(10), token).ConfigureAwait(false);
+            while (_thermalMonitor.Current.IsTooHotForCameraRetry)
+            {
+                var thermal = _thermalMonitor.Current;
+                Diagnostic?.Invoke(this, new DriveInputDiagnostic(
+                    $"Camera retry waiting for the phone to cool · {thermal.DisplayText}."));
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    if (_sourceAlertLabels.TryGetValue(stalledSourceId, out var alert))
+                    {
+                        alert.Text = $"CAMERA PAUSED BY DEVICE HEAT\n{thermal.DisplayText}\nWaiting to retry…";
+                        alert.Visibility = ViewStates.Visible;
+                    }
+                });
+                await Task.Delay(TimeSpan.FromSeconds(10), token).ConfigureAwait(false);
+            }
+
+            for (var attempt = 1; attempt <= 3; attempt++)
+            {
+                await _lifecycleGate.WaitAsync(token).ConfigureAwait(false);
+                try
+                {
+                    if (!_running || !UsesCamera2PhysicalPair)
+                    {
+                        return;
+                    }
+
+                    Diagnostic?.Invoke(this, new DriveInputDiagnostic(
+                        $"Restarting both physical camera streams (attempt {attempt}/3) · {_thermalMonitor.Current.DisplayText}."));
+                    await MainThread.InvokeOnMainThreadAsync(() =>
+                    {
+                        foreach (var (sourceId, label) in _sourceStatusLabels)
+                        {
+                            var name = FindCapability(sourceId)?.Name ?? sourceId;
+                            label.Text = $"{name}\nRESTARTING CAMERA…";
+                            label.SetTextColor(global::Android.Graphics.Color.Rgb(245, 197, 66));
+                        }
+                        if (_sourceAlertLabels.TryGetValue(stalledSourceId, out var alert))
+                        {
+                            alert.Text = $"RESTARTING CAMERA\nAttempt {attempt}/3…";
+                            alert.Visibility = ViewStates.Visible;
+                        }
+                    });
+                    _physicalPair.Stop();
+                    await Task.Delay(TimeSpan.FromSeconds(1), token).ConfigureAwait(false);
+                    await _physicalPair.StartAsync(token).ConfigureAwait(false);
+                    Diagnostic?.Invoke(this, new DriveInputDiagnostic(
+                        $"Both camera streams recovered after automatic retry · {_thermalMonitor.Current.DisplayText}.",
+                        ClearsError: true));
+                    return;
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception exception)
+                {
+                    Diagnostic?.Invoke(this, new DriveInputDiagnostic(
+                        $"Camera retry {attempt}/3 failed: {exception.Message}",
+                        true));
+                }
+                finally
+                {
+                    _lifecycleGate.Release();
+                }
+
+                if (attempt < 3)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(15), token).ConfigureAwait(false);
+                }
+            }
+
+            Diagnostic?.Invoke(this, new DriveInputDiagnostic(
+                "Automatic camera recovery failed after 3 attempts. Stop the drive, let the phone cool, and try again.",
+                true));
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            Interlocked.CompareExchange(ref _physicalRetryCancellation, null, cancellation);
+            cancellation.Dispose();
+        }
+    }
+
+    private void CancelPhysicalRetry()
+    {
+        var cancellation = Interlocked.Exchange(ref _physicalRetryCancellation, null);
+        cancellation?.Cancel();
     }
 
     public async ValueTask DisposeAsync()
@@ -591,6 +785,8 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
             _physicalPair.SourceFramesAvailable -= ChildSourceFramesAvailable;
             _physicalPair.PreviewFramesPresented -= ChildPreviewFramesPresented;
             _physicalPair.SourceStatusChanged -= PhysicalSourceStatusChanged;
+            _physicalPair.SourceStalled -= PhysicalSourceStalled;
+            _thermalMonitor.Changed -= ThermalStatusChanged;
             _network.Diagnostic -= ChildDiagnostic;
             _network.SourceFramesAvailable -= ChildSourceFramesAvailable;
             _network.PreviewFramesPresented -= ChildPreviewFramesPresented;
@@ -600,6 +796,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
                 _previewViewportsChanged([]);
                 _integrated.Dispose();
                 _physicalPair.Dispose();
+                _thermalMonitor.Dispose();
                 _network.Dispose();
             });
         }
