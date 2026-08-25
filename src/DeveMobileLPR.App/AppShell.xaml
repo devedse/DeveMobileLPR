@@ -4,7 +4,7 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     FlyoutBehavior="Disabled"
-    Shell.NavBarIsVisible="False"
+    Shell.NavBarIsVisible="True"
     Shell.BackgroundColor="{DynamicResource Surface}"
     Shell.ForegroundColor="{DynamicResource TextPrimary}"
     Shell.TabBarBackgroundColor="{DynamicResource Surface}"

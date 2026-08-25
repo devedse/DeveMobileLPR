@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentView
+    x:Class="DeveMobileLPR.App.Controls.InferenceBackendBanner"
+    x:DataType="services:InferenceBackendStatus"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:services="clr-namespace:DeveMobileLPR.App.Services">
+    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" HorizontalOptions="Fill" VerticalOptions="Center">
+        <Border
+            BackgroundColor="{DynamicResource Primary}"
+            Padding="7,3"
+            StrokeThickness="0"
+            StrokeShape="RoundRectangle 8">
+            <Label
+                FontAttributes="Bold"
+                FontSize="11"
+                Text="AI"
+                TextColor="{DynamicResource OnPrimary}" />
+        </Border>
+        <Label
+            AutomationId="active_inference_backend"
+            FontAttributes="Bold"
+            FontSize="12"
+            Grid.Column="1"
+            LineBreakMode="TailTruncation"
+            MaxLines="1"
+            Text="{Binding Summary}"
+            VerticalOptions="Center" />
+    </Grid>
+</ContentView>

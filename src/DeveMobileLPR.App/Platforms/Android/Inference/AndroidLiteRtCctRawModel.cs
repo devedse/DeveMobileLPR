@@ -4,8 +4,8 @@ using Google.AI.Edge.LiteRT;
 namespace DeveMobileLPR.App.Platforms.Android.Inference;
 
 /// <summary>
-/// Executes the fixed-output CCT-S V2 OCR graph through Android LiteRT.
-/// GPU is proven with a complete warm run before selection; CPU is explicit.
+/// Executes the fixed-output CCT-S V2 OCR graph through Android LiteRT. NPU,
+/// GPU, and CPU are each proven with a complete warm run before selection.
 /// </summary>
 internal sealed class AndroidLiteRtCctRawModel : ICctRawModel
 {
@@ -24,9 +24,10 @@ internal sealed class AndroidLiteRtCctRawModel : ICctRawModel
             throw new FileNotFoundException("LiteRT OCR model is missing.", modelPath);
         }
 
-        _session = TryCreate(modelPath, Accelerator.Gpu, "GPU", diagnostic)
+        _session = TryCreate(modelPath, Accelerator.Npu, "NPU", diagnostic)
+            ?? TryCreate(modelPath, Accelerator.Gpu, "GPU", diagnostic)
             ?? TryCreate(modelPath, Accelerator.Cpu, "CPU", diagnostic)
-            ?? throw new InvalidOperationException("LiteRT could not initialize OCR on GPU or CPU.");
+            ?? throw new InvalidOperationException("LiteRT could not initialize OCR on NPU, GPU, or CPU.");
         BackendName = $"LiteRT {_session.AcceleratorName}";
     }
 
