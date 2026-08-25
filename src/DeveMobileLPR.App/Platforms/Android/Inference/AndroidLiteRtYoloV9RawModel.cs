@@ -4,9 +4,9 @@ using Google.AI.Edge.LiteRT;
 namespace DeveMobileLPR.App.Platforms.Android.Inference;
 
 /// <summary>
-/// Executes only the fixed-output YOLOv9 graph through Android LiteRT. GPU is
-/// proven with a complete warm run before it is selected; CPU is the explicit
-/// fallback rather than an invisible per-operation fallback.
+/// Executes only the fixed-output YOLOv9 graph through Android LiteRT. NPU, GPU,
+/// and CPU are each proven with a complete warm run before selection, in that
+/// order, so fallback is explicit rather than hidden per-operation delegation.
 /// </summary>
 internal sealed class AndroidLiteRtYoloV9RawModel : IYoloV9RawModel
 {
@@ -25,9 +25,10 @@ internal sealed class AndroidLiteRtYoloV9RawModel : IYoloV9RawModel
             throw new FileNotFoundException("LiteRT detector model is missing.", modelPath);
         }
 
-        _session = TryCreate(modelPath, Accelerator.Gpu, "GPU", diagnostic)
+        _session = TryCreate(modelPath, Accelerator.Npu, "NPU", diagnostic)
+            ?? TryCreate(modelPath, Accelerator.Gpu, "GPU", diagnostic)
             ?? TryCreate(modelPath, Accelerator.Cpu, "CPU", diagnostic)
-            ?? throw new InvalidOperationException("LiteRT could not initialize the detector on GPU or CPU.");
+            ?? throw new InvalidOperationException("LiteRT could not initialize the detector on NPU, GPU, or CPU.");
         BackendName = $"LiteRT {_session.AcceleratorName}";
     }
 

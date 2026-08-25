@@ -39,6 +39,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<AppSettings>();
         builder.Services.AddSingleton<IDriveSettings>(services => services.GetRequiredService<AppSettings>());
         builder.Services.AddSingleton<RecognitionTuningConfiguration>();
+        builder.Services.AddSingleton<InferenceBackendStatus>();
         builder.Services.AddSingleton<RdwDatabaseService>();
         builder.Services.AddSingleton<IVehicleDataStatus>(services => services.GetRequiredService<RdwDatabaseService>());
         builder.Services.AddSingleton(_ => new SightingRepository(Path.Combine(FileSystem.AppDataDirectory, "sightings.sqlite")));

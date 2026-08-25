@@ -31,6 +31,9 @@ public sealed class PlateRecognitionPipeline : IFrameRecognitionPipeline, IDispo
         ];
     }
 
+    public string DetectorBackend => _detectorBackend;
+    public string OcrBackend => _ocrBackend;
+
     public async ValueTask<FrameRecognition> ProcessAsync(Yuv420Frame frame, CancellationToken cancellationToken)
     {
         var startedAt = Stopwatch.GetTimestamp();

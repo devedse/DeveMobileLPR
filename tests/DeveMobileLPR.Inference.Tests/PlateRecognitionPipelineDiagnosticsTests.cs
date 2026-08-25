@@ -20,6 +20,9 @@ public sealed class PlateRecognitionPipelineDiagnosticsTests
                 Detector_MaximumOcrAttemptsPerFrame = 1
             });
 
+        Assert.Equal("Test detector", pipeline.DetectorBackend);
+        Assert.Equal("Test OCR", pipeline.OcrBackend);
+
         var result = await pipeline.ProcessAsync(frame, CancellationToken.None);
 
         Assert.Empty(result.Observations);

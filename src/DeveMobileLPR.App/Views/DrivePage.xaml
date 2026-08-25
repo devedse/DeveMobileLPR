@@ -182,7 +182,7 @@
                 </Border>
             </Grid>
 
-            <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto" ColumnSpacing="12" IsVisible="{Binding ShowDriveControls}">
+            <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto" ColumnSpacing="12" IsVisible="{Binding ShowDriveControls}" RowDefinitions="Auto,Auto">
                 <Button
                     AutomationId="stop_drive_button"
                     Command="{Binding ToggleDriveCommand}"
@@ -212,6 +212,18 @@
                         <Label Grid.Column="2" FontAttributes="Bold" Text="{Binding LatestPrice}" TextColor="{DynamicResource ValueAccent}" VerticalOptions="Center" />
                     </Grid>
                 </Border>
+
+                <Label
+                    AutomationId="active_inference_backend"
+                    FontSize="10"
+                    Grid.ColumnSpan="6"
+                    Grid.Row="1"
+                    HorizontalOptions="Start"
+                    LineBreakMode="TailTruncation"
+                    Margin="2,4,0,0"
+                    MaxLines="1"
+                    Text="{Binding InferenceBackendSummary}"
+                    TextColor="{DynamicResource TextSecondary}" />
             </Grid>
         </Grid>
     </Grid>
