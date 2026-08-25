@@ -1,107 +1,55 @@
-using Android.Content;
-using Android.Views;
-using Android.Widget;
-using AndroidX.Camera.View;
-using AndroidX.Lifecycle;
 using DeveMobileLPR.App.Controls;
-using DeveMobileLPR.App.Services;
 using DeveMobileLPR.Application;
 using DeveMobileLPR.Geometry;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Maui.Handlers;
 
-namespace DeveMobileLPR.App.Platforms.Android.Camera;
+namespace DeveMobileLPR.App.Handlers;
 
-internal sealed class CameraPreviewHandler : ViewHandler<CameraPreview, FrameLayout>
+internal partial class CameraPreviewHandler
 {
-    /// <summary>CameraX frames fill the viewport; the phone is mounted, so cropping beats letterboxing.</summary>
-    private const AspectScaleMode CameraScaleMode = AspectScaleMode.Fill;
+    private DriveVideoInputLifetime? _inputLifetime;
+    private DriveVideoInputLease? _inputLease;
 
-    /// <summary>Network streams carry an arbitrary aspect, so <see cref="AndroidVideoTextureView"/> letterboxes them.</summary>
-    private const AspectScaleMode StreamScaleMode = AspectScaleMode.Fit;
-
-    public static readonly IPropertyMapper<CameraPreview, CameraPreviewHandler> Mapper =
-        new PropertyMapper<CameraPreview, CameraPreviewHandler>(ViewHandler.ViewMapper);
-
-    private AndroidDriveVideoInput? _source;
-    private DriveCoordinator? _coordinator;
-
-    public CameraPreviewHandler() : base(Mapper)
+    private partial Platforms.Android.Camera.AndroidCameraPreviewHost CreatePlatformViewCore()
     {
+        var context = MauiContext?.Context
+            ?? throw new InvalidOperationException("Android context is unavailable.");
+        return new Platforms.Android.Camera.AndroidCameraPreviewHost(context);
     }
 
-    protected override FrameLayout CreatePlatformView()
+    private partial void ConnectPlatformView(Platforms.Android.Camera.AndroidCameraPreviewHost platformView)
     {
-        var context = MauiContext?.Context ?? throw new InvalidOperationException("Android context is unavailable.");
-        var lifecycleOwner = MauiContext!.Services.GetRequiredService<AndroidCameraLifecycleOwner>();
-        _coordinator = MauiContext!.Services.GetRequiredService<DriveCoordinator>();
-        var settings = MauiContext.Services.GetRequiredService<AppSettings>();
-        var root = new FrameLayout(context);
-        var match = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.MatchParent);
-        var preview = new PreviewView(context);
-        preview.SetScaleType(GetPreviewScaleType());
-        // Compatible uses TextureView, so the preview composites in normal view order instead of
-        // punching a SurfaceView hole that anything drawn on top would have to fight.
-        preview.SetImplementationMode(PreviewView.ImplementationMode.Compatible);
-        root.AddView(preview, match);
-        var streamPreview = new AndroidVideoTextureView(context)
-        {
-            Visibility = ViewStates.Gone
-        };
-        root.AddView(streamPreview, new FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MatchParent,
-            ViewGroup.LayoutParams.MatchParent)
-        {
-            Gravity = GravityFlags.Center
-        });
-        _source = new AndroidDriveVideoInput(
-            context,
-            lifecycleOwner,
-            preview,
-            streamPreview,
-            settings.NetworkStreamUrl,
-            () => settings.RecognitionFramesPerSecond,
-            () => _coordinator.HasPendingRecognitionFrame,
-            frame => _coordinator.SubmitFrame(frame));
-        _coordinator.AttachCamera(_source);
-        return root;
+        var factory = MauiContext!.Services
+            .GetRequiredService<Platforms.Android.Camera.AndroidDriveVideoInputFactory>();
+        _inputLifetime = MauiContext.Services.GetRequiredService<DriveVideoInputLifetime>();
+        var virtualView = VirtualView;
+        var input = factory.Create(
+            platformView,
+            viewports => MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (_inputLease is not null && ReferenceEquals(VirtualView, virtualView))
+                {
+                    virtualView.ReportSourceViewports(viewports);
+                }
+            }));
+        _inputLease = _inputLifetime.Attach(input);
+        virtualView.ReportInputGeneration(_inputLease.Generation);
     }
 
-    protected override void ConnectHandler(FrameLayout platformView)
+    private partial void DisconnectPlatformView(Platforms.Android.Camera.AndroidCameraPreviewHost platformView)
     {
-        base.ConnectHandler(platformView);
-        VirtualView.CameraScaleMode = CameraScaleMode;
-        VirtualView.StreamScaleMode = StreamScaleMode;
-    }
-
-    private static PreviewView.ScaleType GetPreviewScaleType() => CameraScaleMode switch
-    {
-        AspectScaleMode.Fit => PreviewView.ScaleType.FitCenter!,
-        AspectScaleMode.Fill => PreviewView.ScaleType.FillCenter!,
-        _ => throw new ArgumentOutOfRangeException()
-    };
-
-    protected override void DisconnectHandler(FrameLayout platformView)
-    {
-        if (_source is not null)
+        if (_inputLease is not null)
         {
-            _coordinator?.DetachCamera(_source);
-            _ = DisposeSourceAsync(_source);
-            _source = null;
+            VirtualView.ReportInputGeneration(0);
+            _inputLifetime?.Release(_inputLease);
+            _inputLease = null;
         }
-        _coordinator = null;
-        base.DisconnectHandler(platformView);
+        _inputLifetime = null;
     }
 
-    private static async Task DisposeSourceAsync(AndroidDriveVideoInput source)
-    {
-        try
-        {
-            await source.DisposeAsync();
-        }
-        catch (Exception exception)
-        {
-            global::Android.Util.Log.Warn("DeveMobileLPR.Video", $"Android video cleanup failed: {exception}");
-        }
-    }
+    private partial void UpdatePresentationMode(CameraPreview view) =>
+        view.ReportPresentation(
+            view.IsNetworkStream || view.IsMultiSource
+                ? AspectScaleMode.Fit
+                : AspectScaleMode.Fill);
 }

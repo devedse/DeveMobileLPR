@@ -3,7 +3,6 @@ using System.Threading.Channels;
 using DeveMobileLPR.Application;
 using DeveMobileLPR.Imaging;
 using Microsoft.UI.Xaml.Controls;
-using Windows.Devices.Enumeration;
 using Windows.Graphics.Imaging;
 using Windows.Media.Capture;
 using Windows.Media.Capture.Frames;
@@ -15,7 +14,8 @@ using Windows.Media.Playback;
 namespace DeveMobileLPR.App.Platforms.Windows.Camera;
 
 /// <summary>
-/// Owns physical Windows webcam discovery, preview, BGRA frame acquisition, and conversion.
+/// Owns physical Windows webcam preview, BGRA frame acquisition, and conversion. Device discovery
+/// is supplied by the platform source catalog so capability mapping has one source of truth.
 /// Input selection between this source and LL-HLS belongs to <see cref="WindowsDriveVideoInput"/>.
 /// </summary>
 internal sealed class WindowsWebcamFrameSource : IAsyncDisposable, IDriveFrameSourceTelemetry
@@ -32,7 +32,7 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable, IDriveFrameSo
     private MediaFrameSource? _frameSource;
     private MediaFrameReader? _reader;
     private SoftwareBitmap? _latestBitmap;
-    private DeviceInformation[] _cameras = [];
+    private CameraChoice[] _cameras = [];
     private float _requestedZoomRatio = 1f;
     private float? _lastAppliedZoomRatio;
     private bool _zoomUnsupportedReported;
@@ -67,22 +67,16 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable, IDriveFrameSo
     public bool IsReady => _capture is not null;
     public string SelectedCameraId { get; private set; } = string.Empty;
 
-    public async Task<IReadOnlyList<CameraChoice>> RefreshCameraChoicesAsync(CancellationToken cancellationToken)
+    public void ConfigureCameraChoices(IReadOnlyList<CameraChoice> cameras)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        var cameras = await DeviceInformation.FindAllAsync(DeviceClass.VideoCapture);
-        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(cameras);
         _cameras = cameras.ToArray();
-        return _cameras.Select(static camera => new CameraChoice(camera.Id, camera.Name)).ToArray();
     }
 
     public async Task InitializeAsync(string preferredCameraId, CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (_cameras.Length == 0)
-        {
-            await RefreshCameraChoicesAsync(cancellationToken);
-        }
         if (_cameras.Length == 0)
         {
             throw new InvalidOperationException("No Windows webcam is available.");
