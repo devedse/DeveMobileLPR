@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using DeveMobileLPR.App.Services;
 using DeveMobileLPR.Application;
 using DeveMobileLPR.App.UI;
@@ -10,6 +11,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     private readonly DriveCoordinator _coordinator;
     private readonly AppSettings _settings;
     private readonly IBackgroundScanningManager _backgroundScanning;
+    private readonly InferenceBackendStatus _backendStatus;
     private readonly Dictionary<string, string> _cameraIds = new(StringComparer.Ordinal);
     private readonly Timer _durationTimer;
     private DriveSnapshot _snapshot;
@@ -20,16 +22,19 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     public DriveViewModel(
         DriveCoordinator coordinator,
         AppSettings settings,
-        IBackgroundScanningManager backgroundScanning)
+        IBackgroundScanningManager backgroundScanning,
+        InferenceBackendStatus backendStatus)
     {
         _coordinator = coordinator;
         _settings = settings;
         _backgroundScanning = backgroundScanning;
+        _backendStatus = backendStatus;
         _snapshot = coordinator.Snapshot;
         _networkStreamUrl = settings.NetworkStreamUrl;
         _zoom = settings.Zoom;
         ToggleDriveCommand = new AsyncCommand(ToggleDriveAsync);
         _coordinator.SnapshotChanged += SnapshotChanged;
+        _backendStatus.PropertyChanged += BackendStatusChanged;
         _durationTimer = new Timer(_ => MainThread.BeginInvokeOnMainThread(() => OnPropertyChanged(nameof(Duration))), null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
         ApplySnapshot(_snapshot);
     }
@@ -66,6 +71,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         : "Keep the road area inside the guide";
     public string LatestPrice => HasLatest ? DisplayFormat.Price(_snapshot.RecentSightings[0].Vehicle?.CatalogPrice) : "—";
     public string TopValue => _snapshot.MostExpensive is null ? "—" : DisplayFormat.CompactPrice(_snapshot.MostExpensive.Vehicle?.CatalogPrice);
+    public string InferenceBackendSummary => _backendStatus.Summary;
 
     public double Zoom
     {
@@ -193,9 +199,19 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     }
 
     private static string FormatClock(TimeSpan value) => value.TotalHours >= 1 ? $"{(int)value.TotalHours}:{value.Minutes:00}:{value.Seconds:00}" : $"{(int)value.TotalMinutes}:{value.Seconds:00}";
+
+    private void BackendStatusChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName == nameof(InferenceBackendStatus.Summary))
+        {
+            OnPropertyChanged(nameof(InferenceBackendSummary));
+        }
+    }
+
     public void Dispose()
     {
         _coordinator.SnapshotChanged -= SnapshotChanged;
+        _backendStatus.PropertyChanged -= BackendStatusChanged;
         _durationTimer.Dispose();
     }
 }
