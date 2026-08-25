@@ -106,9 +106,13 @@ internal sealed class AndroidDriveSourceCatalog(Context context) : IDriveSourceC
         IReadOnlyList<PhysicalMetadata> physicalSources)
     {
         var result = new List<DriveSourceCapability>();
-        foreach (var facingGroup in physicalSources.GroupBy(source => source.IsFront))
+        // Lens roles and relative sensor areas only make sense within one logical camera group.
+        // Comparing physical lenses owned by different logical cameras can mislabel otherwise
+        // valid main/tele pairs on devices with more than one rear logical camera.
+        foreach (var cameraGroup in physicalSources.GroupBy(source =>
+                     (source.IsFront, source.LogicalCameraId)))
         {
-            var focalGroups = facingGroup
+            var focalGroups = cameraGroup
                 .GroupBy(source => Math.Round(source.FocalLength ?? 0f, 2))
                 .OrderBy(group => group.Key)
                 .ToArray();
@@ -116,7 +120,7 @@ internal sealed class AndroidDriveSourceCatalog(Context context) : IDriveSourceC
             for (var focalIndex = 0; focalIndex < focalGroups.Length; focalIndex++)
             {
                 var focalGroup = focalGroups[focalIndex].ToArray();
-                var role = facingGroup.Key
+                var role = cameraGroup.Key.IsFront
                     ? InferredLensRole.Front
                     : focalGroups.Length == 1
                         ? InferredLensRole.Main

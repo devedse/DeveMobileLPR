@@ -28,6 +28,7 @@ internal sealed class RecognitionSession : IAsyncDisposable
     private readonly Func<GeoPoint?> _location;
     private readonly Func<long?> _tripId;
     private readonly ConcurrentDictionary<string, Lazy<SourceWorker>> _sources = new(StringComparer.Ordinal);
+    private readonly SemaphoreSlim _pipelineGate = new(1, 1);
     private readonly SemaphoreSlim _persistenceGate = new(1, 1);
     private readonly CancellationTokenSource _cancellation = new();
 
@@ -260,16 +261,29 @@ internal sealed class RecognitionSession : IAsyncDisposable
         }
 
         (_sharedPipeline as IDisposable)?.Dispose();
+        _pipelineGate.Dispose();
         _persistenceGate.Dispose();
         _cancellation.Dispose();
     }
 
-    private sealed class SharedPipelineLease(IFrameRecognitionPipeline pipeline) : IFrameRecognitionPipeline
+    private sealed class SharedPipelineLease(
+        IFrameRecognitionPipeline pipeline,
+        SemaphoreSlim pipelineGate) : IFrameRecognitionPipeline
     {
-        public ValueTask<FrameRecognition> ProcessAsync(
+        public async ValueTask<FrameRecognition> ProcessAsync(
             Yuv420Frame frame,
-            CancellationToken cancellationToken) =>
-            pipeline.ProcessAsync(frame, cancellationToken);
+            CancellationToken cancellationToken)
+        {
+            await pipelineGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                return await pipeline.ProcessAsync(frame, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                pipelineGate.Release();
+            }
+        }
     }
 
     private sealed class SourceWorker
@@ -281,7 +295,7 @@ internal sealed class RecognitionSession : IAsyncDisposable
         {
             SourceId = sourceId;
             Processor = new RecognitionStreamProcessor(
-                new SharedPipelineLease(owner._sharedPipeline),
+                new SharedPipelineLease(owner._sharedPipeline, owner._pipelineGate),
                 owner._configuration);
             Worker = Task.Run(() => owner.ProcessLoopAsync(this));
         }

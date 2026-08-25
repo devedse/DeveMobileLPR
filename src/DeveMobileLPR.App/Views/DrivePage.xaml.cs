@@ -21,9 +21,9 @@ public partial class DrivePage : ContentPage
         base.OnAppearing();
         _viewModel.DriveModeChanged += DriveModeChanged;
         ApplyDriveMode(true);
-        await _viewModel.InitializeAsync();
         try
         {
+            await _viewModel.InitializeAsync();
             var inputGeneration = await PreviewPresenter.WaitForInputGenerationAsync(TimeSpan.FromSeconds(15));
             await _viewModel.StartDriveAsync(inputGeneration);
         }
@@ -32,9 +32,19 @@ public partial class DrivePage : ContentPage
             // The view model will remain stopped and this modal will close. A subsequent start is
             // safe because it will receive a new handler generation instead of reusing this page.
         }
-        if (!_viewModel.IsDriving)
+        catch (Exception exception)
         {
-            await CloseOnceAsync();
+            await DisplayAlertAsync(
+                "Could not start drive",
+                exception.Message,
+                "OK");
+        }
+        finally
+        {
+            if (!_viewModel.IsDriving)
+            {
+                await CloseOnceAsync();
+            }
         }
     }
 

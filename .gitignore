@@ -15,6 +15,3 @@ artifacts/
 *.aab
 local.properties
 .codex-remote-attachments/
-/reference/Android-UVC-Camera/
-/reference/AndroidUSBCamera/
-/reference/UVCAndroid/

@@ -150,7 +150,7 @@ public sealed class DriveCoordinatorTests
     }
 
     [Fact]
-    public async Task DifferentSourcesHaveIndependentRecognitionWorkers()
+    public async Task DifferentSourcesShareOneSerializedRecognitionPipeline()
     {
         var pipeline = new ConcurrentProbePipeline();
         var input = new TestVideoInput();
@@ -172,10 +172,17 @@ public sealed class DriveCoordinatorTests
 
         Assert.True(coordinator.SubmitFrame("physical:0:2", CreateFrame(1)));
         Assert.True(coordinator.SubmitFrame("physical:0:4", CreateFrame(2)));
-        await pipeline.BothStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await pipeline.FirstStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await Task.Delay(100);
+
+        Assert.Equal(1, pipeline.Started);
+        Assert.Equal(1, pipeline.MaximumConcurrency);
+
         pipeline.Release.TrySetResult();
+        await pipeline.BothCompleted.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.Equal(2, pipeline.Started);
+        Assert.Equal(1, pipeline.MaximumConcurrency);
     }
 
     [Fact]
@@ -194,7 +201,7 @@ public sealed class DriveCoordinatorTests
 
         Assert.True(coordinator.SubmitFrame("main", CreateFrame(1)));
         Assert.True(coordinator.SubmitFrame("tele", CreateFrame(2)));
-        await pipeline.BothStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await pipeline.FirstStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
         var stopping = coordinator.StopDriveAsync();
         var completed = await Task.WhenAny(stopping, Task.Delay(450));
@@ -670,21 +677,46 @@ public sealed class DriveCoordinatorTests
     private sealed class ConcurrentProbePipeline : IFrameRecognitionPipeline
     {
         private int _started;
+        private int _active;
+        private int _maximumConcurrency;
+        private int _completed;
         public int Started => Volatile.Read(ref _started);
-        public TaskCompletionSource BothStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int MaximumConcurrency => Volatile.Read(ref _maximumConcurrency);
+        public TaskCompletionSource FirstStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource BothCompleted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public async ValueTask<FrameRecognition> ProcessAsync(
             Yuv420Frame frame,
             CancellationToken cancellationToken)
         {
-            if (Interlocked.Increment(ref _started) == 2)
+            Interlocked.Increment(ref _started);
+            FirstStarted.TrySetResult();
+            var active = Interlocked.Increment(ref _active);
+            var maximum = Volatile.Read(ref _maximumConcurrency);
+            while (active > maximum)
             {
-                BothStarted.TrySetResult();
+                var observed = Interlocked.CompareExchange(ref _maximumConcurrency, active, maximum);
+                if (observed == maximum)
+                {
+                    break;
+                }
+                maximum = observed;
             }
 
-            await Release.Task.WaitAsync(cancellationToken);
-            return new FrameRecognition(frame.Sequence, frame.CapturedAt, []);
+            try
+            {
+                await Release.Task.WaitAsync(cancellationToken);
+                return new FrameRecognition(frame.Sequence, frame.CapturedAt, []);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _active);
+                if (Interlocked.Increment(ref _completed) == 2)
+                {
+                    BothCompleted.TrySetResult();
+                }
+            }
         }
     }
 

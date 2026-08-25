@@ -11,14 +11,6 @@ public sealed class MainApplication(IntPtr handle, JniHandleOwnership ownership)
     {
         AppLogService.Initialize(FilesDir?.AbsolutePath ?? FileSystem.AppDataDirectory);
         AndroidEnvironment.UnhandledExceptionRaiser += (_, args) => AppLogService.RecordCrash(args.Exception);
-        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
-        {
-            if (args.ExceptionObject is Exception exception)
-            {
-                AppLogService.RecordCrash(exception);
-            }
-        };
-        TaskScheduler.UnobservedTaskException += (_, args) => AppLogService.RecordCrash(args.Exception);
         base.OnCreate();
     }
 

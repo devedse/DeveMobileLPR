@@ -73,6 +73,7 @@ public sealed class HistoryBackupService
         var stagingDirectory = Path.Combine(
             Path.GetFullPath(destinationDirectory),
             $".devemobilelpr-backup-{Guid.NewGuid():N}");
+        string? incompleteArchivePath = null;
         try
         {
             if (!File.Exists(_databasePath))
@@ -115,16 +116,28 @@ public sealed class HistoryBackupService
                 Path.Combine(stagingDirectory, ManifestEntryName),
                 JsonSerializer.Serialize(manifest, JsonOptions),
                 cancellationToken).ConfigureAwait(false);
+            ValidateStagedBackupSize(stagingDirectory);
 
             var safeVersion = FileNamePart(appVersion);
             var safeBuild = FileNamePart(appBuild);
             var fileName = $"devemobilelpr-backup-{createdAt:yyyyMMdd-HHmmss}-v{safeVersion}-b{safeBuild}.zip";
             var destinationPath = UniquePath(Path.Combine(Path.GetFullPath(destinationDirectory), fileName));
-            await CreateArchiveAsync(stagingDirectory, destinationPath, createdAt, cancellationToken).ConfigureAwait(false);
+            incompleteArchivePath = $"{destinationPath}.partial-{Guid.NewGuid():N}";
+            await CreateArchiveAsync(stagingDirectory, incompleteArchivePath, createdAt, cancellationToken).ConfigureAwait(false);
+            if (new FileInfo(incompleteArchivePath).Length > MaximumArchiveBytes)
+            {
+                throw new InvalidDataException("The compressed backup is too large to restore.");
+            }
+            File.Move(incompleteArchivePath, destinationPath);
+            incompleteArchivePath = null;
             return destinationPath;
         }
         finally
         {
+            if (incompleteArchivePath is not null)
+            {
+                File.Delete(incompleteArchivePath);
+            }
             DeleteDirectory(stagingDirectory);
             _operationGate.Release();
         }
@@ -608,6 +621,39 @@ public sealed class HistoryBackupService
         return files;
     }
 
+    private static void ValidateStagedBackupSize(string stagingDirectory)
+    {
+        ValidateBackupSize(Directory
+            .EnumerateFiles(stagingDirectory, "*", SearchOption.AllDirectories)
+            .Select(path => (Path: Path.GetRelativePath(stagingDirectory, path), Length: new FileInfo(path).Length)));
+    }
+
+    internal static void ValidateBackupSize(IEnumerable<(string Path, long Length)> files)
+    {
+        var count = 0;
+        long totalLength = 0;
+        foreach (var file in files)
+        {
+            count++;
+            if (count > MaximumEntryCount)
+            {
+                throw new InvalidDataException("The backup contains too many files.");
+            }
+
+            if (file.Length < 0 || file.Length > MaximumEntryBytes)
+            {
+                throw new InvalidDataException(
+                    $"Backup file '{file.Path}' is too large.");
+            }
+
+            totalLength = checked(totalLength + file.Length);
+            if (totalLength > MaximumArchiveBytes)
+            {
+                throw new InvalidDataException("The backup is too large.");
+            }
+        }
+    }
+
     private static async Task<string> Sha256Async(string path, CancellationToken cancellationToken)
     {
         await using var stream = new FileStream(
@@ -621,35 +667,43 @@ public sealed class HistoryBackupService
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
-    private static async Task CreateArchiveAsync(
+    internal static async Task CreateArchiveAsync(
         string sourceDirectory,
         string destinationPath,
         DateTimeOffset createdAt,
         CancellationToken cancellationToken)
     {
-        await using var file = new FileStream(
-            destinationPath,
-            FileMode.CreateNew,
-            FileAccess.ReadWrite,
-            FileShare.None,
-            1024 * 1024,
-            FileOptions.Asynchronous);
-        using var zip = new ZipArchive(file, ZipArchiveMode.Create, leaveOpen: true);
-        foreach (var path in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories))
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var relative = Path.GetRelativePath(sourceDirectory, path).Replace('\\', '/');
-            var entry = zip.CreateEntry(relative, CompressionLevel.Optimal);
-            entry.LastWriteTime = createdAt;
-            await using var input = new FileStream(
-                path,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.Read,
+            await using var file = new FileStream(
+                destinationPath,
+                FileMode.CreateNew,
+                FileAccess.ReadWrite,
+                FileShare.None,
                 1024 * 1024,
-                FileOptions.Asynchronous | FileOptions.SequentialScan);
-            await using var output = entry.Open();
-            await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
+                FileOptions.Asynchronous);
+            using var zip = new ZipArchive(file, ZipArchiveMode.Create, leaveOpen: true);
+            foreach (var path in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var relative = Path.GetRelativePath(sourceDirectory, path).Replace('\\', '/');
+                var entry = zip.CreateEntry(relative, CompressionLevel.Optimal);
+                entry.LastWriteTime = createdAt;
+                await using var input = new FileStream(
+                    path,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.Read,
+                    1024 * 1024,
+                    FileOptions.Asynchronous | FileOptions.SequentialScan);
+                await using var output = entry.Open();
+                await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch
+        {
+            File.Delete(destinationPath);
+            throw;
         }
     }
 

@@ -88,6 +88,40 @@ public sealed class HistoryBackupServiceTests : IAsyncLifetime
         Assert.Equal("must not be exported", await File.ReadAllTextAsync(Path.Combine(_root, "rdw.sqlite")));
     }
 
+    [Fact]
+    public void BackupSizeValidation_MatchesRestoreLimits()
+    {
+        Assert.Throws<InvalidDataException>(() => HistoryBackupService.ValidateBackupSize(
+            [("oversized.jpg", 512L * 1024 * 1024 + 1)]));
+
+        Assert.Throws<InvalidDataException>(() => HistoryBackupService.ValidateBackupSize(
+            Enumerable.Range(0, 5).Select(index =>
+                ($"snapshots/{index}.jpg", 500L * 1024 * 1024))));
+
+        HistoryBackupService.ValidateBackupSize(
+            [("history/sightings.sqlite", 128L * 1024 * 1024), ("manifest.json", 1024L)]);
+    }
+
+    [Fact]
+    public async Task ArchiveCreation_RemovesPartialFileWhenCancelled()
+    {
+        var sourceDirectory = Path.Combine(_root, "archive-source");
+        Directory.CreateDirectory(sourceDirectory);
+        await File.WriteAllTextAsync(Path.Combine(sourceDirectory, "manifest.json"), "{}");
+        var destinationPath = Path.Combine(_root, "cancelled.partial.zip");
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            HistoryBackupService.CreateArchiveAsync(
+                sourceDirectory,
+                destinationPath,
+                DateTimeOffset.UtcNow,
+                cancellation.Token));
+
+        Assert.False(File.Exists(destinationPath));
+    }
+
     private static async Task ChangeFormatVersionAsync(string archivePath, int version)
     {
         using var archive = ZipFile.Open(archivePath, ZipArchiveMode.Update);

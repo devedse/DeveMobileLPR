@@ -19,7 +19,9 @@ internal sealed class AppSettings : IDriveSettings
     private const string ContinueScanningInBackgroundKey = "continue_scanning_in_background";
     private const string InputConfigurationKey = "drive_input_configuration_v1";
     private const int DefaultRecognitionFramesPerSecond = 4;
+    private readonly object _inputConfigurationGate = new();
     private string _networkStreamUrl = string.Empty;
+    private DriveInputConfiguration? _inputConfiguration;
 
     public bool TrackLocation
     {
@@ -125,30 +127,43 @@ internal sealed class AppSettings : IDriveSettings
     {
         get
         {
-            var json = Preferences.Default.Get(InputConfigurationKey, string.Empty);
-            if (!string.IsNullOrWhiteSpace(json))
+            lock (_inputConfigurationGate)
             {
-                try
-                {
-                    var value = JsonSerializer.Deserialize<DriveInputConfiguration>(json);
-                    if (value is { Version: DriveInputConfiguration.CurrentVersion, Sources.Count: > 0 })
-                    {
-                        return value;
-                    }
-                }
-                catch (JsonException)
-                {
-                }
+                return _inputConfiguration ??= ReadInputConfiguration();
             }
-
-            return DriveInputConfiguration.Default;
         }
         set
         {
             ArgumentNullException.ThrowIfNull(value);
-            Preferences.Default.Set(InputConfigurationKey, JsonSerializer.Serialize(value));
+            lock (_inputConfigurationGate)
+            {
+                _inputConfiguration = value;
+                Preferences.Default.Set(InputConfigurationKey, JsonSerializer.Serialize(value));
+            }
         }
     }
+
+    private static DriveInputConfiguration ReadInputConfiguration()
+    {
+        var json = Preferences.Default.Get(InputConfigurationKey, string.Empty);
+        if (!string.IsNullOrWhiteSpace(json))
+        {
+            try
+            {
+                var value = JsonSerializer.Deserialize<DriveInputConfiguration>(json);
+                if (value is { Version: DriveInputConfiguration.CurrentVersion, Sources.Count: > 0 })
+                {
+                    return value;
+                }
+            }
+            catch (JsonException)
+            {
+            }
+        }
+
+        return DriveInputConfiguration.Default;
+    }
+
     private static int NormalizeRecognitionFramesPerSecond(int value) => value switch
     {
         0 or 2 or 4 or 8 or 12 => value,

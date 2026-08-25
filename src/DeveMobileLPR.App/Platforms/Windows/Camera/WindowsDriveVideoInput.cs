@@ -12,6 +12,7 @@ internal sealed class WindowsDriveVideoInput : IDriveVideoInput
 {
     private readonly MediaPlayerElement _webcamPreview;
     private readonly Microsoft.UI.Xaml.Controls.Image _networkPreview;
+    private readonly IDriveSourceCatalog _sourceCatalog;
     private readonly WindowsWebcamFrameSource _webcam;
     private readonly WindowsHlsFrameSource _network;
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
@@ -26,6 +27,7 @@ internal sealed class WindowsDriveVideoInput : IDriveVideoInput
     public WindowsDriveVideoInput(
         MediaPlayerElement webcamPreview,
         Microsoft.UI.Xaml.Controls.Image networkPreview,
+        IDriveSourceCatalog sourceCatalog,
         string networkStreamUrl,
         Func<int> recognitionFramesPerSecond,
         Func<bool> hasPendingRecognitionFrame,
@@ -33,6 +35,7 @@ internal sealed class WindowsDriveVideoInput : IDriveVideoInput
     {
         _webcamPreview = webcamPreview;
         _networkPreview = networkPreview;
+        _sourceCatalog = sourceCatalog;
         _webcam = new WindowsWebcamFrameSource(
             webcamPreview,
             recognitionFramesPerSecond,
@@ -145,13 +148,11 @@ internal sealed class WindowsDriveVideoInput : IDriveVideoInput
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-        var enabled = configuration.EnabledSources;
-        if (enabled.Count != 1)
-        {
-            throw new NotSupportedException("Windows currently supports one active drive source.");
-        }
-
-        var profile = enabled[0];
+        var plan = DriveInputConfigurationPlanner.Create(
+            configuration,
+            _sourceCapabilities,
+            _sourceCatalog.SupportsMultipleSources);
+        var profile = plan.EnabledSources[0].Profile;
         if (profile.SourceId == DriveInputIds.NetworkLlHls && profile.NetworkUrl is not null)
         {
             SetNetworkStreamUrl(profile.NetworkUrl);
@@ -182,23 +183,21 @@ internal sealed class WindowsDriveVideoInput : IDriveVideoInput
     private async Task InitializeCoreAsync(string preferredCameraId, CancellationToken cancellationToken)
     {
         ThrowIfUnavailable();
-        var webcamChoices = await _webcam.RefreshCameraChoicesAsync(cancellationToken);
-        _cameraChoices = webcamChoices
-            .Append(new CameraChoice(DriveInputIds.NetworkLlHls, "OME LL-HLS stream"))
+        _sourceCapabilities = await _sourceCatalog.DiscoverAsync(cancellationToken);
+        var webcamChoices = _sourceCapabilities
+            .Where(source => source.Kind == DriveSourceKind.LogicalCamera)
+            .Select(source => new CameraChoice(source.Id, source.Name))
             .ToArray();
-        _sourceCapabilities =
-        [
-            .. webcamChoices.Select(choice => new DriveSourceCapability(
-                choice.Id, choice.Name, DriveSourceKind.LogicalCamera, true, choice.Id, null,
-                null, null, null, 1f, 4f, [])),
-            new(DriveInputIds.NetworkLlHls, "OME LL-HLS stream", DriveSourceKind.NetworkLlHls,
-                false, null, null, null, null, null, 1f, 1f, [])
-        ];
+        _webcam.ConfigureCameraChoices(webcamChoices);
+        _cameraChoices = _sourceCapabilities
+            .Where(source => source.Kind is DriveSourceKind.LogicalCamera or DriveSourceKind.NetworkLlHls)
+            .Select(source => new CameraChoice(source.Id, source.Name))
+            .ToArray();
         CameraChoicesChanged?.Invoke(this, _cameraChoices);
 
         await StopSelectedAsync();
         _running = false;
-        if (preferredCameraId == DriveInputIds.NetworkLlHls || webcamChoices.Count == 0)
+        if (preferredCameraId == DriveInputIds.NetworkLlHls || webcamChoices.Length == 0)
         {
             await _webcam.ResetAsync();
             _selectedCameraId = DriveInputIds.NetworkLlHls;

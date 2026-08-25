@@ -32,6 +32,7 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
     private IReadOnlyList<DriveSourceCapability> _sourceCapabilities = [];
     private IReadOnlyList<CameraChoice> _cameraChoices = [new("rear", "Rear cameras - automatic lens")];
     private DriveInputConfiguration _configuration = DriveInputConfiguration.Default;
+    private DriveInputConfigurationPlan? _configurationPlan;
     private string _selectedCameraId = "rear";
     private string _lastViewportSignature = string.Empty;
     private bool _running;
@@ -133,16 +134,10 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
     {
         ArgumentNullException.ThrowIfNull(configuration);
         ObjectDisposedException.ThrowIf(_disposed, this);
-        var enabled = configuration.EnabledSources;
-        if (enabled.Count == 0)
-        {
-            throw new InvalidOperationException("Enable at least one video source.");
-        }
-
-        if (configuration.Mode == DriveInputMode.Single && enabled.Count != 1)
-        {
-            throw new InvalidOperationException("Single-camera mode requires exactly one source.");
-        }
+        var plan = DriveInputConfigurationPlanner.Create(
+            configuration,
+            _sourceCapabilities,
+            _sourceCatalog.SupportsMultipleSources);
 
         await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -153,7 +148,8 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
                 await StopCoreAsync().ConfigureAwait(false);
             }
 
-            _configuration = NormalizeConfiguration(configuration);
+            _configurationPlan = plan;
+            _configuration = plan.Configuration;
             _selectedCameraId = _configuration.Mode == DriveInputMode.Multi
                 ? "multi"
                 : _configuration.EnabledSources[0].SourceId;
@@ -241,13 +237,10 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
 
     private async Task StartCoreAsync(CancellationToken cancellationToken)
     {
-        var integrated = _configuration.EnabledSources
-            .Where(source => FindCapability(source.SourceId)?.IsIntegratedCamera == true)
-            .ToArray();
-        var networkEnabled = _configuration.EnabledSources
-            .Any(source => source.SourceId == DriveInputIds.NetworkLlHls);
+        var integrated = _configurationPlan?.IntegratedSources ?? [];
+        var networkEnabled = _configurationPlan?.NetworkSource is not null;
 
-        if (integrated.Length > 0)
+        if (integrated.Count > 0)
         {
             var cameraPermission = await MainThread.InvokeOnMainThreadAsync(
                 Permissions.RequestAsync<Permissions.Camera>);
@@ -294,12 +287,8 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
 
     private void ConfigureIntegratedSource()
     {
-        var sources = _configuration.EnabledSources
-            .Select(profile => (Capability: FindCapability(profile.SourceId), Profile: profile))
-            .Where(item => item.Capability?.IsIntegratedCamera == true)
-            .Select(item => (Capability: item.Capability!, item.Profile))
-            .ToArray();
-        if (sources.Length == 0)
+        var sources = _configurationPlan?.IntegratedSources ?? [];
+        if (sources.Count == 0)
         {
             return;
         }
@@ -324,20 +313,16 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
     {
         get
         {
-            var integrated = _configuration.EnabledSources
-                .Select(source => FindCapability(source.SourceId))
-                .Where(source => source?.IsIntegratedCamera == true)
-                .ToArray();
-            return integrated.Length == 2
-                && integrated.All(source => source!.Kind == DriveSourceKind.PhysicalCamera)
-                && integrated.Select(source => source!.LogicalCameraId).Distinct().Count() == 1;
+            var integrated = _configurationPlan?.IntegratedSources ?? [];
+            return integrated.Count == 2
+                && integrated.All(source => source.Capability.Kind == DriveSourceKind.PhysicalCamera)
+                && integrated.Select(source => source.Capability.LogicalCameraId).Distinct().Count() == 1;
         }
     }
 
     private void ConfigureNetworkSource()
     {
-        var profile = _configuration.EnabledSources
-            .FirstOrDefault(source => source.SourceId == DriveInputIds.NetworkLlHls);
+        var profile = _configurationPlan?.NetworkSource?.Profile;
         if (profile?.NetworkUrl is not null)
         {
             _network.SetNetworkStreamUrl(profile.NetworkUrl);
@@ -516,34 +501,6 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
                 $"Preview geometry · host {_previewGrid.Width}x{_previewGrid.Height} · {signature}",
                 false));
         }
-    }
-
-    private DriveInputConfiguration NormalizeConfiguration(DriveInputConfiguration configuration)
-    {
-        var profiles = configuration.Sources.Select(profile =>
-        {
-            var capability = FindCapability(profile.SourceId);
-            if (capability is null)
-            {
-                return profile with { Enabled = false };
-            }
-
-            var resolution = capability.Kind == DriveSourceKind.NetworkLlHls
-                ? profile.Resolution
-                : SelectResolution(capability.Resolutions, profile.Resolution);
-            return profile with
-            {
-                Resolution = resolution,
-                Zoom = Math.Clamp(
-                    profile.Zoom,
-                    capability.MinimumZoom,
-                    configuration.Mode == DriveInputMode.Multi && capability.IsIntegratedCamera
-                        ? Math.Min(4f, capability.MaximumZoom)
-                        : capability.MaximumZoom),
-                NetworkUrl = profile.NetworkUrl?.Trim()
-            };
-        }).ToArray();
-        return configuration with { Sources = profiles };
     }
 
     private DriveSourceCapability? FindCapability(string sourceId) =>

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<ContentView x:Class="DeveMobileLPR.App.Controls.DriveInputSelector" x:DataType="vm:DriveViewModel"
+<ContentView x:Class="DeveMobileLPR.App.Controls.DriveInputSelector" x:DataType="vm:DriveViewModel" x:Name="Root"
  xmlns="http://schemas.microsoft.com/dotnet/2021/maui" xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
  xmlns:vm="clr-namespace:DeveMobileLPR.App.ViewModels">
  <VerticalStackLayout Spacing="12">
@@ -8,17 +8,17 @@
    <Switch AutomationId="multi_camera_toggle" Grid.Column="1" IsToggled="{Binding IsMultiCamera}" Toggled="MultiModeToggled" VerticalOptions="Center" />
   </Grid>
   <VerticalStackLayout IsVisible="{Binding IsSingleCamera}" Spacing="10">
-   <VerticalStackLayout Spacing="3"><Label Style="{StaticResource FieldCaption}" Text="Video source" /><Picker AutomationId="single_source_picker" ItemDisplayBinding="{Binding Name}" ItemsSource="{Binding SingleSources}" SelectedItem="{Binding SelectedSingleSource}" Title="Select camera or stream" /></VerticalStackLayout>
-   <Border x:DataType="{x:Null}" BindingContext="{Binding SelectedSingleSource}" Padding="12" Style="{StaticResource DriveControlCard}">
-    <VerticalStackLayout Spacing="8">
-     <Label FontSize="11" Text="{Binding Metadata}" TextColor="{DynamicResource TextSecondary}" />
-     <Grid ColumnDefinitions="*,150" ColumnSpacing="12">
-      <VerticalStackLayout IsVisible="{Binding HasSelectableResolutions}" Spacing="3"><Label Style="{StaticResource FieldCaption}" Text="Resolution" /><Picker ItemsSource="{Binding Resolutions}" SelectedItem="{Binding SelectedResolution}" /></VerticalStackLayout>
-      <VerticalStackLayout Grid.Column="1" IsVisible="{Binding IsIntegratedCamera}" Spacing="3"><Grid ColumnDefinitions="*,Auto"><Label Style="{StaticResource FieldCaption}" Text="Zoom" /><Label Grid.Column="1" FontAttributes="Bold" Text="{Binding ZoomLabel}" TextColor="{DynamicResource Primary}" /></Grid><Slider Maximum="{Binding MaximumZoom}" Minimum="{Binding MinimumZoom}" Value="{Binding Zoom}" /></VerticalStackLayout>
-     </Grid>
-     <VerticalStackLayout IsVisible="{Binding IsNetwork}" Spacing="3"><Label Style="{StaticResource FieldCaption}" Text="LL-HLS playlist URL" /><Entry AutomationId="single_network_stream_url" ClearButtonVisibility="WhileEditing" Keyboard="Url" Placeholder="https://media.example/live/camera/llhls.m3u8" Text="{Binding NetworkUrl}" /></VerticalStackLayout>
-    </VerticalStackLayout>
-   </Border>
+    <VerticalStackLayout Spacing="3"><Label Style="{StaticResource FieldCaption}" Text="Video source" /><Picker AutomationId="single_source_picker" ItemDisplayBinding="{Binding Name, x:DataType=vm:DriveSourceOptionViewModel}" ItemsSource="{Binding SingleSources}" SelectedItem="{Binding SelectedSingleSource}" Title="Select camera or stream" /></VerticalStackLayout>
+    <Border Padding="12" Style="{StaticResource DriveControlCard}">
+     <VerticalStackLayout Spacing="8">
+      <Label FontSize="11" Text="{Binding SelectedSingleSource.Metadata}" TextColor="{DynamicResource TextSecondary}" />
+      <Grid ColumnDefinitions="*,150" ColumnSpacing="12">
+       <VerticalStackLayout IsVisible="{Binding SelectedSingleSource.HasSelectableResolutions}" Spacing="3"><Label Style="{StaticResource FieldCaption}" Text="Resolution" /><Picker ItemsSource="{Binding SelectedSingleSource.Resolutions}" SelectedItem="{Binding SelectedSingleSource.SelectedResolution}" /></VerticalStackLayout>
+       <VerticalStackLayout Grid.Column="1" IsVisible="{Binding SelectedSingleSource.IsIntegratedCamera}" Spacing="3"><Grid ColumnDefinitions="*,Auto"><Label Style="{StaticResource FieldCaption}" Text="Zoom" /><Label Grid.Column="1" FontAttributes="Bold" Text="{Binding SelectedSingleSource.ZoomLabel}" TextColor="{DynamicResource Primary}" /></Grid><Slider Maximum="{Binding SelectedSingleSource.MaximumZoom}" Minimum="{Binding SelectedSingleSource.MinimumZoom}" Value="{Binding SelectedSingleSource.Zoom}" /></VerticalStackLayout>
+      </Grid>
+      <VerticalStackLayout IsVisible="{Binding SelectedSingleSource.IsNetwork}" Spacing="3"><Label Style="{StaticResource FieldCaption}" Text="LL-HLS playlist URL" /><Entry AutomationId="single_network_stream_url" ClearButtonVisibility="WhileEditing" Keyboard="Url" Placeholder="https://media.example/live/camera/llhls.m3u8" Text="{Binding SelectedSingleSource.NetworkUrl}" /></VerticalStackLayout>
+     </VerticalStackLayout>
+    </Border>
   </VerticalStackLayout>
   <VerticalStackLayout x:Name="MultiPanel" IsVisible="{Binding IsMultiCamera}" Opacity="1" Spacing="10">
    <Border BackgroundColor="#332815" Padding="10" Stroke="#F5C542" StrokeThickness="1"><Label FontSize="12" Text="{Binding MultiCameraWarning}" TextColor="#FFD96A" /></Border>

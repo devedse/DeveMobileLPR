@@ -10,6 +10,7 @@ internal sealed class AppLogService : IApplicationLog
     private static readonly object Gate = new();
     private static readonly Queue<string> Recent = new();
     private static string? _path;
+    private static bool _globalExceptionHandlersRegistered;
 
     public static event EventHandler? Changed;
 
@@ -17,6 +18,13 @@ internal sealed class AppLogService : IApplicationLog
     {
         lock (Gate)
         {
+            if (!_globalExceptionHandlersRegistered)
+            {
+                AppDomain.CurrentDomain.UnhandledException += GlobalUnhandledException;
+                TaskScheduler.UnobservedTaskException += UnobservedTaskException;
+                _globalExceptionHandlersRegistered = true;
+            }
+
             if (_path is not null)
             {
                 return;
@@ -46,6 +54,17 @@ internal sealed class AppLogService : IApplicationLog
 
     public static void RecordCrash(Exception exception) =>
         WriteCore("CRASH", exception.ToString(), true);
+
+    private static void GlobalUnhandledException(object sender, UnhandledExceptionEventArgs args)
+    {
+        if (args.ExceptionObject is Exception exception)
+        {
+            RecordCrash(exception);
+        }
+    }
+
+    private static void UnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs args) =>
+        RecordCrash(args.Exception);
 
     public void Write(string category, string message, bool isError = false) =>
         WriteCore(category, message, isError);

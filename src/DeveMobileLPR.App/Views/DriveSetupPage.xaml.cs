@@ -18,7 +18,17 @@ public partial class DriveSetupPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        await _viewModel.InitializeAsync();
+        try
+        {
+            await _viewModel.InitializeAsync();
+        }
+        catch (Exception exception)
+        {
+            await DisplayAlertAsync(
+                "Could not prepare drive",
+                exception.Message,
+                "OK");
+        }
     }
 
     private async void StartDriveClicked(object? sender, EventArgs args)

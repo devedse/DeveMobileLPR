@@ -415,8 +415,10 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
             && !_backgroundScanning.HasRequiredPermissions
             && !await _backgroundScanning.RequestPermissionsAsync())
         {
-            throw new UnauthorizedAccessException(
-                "Camera access is required to continue recognition in the background.");
+            // Permission denial only disables the optional background mode. Foreground scanning
+            // still gets its normal camera-permission flow from the active platform adapter.
+            _settings.ContinueScanningInBackground = false;
+            keepRunning = false;
         }
 
         try
