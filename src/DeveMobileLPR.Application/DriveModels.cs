@@ -17,7 +17,10 @@ public sealed record DriveOverlay(
     string Title,
     string Detail,
     float Confidence,
-    DriveOverlayKind Kind);
+    DriveOverlayKind Kind)
+{
+    public string SourceId { get; init; } = string.Empty;
+}
 
 /// <summary>
 /// Overlay classes in draw order: later members are drawn on top of earlier ones.
@@ -42,15 +45,32 @@ public enum DriveOverlayKind
 
 public sealed record DriveIntervalDiagnostics(string Label, double? IntervalMilliseconds);
 
+public sealed record DriveSourceRecognitionDiagnostics(
+    string SourceId,
+    string SourceName,
+    RecognitionStreamDiagnostics Diagnostics)
+{
+    public double TotalMilliseconds => Diagnostics.TotalMilliseconds;
+    public string ResultSummary =>
+        $"{Diagnostics.Frame.DetectionCount} detected · {Diagnostics.Frame.OcrAttemptCount} read · {Diagnostics.Frame.ObservationCount} accepted";
+}
+
 public sealed record DriveDiagnosticsSnapshot(
     DriveIntervalDiagnostics Source,
     DriveIntervalDiagnostics Preview,
-    RecognitionStreamDiagnostics? Recognition)
+    RecognitionStreamDiagnostics? Recognition,
+    IReadOnlyList<DriveSourceRecognitionDiagnostics> RecognitionSources)
 {
     public static DriveDiagnosticsSnapshot Empty { get; } = new(
         new("Capture interval", null),
         new("Preview interval", null),
-        null);
+        null,
+        []);
+
+    public RecognitionStreamDiagnostics? SlowestRecognition => RecognitionSources
+        .OrderByDescending(source => source.TotalMilliseconds)
+        .Select(source => source.Diagnostics)
+        .FirstOrDefault() ?? Recognition;
 
     public DriveDiagnosticsSnapshot WithSourceLabel(string label) =>
         this with { Source = Source with { Label = label } };
@@ -71,9 +91,14 @@ public sealed record DriveSnapshot(
     IReadOnlyList<DriveOverlay> Overlays,
     bool HasLocation,
     bool IsInputReady,
+    bool IsInputTransitioning,
+    long InputGeneration,
     bool SupportsNetworkStreams,
     IReadOnlyList<CameraChoice> CameraChoices,
     string SelectedCameraId,
     bool TrackingDiagnosticsEnabled,
     bool RecognitionStatisticsEnabled,
-    bool ShowRoadGuide);
+    bool ShowDriveEventLog,
+    bool ShowRoadGuide,
+    IReadOnlyList<string>? EventLog = null,
+    IReadOnlyList<string>? ActiveSourceIds = null);

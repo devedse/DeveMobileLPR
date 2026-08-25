@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage
+    x:Class="DeveMobileLPR.App.Views.DriveSetupPage"
+    x:DataType="vm:DriveViewModel"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:controls="clr-namespace:DeveMobileLPR.App.Controls"
+    xmlns:vm="clr-namespace:DeveMobileLPR.App.ViewModels">
+    <Grid RowDefinitions="Auto,*,Auto" Style="{StaticResource PageGrid}">
+        <controls:PageHeader Eyebrow="Private · on-device" IsBusy="{Binding IsInitializing}" Title="Drive setup" />
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Spacing="18">
+                <VerticalStackLayout Spacing="5">
+                    <Label FontAttributes="Bold" FontSize="26" Text="Choose your video inputs" />
+                    <Label Style="{StaticResource SecondaryText}" Text="The cameras stay closed on this screen. They open only after you start the drive." />
+                </VerticalStackLayout>
+                <controls:DriveInputSelector />
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="16">
+            <Label FontSize="12" Text="{Binding Status}" TextColor="{Binding StatusColor}" VerticalOptions="Center" />
+            <Button
+                AutomationId="start_drive_button"
+                Clicked="StartDriveClicked"
+                Grid.Column="1"
+                IsEnabled="{Binding CanStart}"
+                Text="{Binding StartButtonText}"
+                WidthRequest="220" />
+        </Grid>
+    </Grid>
+</ContentPage>

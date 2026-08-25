@@ -15,8 +15,10 @@ public interface IDriveSettings
     int RecognitionFramesPerSecond { get; set; }
     bool TrackingDiagnosticsEnabled { get; set; }
     bool RecognitionStatisticsEnabled { get; set; }
+    bool ShowDriveEventLog { get; set; }
     bool ShowRoadGuide { get; set; }
     string NetworkStreamUrl { get; set; }
+    DriveInputConfiguration InputConfiguration { get; set; }
 }
 
 public enum KnownVehicleSound
@@ -56,7 +58,17 @@ public interface IRecognitionPipelineProvider
         CancellationToken cancellationToken);
 }
 
-public sealed record DriveInputDiagnostic(string Message, bool IsError = false);
+public sealed record DriveInputDiagnostic(
+    string Message,
+    bool IsError = false,
+    bool ClearsError = false);
+
+public interface IApplicationLog
+{
+    void Write(string category, string message, bool isError = false);
+    IReadOnlyList<string> ReadRecent();
+    void Clear();
+}
 
 public interface IDriveVideoInput : IDriveFrameSourceTelemetry, IAsyncDisposable
 {
@@ -67,6 +79,7 @@ public interface IDriveVideoInput : IDriveFrameSourceTelemetry, IAsyncDisposable
     string SelectedCameraId { get; }
     bool IsReady { get; }
     bool SupportsNetworkStreams { get; }
+    IReadOnlyList<DriveSourceCapability> SourceCapabilities { get; }
 
     Task InitializeAsync(string preferredCameraId, CancellationToken cancellationToken = default);
     Task StartAsync(CancellationToken cancellationToken = default);
@@ -74,6 +87,9 @@ public interface IDriveVideoInput : IDriveFrameSourceTelemetry, IAsyncDisposable
     Task SelectCameraAsync(string cameraId, CancellationToken cancellationToken = default);
     void SetZoom(float zoomRatio);
     void SetNetworkStreamUrl(string value);
+    Task ApplyConfigurationAsync(
+        DriveInputConfiguration configuration,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IDriveFrameSourceTelemetry

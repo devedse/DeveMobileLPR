@@ -7,11 +7,13 @@ public partial class SettingsPage : ContentPage
     private const double PairedCardMinimumWidth = 656;
     private const double RdwSideBySideMinimumWidth = 466;
     private readonly SettingsViewModel _viewModel;
+    private readonly Services.AppLogService _appLog;
 
-    internal SettingsPage(SettingsViewModel viewModel)
+    internal SettingsPage(SettingsViewModel viewModel, Services.AppLogService appLog)
     {
         InitializeComponent();
         BindingContext = _viewModel = viewModel;
+        _appLog = appLog;
     }
 
     protected override async void OnAppearing()
@@ -28,6 +30,19 @@ public partial class SettingsPage : ContentPage
 
     private void OpenPermissionsClicked(object? sender, EventArgs args) => _viewModel.OpenAppSettings();
 
+    private async void OpenAppLogsClicked(object? sender, EventArgs args) =>
+        await Navigation.PushModalAsync(new NavigationPage(new AppLogsPage(_appLog)));
+
+    private async void CameraCapabilitiesClicked(object? sender, EventArgs args)
+    {
+#if ANDROID
+        await Navigation.PushModalAsync(new NavigationPage(
+            new Platforms.Android.Camera.CameraCapabilitiesPage()));
+#else
+        await Task.CompletedTask;
+#endif
+    }
+
     private async void BackgroundScanningToggled(object? sender, ToggledEventArgs args)
     {
         if (args.Value && !await _viewModel.PrepareBackgroundScanningAsync())
@@ -43,6 +58,49 @@ public partial class SettingsPage : ContentPage
     {
         var path = await _viewModel.CreateExportAsync();
         await Share.Default.RequestAsync(new ShareFileRequest("DeveMobileLPR history export", new ShareFile(path)));
+    }
+
+    private async void BackupClicked(object? sender, EventArgs args)
+    {
+        var path = await _viewModel.CreateBackupAsync();
+        if (path is not null)
+        {
+            await Share.Default.RequestAsync(new ShareFileRequest(
+                "DeveMobileLPR history backup",
+                new ShareFile(path)));
+        }
+    }
+
+    private async void ImportBackupClicked(object? sender, EventArgs args)
+    {
+        var file = await FilePicker.Default.PickAsync(new PickOptions
+        {
+            PickerTitle = "Select a DeveMobileLPR backup ZIP"
+        });
+        if (file is null)
+        {
+            return;
+        }
+
+        var manifest = await _viewModel.InspectBackupAsync(file);
+        if (manifest is null)
+        {
+            return;
+        }
+
+        var confirmed = await DisplayAlertAsync(
+            "Replace current history?",
+            $"Backup from {manifest.CreatedAtUtc.ToLocalTime():g}\n" +
+            $"App {manifest.AppVersion} ({manifest.AppBuild})\n\n" +
+            $"{manifest.TripCount} trips · {manifest.SightingCount} sightings · " +
+            $"{manifest.TripPointCount} route points · {manifest.VehicleSnapshotCount} screenshots\n\n" +
+            "This replaces all current trip history and screenshots. RDW data and preferences are kept.",
+            "Import",
+            "Cancel");
+        if (confirmed)
+        {
+            await _viewModel.ImportBackupAsync(file);
+        }
     }
 
     private async void DeleteClicked(object? sender, EventArgs args)

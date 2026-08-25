@@ -7,39 +7,60 @@ public partial class DrivePage : ContentPage
 {
     private readonly DriveViewModel _viewModel;
     private readonly IDriveDisplayMode _displayMode;
+    private bool _closing;
 
     internal DrivePage(DriveViewModel viewModel, IDriveDisplayMode displayMode)
     {
         InitializeComponent();
         BindingContext = _viewModel = viewModel;
         _displayMode = displayMode;
-        _viewModel.DriveModeChanged += DriveModeChanged;
-        SizeChanged += PageSizeChanged;
     }
 
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        ApplyDriveMode(_viewModel.IsDriving);
-        await _viewModel.InitializeAsync();
+        _viewModel.DriveModeChanged += DriveModeChanged;
+        ApplyDriveMode(true);
+        try
+        {
+            await _viewModel.InitializeAsync();
+            var inputGeneration = await PreviewPresenter.WaitForInputGenerationAsync(TimeSpan.FromSeconds(15));
+            await _viewModel.StartDriveAsync(inputGeneration);
+        }
+        catch (TimeoutException)
+        {
+            // The view model will remain stopped and this modal will close. A subsequent start is
+            // safe because it will receive a new handler generation instead of reusing this page.
+        }
+        catch (Exception exception)
+        {
+            await DisplayAlertAsync(
+                "Could not start drive",
+                exception.Message,
+                "OK");
+        }
+        finally
+        {
+            if (!_viewModel.IsDriving)
+            {
+                await CloseOnceAsync();
+            }
+        }
     }
 
-    private void DriveModeChanged(object? sender, bool isDriving) => ApplyDriveMode(isDriving);
-
-    private void PageSizeChanged(object? sender, EventArgs args)
+    protected override void OnDisappearing()
     {
-        if (Width <= 0 || Height <= 0)
-        {
-            return;
-        }
+        _viewModel.DriveModeChanged -= DriveModeChanged;
+        base.OnDisappearing();
+    }
 
-        var compactLandscape = Width > Height;
-        ReadyPortraitContent.IsVisible = !compactLandscape;
-        ReadyLandscapeContent.IsVisible = compactLandscape;
-        ReadyPanel.MaximumWidthRequest = compactLandscape ? 900 : 570;
-        ReadyPanel.Padding = compactLandscape ? new Thickness(24, 16) : new Thickness(30);
-        ReadyPanel.VerticalOptions = LayoutOptions.Center;
-        ReadyPanel.Margin = compactLandscape ? new Thickness(26, 4) : Thickness.Zero;
+    private async void DriveModeChanged(object? sender, bool isDriving)
+    {
+        ApplyDriveMode(isDriving);
+        if (!isDriving)
+        {
+            await CloseOnceAsync();
+        }
     }
 
     private void DriveMiddleAreaSizeChanged(object? sender, EventArgs args)
@@ -54,5 +75,48 @@ public partial class DrivePage : ContentPage
     {
         Shell.SetTabBarIsVisible(this, !isDriving);
         _displayMode.Apply(isDriving);
+    }
+
+    protected override bool OnBackButtonPressed()
+    {
+        _ = StopAndCloseAsync();
+        return true;
+    }
+
+    private async Task StopAndCloseAsync()
+    {
+        if (_viewModel.IsStopping)
+        {
+            return;
+        }
+
+        if (_viewModel.IsDriving)
+        {
+            _viewModel.ToggleDriveCommand.Execute(null);
+            return;
+        }
+
+        await CloseOnceAsync();
+    }
+
+    private async Task CloseOnceAsync()
+    {
+        if (_closing)
+        {
+            return;
+        }
+
+        _closing = true;
+        try
+        {
+            if (Navigation.ModalStack.Contains(this))
+            {
+                await Navigation.PopModalAsync();
+            }
+        }
+        finally
+        {
+            _closing = false;
+        }
     }
 }

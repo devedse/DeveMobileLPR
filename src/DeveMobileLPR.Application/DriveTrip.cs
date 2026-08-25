@@ -30,7 +30,8 @@ internal sealed class DriveTrip(long tripId, DateTimeOffset startedAt, IDriveLoc
     public IDriveLocationTracker Location { get; } = location;
 
     public ConfirmedOverlayTracker ConfirmedPlates { get; } = new(() => DateTimeOffset.UtcNow);
-    public IReadOnlyList<DriveOverlay> LiveOverlays { get; set; } = [];
+    private readonly Dictionary<string, IReadOnlyList<DriveOverlay>> _liveOverlaysBySource = new(StringComparer.Ordinal);
+    public IReadOnlyList<DriveOverlay> LiveOverlays => _liveOverlaysBySource.Values.SelectMany(static value => value).ToArray();
     public Sighting? MostExpensive { get; private set; }
     public int UniqueVehicleCount => _uniqueVehicles.Count;
 
@@ -74,10 +75,13 @@ internal sealed class DriveTrip(long tripId, DateTimeOffset startedAt, IDriveLoc
 
     public IReadOnlyList<Sighting> RecentSightings() => _recentSightings.ToArray();
 
+    public void SetLiveOverlays(string sourceId, IReadOnlyList<DriveOverlay> overlays) =>
+        _liveOverlaysBySource[sourceId] = overlays;
+
     /// <summary>Clears what is drawn without ending the trip, for a mid-drive input change.</summary>
     public void ClearOverlays()
     {
-        LiveOverlays = [];
+        _liveOverlaysBySource.Clear();
         ConfirmedPlates.Clear();
     }
 
