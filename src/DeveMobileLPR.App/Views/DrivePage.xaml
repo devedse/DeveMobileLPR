@@ -120,5 +120,15 @@
                 </Border>
             </Grid>
         </Grid>
+        <Border
+            BackgroundColor="#E61B1F26"
+            HorizontalOptions="Center"
+            IsVisible="{Binding HasTransientMessage}"
+            Padding="18,12"
+            Stroke="{DynamicResource Primary}"
+            StrokeThickness="1"
+            VerticalOptions="Center">
+            <Label FontAttributes="Bold" Text="{Binding TransientMessage}" TextColor="White" />
+        </Border>
     </Grid>
 </ContentPage>

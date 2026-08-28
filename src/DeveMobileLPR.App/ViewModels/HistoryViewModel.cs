@@ -7,16 +7,43 @@ using DeveMobileLPR.Recognition;
 
 namespace DeveMobileLPR.App.ViewModels;
 
-internal sealed record TripCardViewModel(
-    long Id,
-    string Day,
-    string Time,
-    string Duration,
-    string Distance,
-    string VehicleCount,
-    string SightingCount,
-    string Highlight,
-    string HighlightPlate);
+internal sealed class TripCardViewModel(
+    long id,
+    string day,
+    string time,
+    string duration,
+    string distance,
+    string vehicleCount,
+    string sightingCount,
+    string highlight,
+    string highlightPlate,
+    Action<TripCardViewModel, bool> selectionChanged) : ViewModelBase
+{
+    private bool _isSelected;
+    private bool _isSelectionMode;
+    public long Id { get; } = id;
+    public string Day { get; } = day;
+    public string Time { get; } = time;
+    public string Duration { get; } = duration;
+    public string Distance { get; } = distance;
+    public string VehicleCount { get; } = vehicleCount;
+    public string SightingCount { get; } = sightingCount;
+    public string Highlight { get; } = highlight;
+    public string HighlightPlate { get; } = highlightPlate;
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set
+        {
+            if (SetProperty(ref _isSelected, value)) selectionChanged(this, value);
+        }
+    }
+    public bool IsSelectionMode
+    {
+        get => _isSelectionMode;
+        set => SetProperty(ref _isSelectionMode, value);
+    }
+}
 
 internal sealed record VehicleCardViewModel(
     string NormalizedPlate,
@@ -60,6 +87,8 @@ internal sealed class HistoryViewModel : ViewModelBase
     private string _selectedVehicleSort = MostRecent;
     private bool _hasMoreTrips;
     private bool _hasMoreVehicles;
+    private bool _isTripSelectionMode;
+    private bool _suppressTripSelectionCallback;
     private int _vehicleQueryVersion;
     private CancellationTokenSource? _searchCancellation;
 
@@ -101,6 +130,20 @@ internal sealed class HistoryViewModel : ViewModelBase
     public bool ShowVehicles => _selectedSection == HistorySection.Vehicles;
     public bool ShowTripsEmpty => ShowTrips && !IsBusy && Trips.Count == 0;
     public bool ShowVehiclesEmpty => ShowVehicles && !IsBusy && Vehicles.Count == 0;
+    public bool IsTripSelectionMode
+    {
+        get => _isTripSelectionMode;
+        private set
+        {
+            if (SetProperty(ref _isTripSelectionMode, value))
+            {
+                foreach (var trip in Trips) trip.IsSelectionMode = value;
+            }
+        }
+    }
+    public int SelectedTripCount => Trips.Count(trip => trip.IsSelected);
+    public bool CanRemoveTrips => SelectedTripCount > 0;
+    public string RemoveTripsText => $"Remove {SelectedTripCount} {(SelectedTripCount == 1 ? "trip" : "trips")}";
     public string TodayTrips { get => _todayTrips; private set => SetProperty(ref _todayTrips, value); }
     public string TodayUnique { get => _todayUnique; private set => SetProperty(ref _todayUnique, value); }
     public string TodayDistance { get => _todayDistance; private set => SetProperty(ref _todayDistance, value); }
@@ -158,6 +201,7 @@ internal sealed class HistoryViewModel : ViewModelBase
             TodayTopValue = DisplayFormat.CompactPrice(today.MostExpensiveSighting?.Vehicle?.CatalogPrice);
             TodayTopPlate = today.MostExpensiveSighting?.DisplayPlate ?? "No valued car yet";
 
+            ClearTripSelection();
             Trips.Clear();
             AppendTrips(tripsTask.Result);
             SetHasMoreTrips(tripsTask.Result.Count == PageSize);
@@ -258,8 +302,62 @@ internal sealed class HistoryViewModel : ViewModelBase
                 $"{trip.UniqueVehicleCount} unique",
                 $"{trip.SightingCount} confirmed",
                 DisplayFormat.CompactPrice(trip.MostExpensiveCatalogPrice),
-                trip.MostExpensiveDisplayPlate ?? "No RDW value"));
+                trip.MostExpensiveDisplayPlate ?? "No RDW value",
+                TripSelectionChanged));
         }
+    }
+
+    public void BeginTripSelection(TripCardViewModel trip)
+    {
+        IsTripSelectionMode = true;
+        trip.IsSelected = true;
+    }
+
+    public void ToggleTripSelection(TripCardViewModel trip)
+    {
+        if (IsTripSelectionMode) trip.IsSelected = !trip.IsSelected;
+    }
+
+    public void ClearTripSelection()
+    {
+        _suppressTripSelectionCallback = true;
+        try
+        {
+            foreach (var trip in Trips)
+            {
+                trip.IsSelected = false;
+                trip.IsSelectionMode = false;
+            }
+        }
+        finally
+        {
+            _suppressTripSelectionCallback = false;
+        }
+        IsTripSelectionMode = false;
+        NotifyTripSelectionChanged();
+    }
+
+    public async Task<DeletedTrips> DeleteSelectedTripsAsync()
+    {
+        var ids = Trips.Where(trip => trip.IsSelected).Select(trip => trip.Id).ToArray();
+        if (ids.Length == 0) return new DeletedTrips(0, 0, []);
+        var deleted = await _coordinator.DeleteTripsAsync(ids);
+        await LoadAsync();
+        return deleted;
+    }
+
+    private void TripSelectionChanged(TripCardViewModel trip, bool selected)
+    {
+        if (_suppressTripSelectionCallback) return;
+        if (selected && !IsTripSelectionMode) IsTripSelectionMode = true;
+        NotifyTripSelectionChanged();
+    }
+
+    private void NotifyTripSelectionChanged()
+    {
+        OnPropertyChanged(nameof(SelectedTripCount));
+        OnPropertyChanged(nameof(CanRemoveTrips));
+        OnPropertyChanged(nameof(RemoveTripsText));
     }
 
     private void SetHasMoreTrips(bool value)
@@ -289,6 +387,7 @@ internal sealed class HistoryViewModel : ViewModelBase
             return;
         }
 
+        ClearTripSelection();
         _selectedSection = section;
         OnPropertyChanged(nameof(ShowDashboard));
         OnPropertyChanged(nameof(ShowTrips));

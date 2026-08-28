@@ -47,6 +47,7 @@ public interface IVehicleImageStore
         CancellationToken cancellationToken);
 
     string? ResolvePath(string? reference);
+    Task DeleteAsync(string reference, CancellationToken cancellationToken);
     Task DeleteAllAsync(CancellationToken cancellationToken);
 }
 

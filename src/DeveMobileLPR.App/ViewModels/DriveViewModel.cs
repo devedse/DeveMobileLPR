@@ -20,6 +20,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     private bool _isMultiCamera;
     private DriveSourceOptionViewModel? _selectedSingleSource;
     private string _inputConfigurationError = string.Empty;
+    private string _transientMessage = string.Empty;
 
     public DriveViewModel(
         DriveCoordinator coordinator,
@@ -36,6 +37,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         _zoom = settings.Zoom;
         ToggleDriveCommand = new AsyncCommand(ToggleDriveAsync);
         _coordinator.SnapshotChanged += SnapshotChanged;
+        _coordinator.ShortEmptyTripDiscarded += ShortEmptyTripDiscarded;
         _durationTimer = new Timer(_ => MainThread.BeginInvokeOnMainThread(() => OnPropertyChanged(nameof(Duration))), null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
         ApplySnapshot(_snapshot);
     }
@@ -138,6 +140,18 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         : "Keep the road area inside the guide";
     public string LatestPrice => HasLatest ? DisplayFormat.Price(_snapshot.RecentSightings[0].Vehicle?.CatalogPrice) : "—";
     public string TopValue => _snapshot.MostExpensive is null ? "—" : DisplayFormat.CompactPrice(_snapshot.MostExpensive.Vehicle?.CatalogPrice);
+    public string TransientMessage
+    {
+        get => _transientMessage;
+        private set
+        {
+            if (SetProperty(ref _transientMessage, value))
+            {
+                OnPropertyChanged(nameof(HasTransientMessage));
+            }
+        }
+    }
+    public bool HasTransientMessage => !string.IsNullOrEmpty(TransientMessage);
 
     public double Zoom
     {
@@ -460,6 +474,11 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         }
     }
 
+    private void ShortEmptyTripDiscarded(object? sender, EventArgs args) =>
+        TransientMessage = "Trip not saved — too short and no scans.";
+
+    public void ClearTransientMessage() => TransientMessage = string.Empty;
+
     private void ApplySnapshot(DriveSnapshot snapshot)
     {
         foreach (var property in new[]
@@ -498,6 +517,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         _coordinator.SnapshotChanged -= SnapshotChanged;
+        _coordinator.ShortEmptyTripDiscarded -= ShortEmptyTripDiscarded;
         _durationTimer.Dispose();
     }
 }

@@ -116,6 +116,17 @@ public sealed class VehicleImageStore : IVehicleImageStore
         return Task.CompletedTask;
     }
 
+    public Task DeleteAsync(string reference, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var path = ResolvePath(reference);
+        if (path is not null)
+        {
+            File.Delete(path);
+        }
+        return Task.CompletedTask;
+    }
+
     private static void FillSnapshotRgb(
         Yuv420Frame frame,
         BoundingBox plateBounds,

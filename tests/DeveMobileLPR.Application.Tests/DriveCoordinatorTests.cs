@@ -10,6 +10,27 @@ namespace DeveMobileLPR.Application.Tests;
 public sealed class DriveCoordinatorTests
 {
     [Fact]
+    public async Task ShortTripWithoutSightingsIsDiscardedAndReported()
+    {
+        var repository = new FakeRepository();
+        var input = new TestVideoInput();
+        await using var coordinator = await CreateCoordinatorAsync(
+            repository,
+            input,
+            new TestLocationFactory(),
+            new TestDeviceExperience());
+        var reported = 0;
+        coordinator.ShortEmptyTripDiscarded += (_, _) => reported++;
+
+        await coordinator.InitializeAsync();
+        await coordinator.StartDriveAsync();
+        await coordinator.StopDriveAsync();
+
+        Assert.Equal(1, repository.DeletedTripCount);
+        Assert.Equal(1, reported);
+    }
+
+    [Fact]
     public async Task LiveZoomIsAppliedAndPersistedInTheSelectedSourceProfile()
     {
         var settings = new TestSettings();
@@ -872,6 +893,7 @@ public sealed class DriveCoordinatorTests
             return Task.FromResult($"vehicle-snapshots/{sightingId}.jpg");
         }
         public string? ResolvePath(string? reference) => null;
+        public Task DeleteAsync(string reference, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task DeleteAllAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
@@ -895,6 +917,7 @@ public sealed class DriveCoordinatorTests
         public int InitializeCount { get; private set; }
         public int StartTripCount { get; private set; }
         public int EndTripCount { get; private set; }
+        public int DeletedTripCount { get; private set; }
         public int ReviseCount { get; private set; }
         public int SetSnapshotReferenceCount { get; private set; }
         public Task InitializeAsync(CancellationToken cancellationToken) { InitializeCount++; return Task.CompletedTask; }
@@ -970,6 +993,11 @@ public sealed class DriveCoordinatorTests
         public Task<IReadOnlyList<Sighting>> GetAllSightingsAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Sighting>>([]);
         public Task<IReadOnlyList<Sighting>> FindByPlateAsync(string normalizedPlate, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Sighting>>([]);
         public Task<Sighting?> GetMostExpensiveAsync(CancellationToken cancellationToken) => Task.FromResult<Sighting?>(null);
+        public Task<DeletedTrips> DeleteTripsAsync(IReadOnlyCollection<long> tripIds, CancellationToken cancellationToken)
+        {
+            DeletedTripCount += tripIds.Count;
+            return Task.FromResult(new DeletedTrips(tripIds.Count, 0, []));
+        }
         public Task DeleteHistoryAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         private static TripSummary Trip(long id, DateTimeOffset start, DateTimeOffset? end) =>
             new(id, start, end, 0, 0, 0, null, null, null, null);

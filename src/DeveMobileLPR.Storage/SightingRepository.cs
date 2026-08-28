@@ -519,6 +519,42 @@ public sealed class SightingRepository : ISightingRepository
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<DeletedTrips> DeleteTripsAsync(
+        IReadOnlyCollection<long> tripIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(tripIds);
+        var ids = tripIds.Where(id => id > 0).Distinct().ToArray();
+        if (ids.Length == 0)
+        {
+            return new DeletedTrips(0, 0, []);
+        }
+
+        await using var context = _contexts.CreateDbContext();
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        var snapshots = await context.Sightings
+            .Where(sighting => sighting.TripId != null && ids.Contains(sighting.TripId.Value))
+            .Where(sighting => sighting.SnapshotReference != null)
+            .Select(sighting => sighting.SnapshotReference!)
+            .Distinct()
+            .ToArrayAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var sightingCount = await context.Sightings
+            .Where(sighting => sighting.TripId != null && ids.Contains(sighting.TripId.Value))
+            .ExecuteDeleteAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await context.TripPoints
+            .Where(point => ids.Contains(point.TripId))
+            .ExecuteDeleteAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var tripCount = await context.Trips
+            .Where(trip => ids.Contains(trip.Id))
+            .ExecuteDeleteAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return new DeletedTrips(tripCount, sightingCount, snapshots);
+    }
+
     /// <summary>
     /// Reduces a candidate set to one row per plate: the most recent one, with the row identifier
     /// breaking ties. Expressed as "no other candidate is newer" so SQLite runs a single NOT EXISTS.

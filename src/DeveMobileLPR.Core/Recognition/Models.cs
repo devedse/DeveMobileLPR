@@ -280,6 +280,11 @@ public sealed record HistoryStatistics(
     double DistanceMeters,
     Sighting? MostExpensiveSighting);
 
+public sealed record DeletedTrips(
+    int TripCount,
+    int SightingCount,
+    IReadOnlyList<string> SnapshotReferences);
+
 public interface IPlateDetector
 {
     ValueTask<PlateDetectionResult> DetectAsync(
@@ -336,5 +341,6 @@ public interface ISightingRepository
     Task<IReadOnlyList<Sighting>> GetAllSightingsAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<Sighting>> FindByPlateAsync(string normalizedPlate, CancellationToken cancellationToken);
     Task<Sighting?> GetMostExpensiveAsync(CancellationToken cancellationToken);
+    Task<DeletedTrips> DeleteTripsAsync(IReadOnlyCollection<long> tripIds, CancellationToken cancellationToken);
     Task DeleteHistoryAsync(CancellationToken cancellationToken);
 }

@@ -278,6 +278,33 @@ public sealed class SightingRepositoryTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task DeleteTrips_RemovesOnlySelectedTripsTheirSightingsAndRoutePoints()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var deletedTrip = await _repository.StartTripAsync(now, null, CancellationToken.None);
+        var keptTrip = await _repository.StartTripAsync(now.AddHours(1), null, CancellationToken.None);
+        var deletedSighting = await _repository.AddOrMergeAsync(
+            Confirmed("AB1234", now, 3), null, null, deletedTrip.Id, CancellationToken.None);
+        await _repository.SetSnapshotReferenceAsync(
+            deletedSighting.Id, "vehicle-snapshots/deleted.jpg", CancellationToken.None);
+        await _repository.AddOrMergeAsync(
+            Confirmed("CD5678", now.AddHours(1), 3), null, null, keptTrip.Id, CancellationToken.None);
+        await _repository.AddTripPointAsync(
+            deletedTrip.Id, now, new GeoPoint(52.09, 5.12, null), CancellationToken.None);
+
+        var result = await _repository.DeleteTripsAsync([deletedTrip.Id], CancellationToken.None);
+
+        Assert.Equal(1, result.TripCount);
+        Assert.Equal(1, result.SightingCount);
+        Assert.Equal(["vehicle-snapshots/deleted.jpg"], result.SnapshotReferences);
+        Assert.Null(await _repository.GetTripAsync(deletedTrip.Id, CancellationToken.None));
+        Assert.NotNull(await _repository.GetTripAsync(keptTrip.Id, CancellationToken.None));
+        Assert.Empty(await _repository.GetSightingsForTripAsync(deletedTrip.Id, CancellationToken.None));
+        Assert.Empty(await _repository.GetTripPointsAsync(deletedTrip.Id, CancellationToken.None));
+        Assert.Single(await _repository.GetSightingsForTripAsync(keptTrip.Id, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task PriorSightings_CountsAllTripsExceptTheExcludedOne()
     {
         var now = DateTimeOffset.UtcNow;
