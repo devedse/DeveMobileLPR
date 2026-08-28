@@ -117,8 +117,7 @@
                 ItemsSource="{Binding Trips}"
                 RemainingItemsThreshold="5"
                 RemainingItemsThresholdReachedCommand="{Binding LoadMoreTripsCommand}"
-                SelectionChanged="TripSelected"
-                SelectionMode="Single">
+                SelectionMode="None">
                 <CollectionView.ItemsLayout>
                     <LinearItemsLayout ItemSpacing="10" Orientation="Vertical" />
                 </CollectionView.ItemsLayout>
@@ -134,6 +133,7 @@
                     <DataTemplate x:DataType="vm:TripCardViewModel">
                         <Border Style="{StaticResource CompactCard}">
                             <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="TripTapped" />
                                 <PointerGestureRecognizer
                                     PointerExited="TripPointerReleased"
                                     PointerPressed="TripPointerPressed"

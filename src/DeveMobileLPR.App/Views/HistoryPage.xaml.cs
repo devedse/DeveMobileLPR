@@ -27,10 +27,9 @@ public partial class HistoryPage : ContentPage
         base.OnDisappearing();
     }
 
-    private async void TripSelected(object? sender, SelectionChangedEventArgs args)
+    private async void TripTapped(object? sender, TappedEventArgs args)
     {
-        if (args.CurrentSelection.FirstOrDefault() is not TripCardViewModel trip) return;
-        TripsList.SelectedItem = null;
+        if ((sender as TapGestureRecognizer)?.BindingContext is not TripCardViewModel trip) return;
         if (_longPressedTripId == trip.Id)
         {
             _longPressedTripId = null;

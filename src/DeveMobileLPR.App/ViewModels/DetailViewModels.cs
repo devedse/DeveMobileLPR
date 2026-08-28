@@ -80,8 +80,16 @@ internal sealed class TripDetailViewModel(
     private IReadOnlyList<TripVehicleCardViewModel> _loadedVehicles = [];
 
     public ObservableCollection<TripVehicleCardViewModel> Vehicles { get; } = [];
+    public bool ShowVehiclesEmpty => !IsBusy && Vehicles.Count == 0;
     public IReadOnlyList<string> SortOptions { get; } = [SortByTime, SortByValue, SortByEarlierSightings];
-    public bool IsBusy { get => _isBusy; private set => SetProperty(ref _isBusy, value); }
+    public bool IsBusy
+    {
+        get => _isBusy;
+        private set
+        {
+            if (SetProperty(ref _isBusy, value)) OnPropertyChanged(nameof(ShowVehiclesEmpty));
+        }
+    }
     public string Title { get => _title; private set => SetProperty(ref _title, value); }
     public string Subtitle { get => _subtitle; private set => SetProperty(ref _subtitle, value); }
     public string Duration { get => _duration; private set => SetProperty(ref _duration, value); }
@@ -221,6 +229,7 @@ internal sealed class TripDetailViewModel(
                 Vehicles.Move(currentIndex, targetIndex);
             }
         }
+        OnPropertyChanged(nameof(ShowVehiclesEmpty));
     }
 }
 

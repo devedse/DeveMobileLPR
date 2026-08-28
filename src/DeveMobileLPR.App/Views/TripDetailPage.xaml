@@ -68,6 +68,10 @@
                             Style="{StaticResource CompactSecondaryButton}"
                             Text="{Binding SelectedSort, StringFormat='Sort: {0}'}" />
                     </Grid>
+                    <Label
+                        IsVisible="{Binding ShowVehiclesEmpty}"
+                        Style="{StaticResource EmptyStateText}"
+                        Text="No confirmed vehicles were recorded on this drive." />
                 </VerticalStackLayout>
             </CollectionView.Header>
             <CollectionView.ItemsLayout><LinearItemsLayout Orientation="Vertical" ItemSpacing="10" /></CollectionView.ItemsLayout>
@@ -110,9 +114,6 @@
                     </Border>
                 </DataTemplate>
             </CollectionView.ItemTemplate>
-            <CollectionView.EmptyView>
-                <Label Style="{StaticResource EmptyStateText}" Text="No confirmed vehicles were recorded on this drive." />
-            </CollectionView.EmptyView>
         </CollectionView>
     </Grid>
 </ContentPage>
