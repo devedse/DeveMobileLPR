@@ -131,6 +131,12 @@ public sealed class DriveVideoInputLease : IDriveVideoInput
         remove => _inner.CameraChoicesChanged -= value;
     }
 
+    public event EventHandler<DriveZoomState>? ZoomStateChanged
+    {
+        add => _inner.ZoomStateChanged += value;
+        remove => _inner.ZoomStateChanged -= value;
+    }
+
     public event EventHandler<DriveFrameCountEventArgs>? SourceFramesAvailable
     {
         add => _inner.SourceFramesAvailable += value;
@@ -148,6 +154,7 @@ public sealed class DriveVideoInputLease : IDriveVideoInput
     public bool IsReady => IsActive && _inner.IsReady;
     public bool SupportsNetworkStreams => _inner.SupportsNetworkStreams;
     public IReadOnlyList<DriveSourceCapability> SourceCapabilities => _inner.SourceCapabilities;
+    public DriveZoomState ZoomState => _inner.ZoomState;
     public bool ReportsPreviewFrames => _inner.ReportsPreviewFrames;
 
     public Task InitializeAsync(string preferredCameraId, CancellationToken cancellationToken = default)

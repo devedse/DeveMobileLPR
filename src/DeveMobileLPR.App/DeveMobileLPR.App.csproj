@@ -51,6 +51,8 @@
                       Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'" />
     <ProjectReference Include="..\DeveMobileLPR.Video.Android\DeveMobileLPR.Video.Android.csproj"
                       Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'" />
+    <ProjectReference Include="..\DeveMobileLPR.Uvc.Android\DeveMobileLPR.Uvc.Android.csproj"
+                      Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" />

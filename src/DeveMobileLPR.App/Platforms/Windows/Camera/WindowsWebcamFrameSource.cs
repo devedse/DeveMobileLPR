@@ -36,6 +36,7 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable, IDriveFrameSo
     private float _requestedZoomRatio = 1f;
     private float? _lastAppliedZoomRatio;
     private bool _zoomUnsupportedReported;
+    private DriveZoomState _zoomState = DriveZoomState.Pending(1f);
     private bool _disposed;
     private int _previewDeactivated;
     private int _previewLoaded;
@@ -57,6 +58,7 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable, IDriveFrameSo
 
     public event EventHandler<DriveInputDiagnostic>? Diagnostic;
     public event EventHandler<DriveFrameCountEventArgs>? SourceFramesAvailable;
+    public event EventHandler<DriveZoomState>? ZoomStateChanged;
     public event EventHandler<DriveFrameCountEventArgs>? PreviewFramesPresented
     {
         add { }
@@ -66,6 +68,7 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable, IDriveFrameSo
     public bool ReportsPreviewFrames => false;
     public bool IsReady => _capture is not null;
     public string SelectedCameraId { get; private set; } = string.Empty;
+    public DriveZoomState ZoomState => _zoomState;
 
     public void ConfigureCameraChoices(IReadOnlyList<CameraChoice> cameras)
     {
@@ -202,7 +205,9 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable, IDriveFrameSo
 
     public void SetZoom(float zoomRatio)
     {
-        Volatile.Write(ref _requestedZoomRatio, Math.Clamp(zoomRatio, 1f, 4f));
+        var requested = Math.Clamp(zoomRatio, 1f, 4f);
+        Volatile.Write(ref _requestedZoomRatio, requested);
+        SetZoomState(DriveZoomState.Pending(requested));
         ApplyRequestedZoom();
     }
 
@@ -325,6 +330,7 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable, IDriveFrameSo
             var control = capture.VideoDeviceController.ZoomControl;
             if (!control.Supported)
             {
+                SetZoomState(DriveZoomState.Unavailable(Volatile.Read(ref _requestedZoomRatio)));
                 if (!_zoomUnsupportedReported)
                 {
                     _zoomUnsupportedReported = true;
@@ -350,6 +356,12 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable, IDriveFrameSo
                 Mode = mode,
                 Value = target
             });
+            SetZoomState(new DriveZoomState(
+                DriveZoomKind.CameraManaged,
+                requested,
+                target,
+                1f,
+                control.Max));
 
             if (_lastAppliedZoomRatio is null || Math.Abs(_lastAppliedZoomRatio.Value - target) > 0.001f)
             {
@@ -361,11 +373,18 @@ internal sealed class WindowsWebcamFrameSource : IAsyncDisposable, IDriveFrameSo
         }
         catch (Exception exception)
         {
+            SetZoomState(DriveZoomState.Unavailable(Volatile.Read(ref _requestedZoomRatio)));
             Debug.WriteLine($"Could not apply Windows webcam zoom: {exception}");
             Diagnostic?.Invoke(this, new DriveInputDiagnostic(
                 $"Camera zoom could not be applied: {exception.Message}",
                 true));
         }
+    }
+
+    private void SetZoomState(DriveZoomState state)
+    {
+        _zoomState = state;
+        ZoomStateChanged?.Invoke(this, state);
     }
 
     public async ValueTask DisposeAsync()

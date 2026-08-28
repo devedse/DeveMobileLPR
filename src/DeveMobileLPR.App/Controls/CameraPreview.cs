@@ -9,6 +9,9 @@ namespace DeveMobileLPR.App.Controls;
 /// </summary>
 internal sealed class CameraPreview : View
 {
+    private AspectScaleMode _cameraScaleMode = AspectScaleMode.Fit;
+    private AspectScaleMode _streamScaleMode = AspectScaleMode.Fit;
+
     /// <summary>Whether the active input is a network stream rather than a local camera.</summary>
     public static readonly BindableProperty IsNetworkStreamProperty = BindableProperty.Create(
         nameof(IsNetworkStream),
@@ -56,6 +59,26 @@ internal sealed class CameraPreview : View
     {
         get => (bool)GetValue(IsNetworkStreamProperty);
         set => SetValue(IsNetworkStreamProperty, value);
+    }
+
+    public AspectScaleMode CameraScaleMode
+    {
+        get => _cameraScaleMode;
+        set
+        {
+            _cameraScaleMode = value;
+            ReportPresentation(IsNetworkStream ? _streamScaleMode : value);
+        }
+    }
+
+    public AspectScaleMode StreamScaleMode
+    {
+        get => _streamScaleMode;
+        set
+        {
+            _streamScaleMode = value;
+            ReportPresentation(IsNetworkStream ? value : _cameraScaleMode);
+        }
     }
 
     public bool IsMultiSource

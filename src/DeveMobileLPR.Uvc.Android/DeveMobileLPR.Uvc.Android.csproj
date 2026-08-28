@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-android36.0</TargetFramework>
+    <IsBindingProject>true</IsBindingProject>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <AndroidMavenLibrary Include="com.herohan:UVCAndroid" Version="1.0.13" VerifyDependencies="false" />
+    <AndroidJavaSource Include="Java\com\deve\mobilelpr\uvc\UvcCameraBridge.java" Bind="true" />
+    <AndroidExternalJavaLibrary Include="$(IntermediateOutputPath)library_project_jars\UVCAndroid-1.0.13.aar\classes.jar" Bind="false" />
+    <PackageReference Include="Xamarin.AndroidX.Annotation" />
+    <PackageReference Include="Xamarin.AndroidX.AppCompat" />
+    <PackageReference Include="Xamarin.AndroidX.Core" />
+  </ItemGroup>
+</Project>
