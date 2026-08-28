@@ -5,8 +5,10 @@ namespace DeveMobileLPR.App.Views;
 public partial class HistoryPage : ContentPage
 {
     private readonly HistoryViewModel _viewModel;
-    private CancellationTokenSource? _tripLongPressCancellation;
     private long? _longPressedTripId;
+#if ANDROID
+    private readonly Dictionary<Android.Views.View, EventHandler<Android.Views.View.LongClickEventArgs>> _androidLongClickHandlers = [];
+#endif
 
     internal HistoryPage(HistoryViewModel viewModel)
     {
@@ -22,7 +24,6 @@ public partial class HistoryPage : ContentPage
 
     protected override void OnDisappearing()
     {
-        CancelTripLongPress();
         _viewModel.ClearTripSelection();
         base.OnDisappearing();
     }
@@ -43,38 +44,28 @@ public partial class HistoryPage : ContentPage
         await Navigation.PushAsync(new TripDetailPage(_viewModel, trip.Id));
     }
 
-    private void TripPointerPressed(object? sender, PointerEventArgs args)
+    private void TripCardHandlerChanged(object? sender, EventArgs args)
     {
-        CancelTripLongPress();
-        if (OperatingSystem.IsWindows()) return;
-        if ((sender as PointerGestureRecognizer)?.BindingContext is not TripCardViewModel trip)
+#if ANDROID
+        if (sender is not Grid card || card.Handler?.PlatformView is not Android.Views.View platformView)
         {
             return;
         }
-        _tripLongPressCancellation = new CancellationTokenSource();
-        _ = BeginTripSelectionAfterDelayAsync(trip, _tripLongPressCancellation.Token);
-    }
-
-    private void TripPointerReleased(object? sender, PointerEventArgs args) => CancelTripLongPress();
-
-    private async Task BeginTripSelectionAfterDelayAsync(TripCardViewModel trip, CancellationToken cancellationToken)
-    {
-        try
+        if (_androidLongClickHandlers.TryGetValue(platformView, out var previousHandler))
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(650), cancellationToken);
+            platformView.LongClick -= previousHandler;
+        }
+        EventHandler<Android.Views.View.LongClickEventArgs> handler = (_, eventArgs) =>
+        {
+            if (card.BindingContext is not TripCardViewModel trip) return;
             _longPressedTripId = trip.Id;
             _viewModel.BeginTripSelection(trip);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-    }
-
-    private void CancelTripLongPress()
-    {
-        _tripLongPressCancellation?.Cancel();
-        _tripLongPressCancellation?.Dispose();
-        _tripLongPressCancellation = null;
+            eventArgs.Handled = true;
+        };
+        _androidLongClickHandlers[platformView] = handler;
+        platformView.LongClickable = true;
+        platformView.LongClick += handler;
+#endif
     }
 
     private void CancelTripSelectionClicked(object? sender, EventArgs args) =>

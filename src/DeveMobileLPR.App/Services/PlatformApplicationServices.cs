@@ -48,7 +48,7 @@ internal sealed class MauiDeviceExperience(IAudioManager audioManager) : IDevice
             await MainThread.InvokeOnMainThreadAsync(async () =>
             {
                 using var player = audioManager.CreateAsyncPlayer(stream);
-                player.Volume = 0.8;
+                player.Volume = 1.0;
                 await player.PlayAsync(CancellationToken.None);
             });
         }

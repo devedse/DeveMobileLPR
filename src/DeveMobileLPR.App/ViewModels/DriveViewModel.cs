@@ -161,7 +161,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
             if (SetProperty(ref _zoom, value))
             {
                 SelectedSingleSource?.SetZoomFromActiveCamera(value);
-                _coordinator.SetZoom((float)value);
+                QueueInputConfigurationUpdate();
                 OnPropertyChanged(nameof(ZoomLabel));
             }
         }
