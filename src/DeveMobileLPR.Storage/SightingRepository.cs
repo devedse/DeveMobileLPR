@@ -385,14 +385,20 @@ public sealed class SightingRepository : ISightingRepository
             BodyType = group.Max(sighting => sighting.BodyType)
         });
 
-        var ordered = query.Sort == VehicleHistorySort.HighestValue
-            ? projected
+        var ordered = query.Sort switch
+        {
+            VehicleHistorySort.HighestValue => projected
                 .OrderByDescending(row => row.CatalogPrice)
                 .ThenByDescending(row => row.LastSeenAt)
-                .ThenBy(row => row.NormalizedPlate)
-            : projected
+                .ThenBy(row => row.NormalizedPlate),
+            VehicleHistorySort.MostSightings => projected
+                .OrderByDescending(row => row.SightingCount)
+                .ThenByDescending(row => row.LastSeenAt)
+                .ThenBy(row => row.NormalizedPlate),
+            _ => projected
                 .OrderByDescending(row => row.LastSeenAt)
-                .ThenBy(row => row.NormalizedPlate);
+                .ThenBy(row => row.NormalizedPlate)
+        };
 
         var rows = await ordered
             .Skip(Math.Max(0, query.Offset))

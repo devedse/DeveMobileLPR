@@ -120,7 +120,7 @@ internal sealed class HistoryViewModel : ViewModelBase
     public AsyncCommand LoadMoreVehiclesCommand { get; }
     public IReadOnlyList<string> PeriodOptions { get; } = ["Last 24 hours", "Last 7 days", "Last 30 days", "Last 90 days", AllTime];
     public IReadOnlyList<string> MinimumValueOptions { get; } = [AnyValue, "Over €50k", "Over €100k", "Over €300k", "Over €500k", "Over €1m"];
-    public IReadOnlyList<string> VehicleSortOptions { get; } = [MostRecent, "Highest value"];
+    public IReadOnlyList<string> VehicleSortOptions { get; } = [MostRecent, "Highest value", "Most sightings"];
     public bool IsBusy
     {
         get => _isBusy;
@@ -262,7 +262,12 @@ internal sealed class HistoryViewModel : ViewModelBase
             "Over €1m" => 1_000_000m,
             _ => (decimal?)null
         };
-        var sort = SelectedVehicleSort == "Highest value" ? VehicleHistorySort.HighestValue : VehicleHistorySort.MostRecent;
+        var sort = SelectedVehicleSort switch
+        {
+            "Highest value" => VehicleHistorySort.HighestValue,
+            "Most sightings" => VehicleHistorySort.MostSightings,
+            _ => VehicleHistorySort.MostRecent
+        };
         return new VehicleHistoryQuery(SearchText, seenSince, minimumValue, sort, offset, PageSize);
     }
 

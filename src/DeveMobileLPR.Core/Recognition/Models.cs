@@ -249,7 +249,8 @@ public sealed record PriorVehicleSightings(int SightingCount, DateTimeOffset? La
 public enum VehicleHistorySort
 {
     MostRecent,
-    HighestValue
+    HighestValue,
+    MostSightings
 }
 
 public sealed record VehicleHistoryQuery(

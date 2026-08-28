@@ -62,12 +62,16 @@
                             <Label Style="{StaticResource SectionTitle}" Text="Vehicles on this drive" />
                             <Label Style="{StaticResource MutedText}" Text="Tap a vehicle to see every earlier sighting and location." />
                         </VerticalStackLayout>
-                        <Button
-                            Grid.Column="1"
-                            Clicked="SortClicked"
-                            Style="{StaticResource CompactSecondaryButton}"
-                            Text="{Binding SelectedSort, StringFormat='Sort: {0}'}" />
+                        <VerticalStackLayout Grid.Column="1" Spacing="3" WidthRequest="220">
+                            <Label Style="{StaticResource MutedText}" Text="SORT BY" />
+                            <Picker ItemsSource="{Binding SortOptions}" SelectedItem="{Binding SelectedSort}" />
+                        </VerticalStackLayout>
                     </Grid>
+                    <SearchBar
+                        Placeholder="Search plate, make, or model"
+                        Text="{Binding SearchText}" />
+                    <!-- The empty message stays in the header because Windows CollectionView
+                         otherwise overlays EmptyView content on top of this header. -->
                     <Label
                         IsVisible="{Binding ShowVehiclesEmpty}"
                         Style="{StaticResource EmptyStateText}"

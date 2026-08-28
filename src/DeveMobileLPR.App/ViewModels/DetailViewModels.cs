@@ -33,6 +33,7 @@ internal sealed record TripVehicleCardViewModel(
     string Confidence,
     decimal? CatalogPrice,
     DateTimeOffset FirstSeenAt,
+    int SightingCount,
     int EarlierSightingCount,
     GeoPoint? Location,
     ImageSource? SnapshotSource)
@@ -63,9 +64,9 @@ internal sealed class TripDetailViewModel(
     IVehicleImageStore vehicleImageStore,
     long tripId) : ViewModelBase
 {
-    internal const string SortByTime = "Time seen";
+    internal const string SortByTime = "Most recent";
     internal const string SortByValue = "Highest value";
-    internal const string SortByEarlierSightings = "Most seen before";
+    internal const string SortBySightings = "Most sightings";
 
     private bool _isBusy;
     private string _title = "Trip";
@@ -75,13 +76,14 @@ internal sealed class TripDetailViewModel(
     private string _unique = "—";
     private string _highlight = "—";
     private string _selectedSort = SortByTime;
+    private string _searchText = string.Empty;
     private IReadOnlyList<TripPoint> _points = [];
     private HistoryMapViewModel? _map;
     private IReadOnlyList<TripVehicleCardViewModel> _loadedVehicles = [];
 
     public ObservableCollection<TripVehicleCardViewModel> Vehicles { get; } = [];
     public bool ShowVehiclesEmpty => !IsBusy && Vehicles.Count == 0;
-    public IReadOnlyList<string> SortOptions { get; } = [SortByTime, SortByValue, SortByEarlierSightings];
+    public IReadOnlyList<string> SortOptions { get; } = [SortByTime, SortByValue, SortBySightings];
     public bool IsBusy
     {
         get => _isBusy;
@@ -96,6 +98,14 @@ internal sealed class TripDetailViewModel(
     public string Distance { get => _distance; private set => SetProperty(ref _distance, value); }
     public string Unique { get => _unique; private set => SetProperty(ref _unique, value); }
     public string Highlight { get => _highlight; private set => SetProperty(ref _highlight, value); }
+    public string SearchText
+    {
+        get => _searchText;
+        set
+        {
+            if (SetProperty(ref _searchText, value)) ApplySort();
+        }
+    }
     public string SelectedSort
     {
         get => _selectedSort;
@@ -203,6 +213,7 @@ internal sealed class TripDetailViewModel(
             $"{vehicle.Confidence:P0} · {vehicle.ObservationCount} reads",
             vehicle.Vehicle?.CatalogPrice,
             vehicle.FirstSeenAt,
+            vehicle.SightingCount,
             vehicle.EarlierSightingCount,
             vehicle.LastLocation,
             SnapshotImageSource.Create(vehicleImageStore, vehicle.SnapshotReference));
@@ -210,24 +221,23 @@ internal sealed class TripDetailViewModel(
 
     private void ApplySort()
     {
+        var filtered = string.IsNullOrWhiteSpace(SearchText)
+            ? _loadedVehicles
+            : _loadedVehicles.Where(vehicle =>
+                vehicle.DisplayPlate.Contains(SearchText, StringComparison.OrdinalIgnoreCase)
+                || vehicle.VehicleName.Contains(SearchText, StringComparison.OrdinalIgnoreCase)
+                || vehicle.Metadata.Contains(SearchText, StringComparison.OrdinalIgnoreCase));
         var ordered = (SelectedSort switch
         {
-            SortByValue => _loadedVehicles.OrderByDescending(vehicle => vehicle.CatalogPrice ?? decimal.MinValue).ThenBy(vehicle => vehicle.FirstSeenAt),
-            SortByEarlierSightings => _loadedVehicles.OrderByDescending(vehicle => vehicle.EarlierSightingCount).ThenBy(vehicle => vehicle.FirstSeenAt),
-            _ => _loadedVehicles.OrderBy(vehicle => vehicle.FirstSeenAt)
+            SortByValue => filtered.OrderByDescending(vehicle => vehicle.CatalogPrice ?? decimal.MinValue).ThenByDescending(vehicle => vehicle.FirstSeenAt),
+            SortBySightings => filtered.OrderByDescending(vehicle => vehicle.SightingCount).ThenByDescending(vehicle => vehicle.FirstSeenAt),
+            _ => filtered.OrderByDescending(vehicle => vehicle.FirstSeenAt)
         }).ToArray();
 
+        Vehicles.Clear();
         for (var targetIndex = 0; targetIndex < ordered.Length; targetIndex++)
         {
-            var currentIndex = Vehicles.IndexOf(ordered[targetIndex]);
-            if (currentIndex < 0)
-            {
-                Vehicles.Insert(targetIndex, ordered[targetIndex]);
-            }
-            else if (currentIndex != targetIndex)
-            {
-                Vehicles.Move(currentIndex, targetIndex);
-            }
+            Vehicles.Add(ordered[targetIndex]);
         }
         OnPropertyChanged(nameof(ShowVehiclesEmpty));
     }

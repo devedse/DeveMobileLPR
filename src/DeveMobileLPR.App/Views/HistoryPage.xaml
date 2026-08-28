@@ -212,22 +212,20 @@
                                 <Picker ItemsSource="{Binding VehicleSortOptions}" SelectedItem="{Binding SelectedVehicleSort}" />
                             </VerticalStackLayout>
                         </FlexLayout>
+                        <Border IsVisible="{Binding ShowVehiclesEmpty}" Margin="0,4,0,0" Style="{StaticResource CompactCard}" VerticalOptions="Start">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                <VerticalStackLayout Spacing="3">
+                                    <Label Style="{StaticResource SettingTitle}" Text="No vehicles found" />
+                                    <Label Style="{StaticResource SecondaryText}" Text="No confirmed vehicles match the current search and filters." />
+                                </VerticalStackLayout>
+                                <Button Grid.Column="1" Command="{Binding ResetVehicleFiltersCommand}" Style="{StaticResource CompactSecondaryButton}" Text="Reset filters" VerticalOptions="Center" />
+                            </Grid>
+                        </Border>
                     </VerticalStackLayout>
                 </CollectionView.Header>
                 <CollectionView.ItemsLayout>
                     <LinearItemsLayout ItemSpacing="10" Orientation="Vertical" />
                 </CollectionView.ItemsLayout>
-                <CollectionView.EmptyView>
-                    <Border IsVisible="{Binding ShowVehiclesEmpty}" Margin="0,4,0,0" Style="{StaticResource CompactCard}" VerticalOptions="Start">
-                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                            <VerticalStackLayout Spacing="3">
-                                <Label Style="{StaticResource SettingTitle}" Text="No vehicles found" />
-                                <Label Style="{StaticResource SecondaryText}" Text="No confirmed vehicles match the current search and filters." />
-                            </VerticalStackLayout>
-                            <Button Grid.Column="1" Command="{Binding ResetVehicleFiltersCommand}" Style="{StaticResource CompactSecondaryButton}" Text="Reset filters" VerticalOptions="Center" />
-                        </Grid>
-                    </Border>
-                </CollectionView.EmptyView>
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="vm:VehicleCardViewModel">
                         <Border Style="{StaticResource CompactCard}">
