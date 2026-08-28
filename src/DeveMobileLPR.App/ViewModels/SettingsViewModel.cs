@@ -192,12 +192,6 @@ internal sealed class SettingsViewModel : ViewModelBase
         set { if (_settings.ShowRoadGuide != value) { _settings.ShowRoadGuide = value; OnPropertyChanged(); _coordinator.RefreshSettings(); } }
     }
 
-    public bool ConfirmationHaptic
-    {
-        get => _settings.ConfirmationHaptic;
-        set { if (_settings.ConfirmationHaptic != value) { _settings.ConfirmationHaptic = value; OnPropertyChanged(); } }
-    }
-
     public bool TrackingDiagnosticsEnabled
     {
         get => _settings.TrackingDiagnosticsEnabled;

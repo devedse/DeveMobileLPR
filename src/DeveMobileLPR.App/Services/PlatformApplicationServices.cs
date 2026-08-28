@@ -29,19 +29,6 @@ internal sealed class MauiDeviceExperience(IAudioManager audioManager) : IDevice
             }
         });
 
-    public void NotifyPlateConfirmed() =>
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            try
-            {
-                HapticFeedback.Default.Perform(HapticFeedbackType.Click);
-            }
-            catch (Exception exception)
-            {
-                System.Diagnostics.Debug.WriteLine($"Could not perform confirmation haptic: {exception}");
-            }
-        });
-
     public void NotifyKnownVehicle(KnownVehicleSound sound)
     {
         if (sound == KnownVehicleSound.None)
@@ -58,9 +45,12 @@ internal sealed class MauiDeviceExperience(IAudioManager audioManager) : IDevice
         try
         {
             await using var stream = await FileSystem.OpenAppPackageFileAsync(FileName(sound));
-            using var player = audioManager.CreateAsyncPlayer(stream);
-            player.Volume = 0.8;
-            await player.PlayAsync(CancellationToken.None).ConfigureAwait(false);
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                using var player = audioManager.CreateAsyncPlayer(stream);
+                player.Volume = 0.8;
+                await player.PlayAsync(CancellationToken.None);
+            });
         }
         catch (Exception exception)
         {

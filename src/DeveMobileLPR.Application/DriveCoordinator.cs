@@ -766,10 +766,6 @@ public sealed class DriveCoordinator : IAsyncDisposable
             trip.ConfirmedPlates.Confirm(result.Confirmation, sighting, result.Prior, result.SourceId);
         }
 
-        if (result.Confirmation.Revision == 0 && _settings.ConfirmationHaptic)
-        {
-            _deviceExperience.NotifyPlateConfirmed();
-        }
         if (result.Confirmation.Revision == 0
             && result.Prior.SightingCount > 0
             && _settings.KnownVehicleSound != KnownVehicleSound.None)

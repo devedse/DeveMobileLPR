@@ -59,11 +59,6 @@
                             IsToggled="{Binding ShowRoadGuide}"
                             Title="Show road guide" />
                         <BoxView Style="{StaticResource DividerLine}" />
-                        <controls:SettingsToggleRow
-                            Description="A light tap when a plate reaches temporal consensus."
-                            IsToggled="{Binding ConfirmationHaptic}"
-                            Title="Confirmation haptic" />
-                        <BoxView Style="{StaticResource DividerLine}" />
                         <Label Style="{StaticResource SettingTitle}" Text="Known vehicle sound" />
                         <Picker
                             ItemsSource="{Binding KnownVehicleSoundOptions}"

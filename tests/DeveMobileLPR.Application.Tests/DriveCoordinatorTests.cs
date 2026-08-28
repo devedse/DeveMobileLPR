@@ -107,7 +107,6 @@ public sealed class DriveCoordinatorTests
         Assert.Equal([1L, 1L], vehicleImageStore.SavedSightingIds);
         Assert.True(vehicleImageStore.SavedFrameSequences[1] > vehicleImageStore.SavedFrameSequences[0]);
         Assert.Equal(2, repository.SetSnapshotReferenceCount);
-        Assert.Equal(1, device.NotificationCount);
     }
 
     [Fact]
@@ -398,7 +397,6 @@ public sealed class DriveCoordinatorTests
         await repository.SightingAdded.Task.WaitAsync(TimeSpan.FromSeconds(2));
         await confirmationPublished.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
-        Assert.Equal(1, device.NotificationCount);
         Assert.Equal(expectedSoundCount, device.KnownVehicleSounds.Count);
         if (expectedSoundCount > 0)
         {
@@ -594,7 +592,6 @@ public sealed class DriveCoordinatorTests
     {
         public bool TrackLocation { get; set; } = true;
         public bool SaveVehicleImages { get; set; }
-        public bool ConfirmationHaptic { get; set; } = true;
         public KnownVehicleSound KnownVehicleSound { get; set; } = KnownVehicleSound.None;
         public float Zoom { get; set; } = 1;
         public string CameraId { get; set; } = "rear";
@@ -851,10 +848,8 @@ public sealed class DriveCoordinatorTests
     private sealed class TestDeviceExperience : IDeviceExperience
     {
         public bool KeepScreenOn { get; private set; }
-        public int NotificationCount { get; private set; }
         public List<KnownVehicleSound> KnownVehicleSounds { get; } = [];
         public void SetKeepScreenOn(bool enabled) => KeepScreenOn = enabled;
-        public void NotifyPlateConfirmed() => NotificationCount++;
         public void NotifyKnownVehicle(KnownVehicleSound sound) => KnownVehicleSounds.Add(sound);
     }
 

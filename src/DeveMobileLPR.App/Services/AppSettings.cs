@@ -8,7 +8,6 @@ internal sealed class AppSettings : IDriveSettings
     private const string TrackLocationKey = "track_location";
     private const string SaveVehicleImagesKey = "save_vehicle_images";
     private const string ShowGuideKey = "show_road_guide";
-    private const string HapticKey = "confirmation_haptic";
     private const string KnownVehicleSoundKey = "known_vehicle_sound";
     private const string ZoomKey = "camera_zoom";
     private const string CameraKey = "camera_id";
@@ -39,12 +38,6 @@ internal sealed class AppSettings : IDriveSettings
     {
         get => Preferences.Default.Get(ShowGuideKey, true);
         set => Preferences.Default.Set(ShowGuideKey, value);
-    }
-
-    public bool ConfirmationHaptic
-    {
-        get => Preferences.Default.Get(HapticKey, true);
-        set => Preferences.Default.Set(HapticKey, value);
     }
 
     public KnownVehicleSound KnownVehicleSound

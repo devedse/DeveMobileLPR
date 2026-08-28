@@ -8,7 +8,6 @@ public interface IDriveSettings
 {
     bool TrackLocation { get; set; }
     bool SaveVehicleImages { get; set; }
-    bool ConfirmationHaptic { get; set; }
     KnownVehicleSound KnownVehicleSound { get; set; }
     float Zoom { get; set; }
     string CameraId { get; set; }
@@ -132,7 +131,6 @@ public interface IDriveLocationTrackerFactory
 public interface IDeviceExperience
 {
     void SetKeepScreenOn(bool enabled);
-    void NotifyPlateConfirmed();
     void NotifyKnownVehicle(KnownVehicleSound sound);
 }
 
