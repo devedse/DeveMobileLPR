@@ -29,13 +29,13 @@ public partial class HistoryPage : ContentPage
 
     private async void TripTapped(object? sender, TappedEventArgs args)
     {
-        if ((sender as TapGestureRecognizer)?.BindingContext is not TripCardViewModel trip) return;
+        if (args.Parameter is not TripCardViewModel trip) return;
         if (_longPressedTripId == trip.Id)
         {
             _longPressedTripId = null;
             return;
         }
-        if (_viewModel.IsTripSelectionMode)
+        if (!OperatingSystem.IsWindows() && _viewModel.IsTripSelectionMode)
         {
             _viewModel.ToggleTripSelection(trip);
             return;
@@ -46,6 +46,7 @@ public partial class HistoryPage : ContentPage
     private void TripPointerPressed(object? sender, PointerEventArgs args)
     {
         CancelTripLongPress();
+        if (OperatingSystem.IsWindows()) return;
         if ((sender as PointerGestureRecognizer)?.BindingContext is not TripCardViewModel trip)
         {
             return;

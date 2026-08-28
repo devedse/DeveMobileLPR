@@ -30,6 +30,7 @@ internal sealed class TripCardViewModel(
     public string SightingCount { get; } = sightingCount;
     public string Highlight { get; } = highlight;
     public string HighlightPlate { get; } = highlightPlate;
+    public bool ShowSelectionCheckbox => OperatingSystem.IsWindows() || IsSelectionMode;
     public bool IsSelected
     {
         get => _isSelected;
@@ -41,7 +42,10 @@ internal sealed class TripCardViewModel(
     public bool IsSelectionMode
     {
         get => _isSelectionMode;
-        set => SetProperty(ref _isSelectionMode, value);
+        set
+        {
+            if (SetProperty(ref _isSelectionMode, value)) OnPropertyChanged(nameof(ShowSelectionCheckbox));
+        }
     }
 }
 
