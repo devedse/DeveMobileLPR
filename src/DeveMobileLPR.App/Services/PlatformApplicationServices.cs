@@ -12,9 +12,12 @@ internal sealed class MauiApplicationDispatcher : IApplicationDispatcher
     }
 }
 
-internal sealed class MauiDeviceExperience(IAudioManager audioManager) : IDeviceExperience
+internal sealed class MauiDeviceExperience(
+    IAudioManager audioManager,
+    IApplicationLog applicationLog) : IDeviceExperience
 {
-    private readonly SemaphoreSlim _audioGate = new(1, 1);
+    private IAudioPlayer? _knownVehiclePlayer;
+    private Stream? _knownVehicleStream;
 
     public void SetKeepScreenOn(bool enabled) =>
         MainThread.BeginInvokeOnMainThread(() =>
@@ -36,30 +39,48 @@ internal sealed class MauiDeviceExperience(IAudioManager audioManager) : IDevice
             return;
         }
 
+        applicationLog.Write("Audio", $"Known-vehicle sound requested: {sound}.");
         _ = PlayKnownVehicleAsync(sound);
     }
 
     private async Task PlayKnownVehicleAsync(KnownVehicleSound sound)
     {
-        await _audioGate.WaitAsync().ConfigureAwait(false);
         try
         {
-            await using var stream = await FileSystem.OpenAppPackageFileAsync(FileName(sound));
-            await MainThread.InvokeOnMainThreadAsync(async () =>
+            var fileName = FileName(sound);
+            var stream = await FileSystem.OpenAppPackageFileAsync(fileName).ConfigureAwait(false);
+            await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                using var player = audioManager.CreateAsyncPlayer(stream);
+                StopKnownVehiclePlayer();
+                var player = audioManager.CreatePlayer(stream);
                 player.Volume = 1.0;
-                await player.PlayAsync(CancellationToken.None);
+                player.PlaybackEnded += (_, _) =>
+                {
+                    if (ReferenceEquals(_knownVehiclePlayer, player))
+                    {
+                        applicationLog.Write("Audio", $"Known-vehicle sound completed: {sound}.");
+                        StopKnownVehiclePlayer();
+                    }
+                };
+                _knownVehicleStream = stream;
+                _knownVehiclePlayer = player;
+                player.Play();
+                applicationLog.Write("Audio", $"Known-vehicle sound started: {fileName}.");
             });
         }
         catch (Exception exception)
         {
-            System.Diagnostics.Debug.WriteLine($"Could not play the known-vehicle sound: {exception}");
+            applicationLog.Write("Audio", $"Known-vehicle sound failed: {exception}", true);
         }
-        finally
-        {
-            _audioGate.Release();
-        }
+    }
+
+    private void StopKnownVehiclePlayer()
+    {
+        _knownVehiclePlayer?.Stop();
+        _knownVehiclePlayer?.Dispose();
+        _knownVehiclePlayer = null;
+        _knownVehicleStream?.Dispose();
+        _knownVehicleStream = null;
     }
 
     private static string FileName(KnownVehicleSound sound) => sound switch
@@ -67,6 +88,11 @@ internal sealed class MauiDeviceExperience(IAudioManager audioManager) : IDevice
         KnownVehicleSound.Chime => "known_vehicle_chime.wav",
         KnownVehicleSound.Radar => "known_vehicle_radar.wav",
         KnownVehicleSound.Sparkle => "known_vehicle_sparkle.wav",
+        KnownVehicleSound.Bell => "known_vehicle_bell.wav",
+        KnownVehicleSound.Confirm => "known_vehicle_confirm.wav",
+        KnownVehicleSound.Glass => "known_vehicle_glass.wav",
+        KnownVehicleSound.Pulse => "known_vehicle_pulse.wav",
+        KnownVehicleSound.Scanner => "known_vehicle_scanner.wav",
         _ => throw new ArgumentOutOfRangeException(nameof(sound), sound, null)
     };
 }

@@ -16,6 +16,8 @@ The Android models are mechanically derived from the pinned ONNX models above. T
 | SixLabors.ImageSharp 3.1.12 | [Six Labors ImageSharp](https://github.com/SixLabors/ImageSharp/tree/v3.1.12) | Six Labors Split License 1.0 |
 | Leaflet 1.9.4 | [Leaflet](https://github.com/Leaflet/Leaflet/tree/v1.9.4) | BSD-2-Clause |
 | Leaflet.markercluster 1.5.3 | [Leaflet.markercluster](https://github.com/Leaflet/Leaflet.markercluster/tree/v1.5.3) | MIT |
+| Known-vehicle Bell, Confirm, Glass, and Pulse sounds | [Kenney Interface Sounds](https://kenney.nl/assets/interface-sounds) | CC0 1.0 |
+| Known-vehicle Scanner sound | [Kenney Sci-fi Sounds](https://kenney.nl/assets/sci-fi-sounds) | CC0 1.0 |
 
 The RDW database builder uses these additional inputs:
 

@@ -85,7 +85,12 @@ internal sealed class SettingsViewModel : ViewModelBase
             new("None", "No sound when a previously seen vehicle is confirmed", KnownVehicleSound.None),
             new("Chime", "A short two-note confirmation", KnownVehicleSound.Chime),
             new("Radar", "A compact electronic double ping", KnownVehicleSound.Radar),
-            new("Sparkle", "A bright three-note flourish", KnownVehicleSound.Sparkle)
+            new("Sparkle", "A bright three-note flourish", KnownVehicleSound.Sparkle),
+            new("Bell", "A concise bell-like notification", KnownVehicleSound.Bell),
+            new("Confirm", "A warm digital confirmation", KnownVehicleSound.Confirm),
+            new("Glass", "A clear glassy accent", KnownVehicleSound.Glass),
+            new("Pulse", "A more urgent electronic pulse", KnownVehicleSound.Pulse),
+            new("Scanner", "A quick sci-fi scanner ping", KnownVehicleSound.Scanner)
         ];
         _selectedRecognitionFrameRate = RecognitionFrameRateOptions.FirstOrDefault(
                 option => option.MaximumFramesPerSecond == _settings.RecognitionFramesPerSecond)

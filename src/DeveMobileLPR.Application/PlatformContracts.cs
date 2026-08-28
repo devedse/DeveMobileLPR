@@ -25,7 +25,12 @@ public enum KnownVehicleSound
     None,
     Chime,
     Radar,
-    Sparkle
+    Sparkle,
+    Bell,
+    Confirm,
+    Glass,
+    Pulse,
+    Scanner
 }
 
 public interface IVehicleImageEncoder
