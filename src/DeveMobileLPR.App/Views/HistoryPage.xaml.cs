@@ -5,9 +5,8 @@ namespace DeveMobileLPR.App.Views;
 public partial class HistoryPage : ContentPage
 {
     private readonly HistoryViewModel _viewModel;
-    private long? _longPressedTripId;
 #if ANDROID
-    private readonly Dictionary<Android.Views.View, EventHandler<Android.Views.View.LongClickEventArgs>> _androidLongClickHandlers = [];
+    private readonly Dictionary<Android.Views.View, EventHandler<Android.Views.View.TouchEventArgs>> _androidTouchHandlers = [];
 #endif
 
     internal HistoryPage(HistoryViewModel viewModel)
@@ -30,12 +29,49 @@ public partial class HistoryPage : ContentPage
 
     private async void TripTapped(object? sender, TappedEventArgs args)
     {
+        // Android taps are emitted by TripGestureListener, which must own the full touch stream
+        // in order to distinguish a tap from a long press. The MAUI recognizer remains for Windows.
+        if (OperatingSystem.IsAndroid()) return;
         if (args.Parameter is not TripCardViewModel trip) return;
-        if (_longPressedTripId == trip.Id)
+        await OpenOrSelectTripAsync(trip);
+    }
+
+    private void TripCardHandlerChanged(object? sender, EventArgs args)
+    {
+#if ANDROID
+        if (sender is not Border card || card.Handler?.PlatformView is not Android.Views.View platformView)
         {
-            _longPressedTripId = null;
             return;
         }
+        if (_androidTouchHandlers.TryGetValue(platformView, out var previousHandler))
+        {
+            platformView.Touch -= previousHandler;
+        }
+        var detector = new Android.Views.GestureDetector(
+            platformView.Context,
+            new TripGestureListener(
+                () => MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    if (card.BindingContext is not TripCardViewModel trip) return;
+                    _viewModel.BeginTripSelection(trip);
+                }),
+                () => MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    if (card.BindingContext is TripCardViewModel trip)
+                    {
+                        await OpenOrSelectTripAsync(trip);
+                    }
+                })));
+        EventHandler<Android.Views.View.TouchEventArgs> handler = (_, eventArgs) =>
+            eventArgs.Handled = eventArgs.Event is { } motionEvent
+                && detector.OnTouchEvent(motionEvent);
+        _androidTouchHandlers[platformView] = handler;
+        platformView.Touch += handler;
+#endif
+    }
+
+    private async Task OpenOrSelectTripAsync(TripCardViewModel trip)
+    {
         if (!OperatingSystem.IsWindows() && _viewModel.IsTripSelectionMode)
         {
             _viewModel.ToggleTripSelection(trip);
@@ -44,29 +80,21 @@ public partial class HistoryPage : ContentPage
         await Navigation.PushAsync(new TripDetailPage(_viewModel, trip.Id));
     }
 
-    private void TripCardHandlerChanged(object? sender, EventArgs args)
-    {
 #if ANDROID
-        if (sender is not Grid card || card.Handler?.PlatformView is not Android.Views.View platformView)
+    private sealed class TripGestureListener(Action longPressed, Action tapped)
+        : Android.Views.GestureDetector.SimpleOnGestureListener
+    {
+        public override bool OnDown(Android.Views.MotionEvent? e) => true;
+
+        public override void OnLongPress(Android.Views.MotionEvent? e) => longPressed();
+
+        public override bool OnSingleTapUp(Android.Views.MotionEvent? e)
         {
-            return;
+            tapped();
+            return true;
         }
-        if (_androidLongClickHandlers.TryGetValue(platformView, out var previousHandler))
-        {
-            platformView.LongClick -= previousHandler;
-        }
-        EventHandler<Android.Views.View.LongClickEventArgs> handler = (_, eventArgs) =>
-        {
-            if (card.BindingContext is not TripCardViewModel trip) return;
-            _longPressedTripId = trip.Id;
-            _viewModel.BeginTripSelection(trip);
-            eventArgs.Handled = true;
-        };
-        _androidLongClickHandlers[platformView] = handler;
-        platformView.LongClickable = true;
-        platformView.LongClick += handler;
-#endif
     }
+#endif
 
     private void CancelTripSelectionClicked(object? sender, EventArgs args) =>
         _viewModel.ClearTripSelection();

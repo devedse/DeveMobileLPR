@@ -339,10 +339,10 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
             _settings.Zoom = (float)_zoom;
             OnPropertyChanged(nameof(Zoom));
             OnPropertyChanged(nameof(ZoomLabel));
-            if (IsDriving)
-            {
-                _coordinator.SetZoom((float)_zoom);
-            }
+            // Keep persistence and the native camera on one authoritative path. This is also
+            // called on the setup screen, so the selected single-source zoom is committed before
+            // the live camera handler is created for the next drive.
+            _coordinator.SetZoom((float)_zoom);
         }
         InputConfigurationError = GetInputConfigurationError();
         OnPropertyChanged(nameof(IsInputConfigurationValid));

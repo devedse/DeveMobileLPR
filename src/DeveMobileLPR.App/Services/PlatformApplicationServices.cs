@@ -45,13 +45,16 @@ internal sealed class MauiDeviceExperience(
 
     private async Task PlayKnownVehicleAsync(KnownVehicleSound sound)
     {
+        Stream? unopenedStream = null;
         try
         {
             var fileName = FileName(sound);
-            var stream = await FileSystem.OpenAppPackageFileAsync(fileName).ConfigureAwait(false);
+            unopenedStream = await FileSystem.OpenAppPackageFileAsync(fileName).ConfigureAwait(false);
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
                 StopKnownVehiclePlayer();
+                var stream = unopenedStream
+                    ?? throw new InvalidOperationException("The packaged sound stream is unavailable.");
                 var player = audioManager.CreatePlayer(stream);
                 player.Volume = 1.0;
                 player.PlaybackEnded += (_, _) =>
@@ -64,6 +67,7 @@ internal sealed class MauiDeviceExperience(
                 };
                 _knownVehicleStream = stream;
                 _knownVehiclePlayer = player;
+                unopenedStream = null;
                 player.Play();
                 applicationLog.Write("Audio", $"Known-vehicle sound started: {fileName}.");
             });
@@ -72,15 +76,24 @@ internal sealed class MauiDeviceExperience(
         {
             applicationLog.Write("Audio", $"Known-vehicle sound failed: {exception}", true);
         }
+        finally
+        {
+            unopenedStream?.Dispose();
+        }
     }
 
     private void StopKnownVehiclePlayer()
     {
-        _knownVehiclePlayer?.Stop();
-        _knownVehiclePlayer?.Dispose();
+        // Clear the active references before Stop(). Some native players raise PlaybackEnded
+        // synchronously from Stop; the handler must then see that this player is no longer active
+        // instead of recursively entering this method until the process crashes.
+        var player = _knownVehiclePlayer;
+        var stream = _knownVehicleStream;
         _knownVehiclePlayer = null;
-        _knownVehicleStream?.Dispose();
         _knownVehicleStream = null;
+        player?.Stop();
+        player?.Dispose();
+        stream?.Dispose();
     }
 
     private static string FileName(KnownVehicleSound sound) => sound switch
