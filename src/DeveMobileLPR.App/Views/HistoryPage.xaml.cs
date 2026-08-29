@@ -1,4 +1,5 @@
 using DeveMobileLPR.App.ViewModels;
+using System.ComponentModel;
 
 namespace DeveMobileLPR.App.Views;
 
@@ -13,6 +14,7 @@ public partial class HistoryPage : ContentPage
     {
         InitializeComponent();
         BindingContext = _viewModel = viewModel;
+        _viewModel.PropertyChanged += ViewModelPropertyChanged;
     }
 
     protected override async void OnAppearing()
@@ -25,6 +27,24 @@ public partial class HistoryPage : ContentPage
     {
         _viewModel.ClearTripSelection();
         base.OnDisappearing();
+    }
+
+    private void ViewModelPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName != nameof(HistoryViewModel.IsTripSelectionMode)
+            || !_viewModel.IsTripSelectionMode)
+        {
+            return;
+        }
+
+        Dispatcher.Dispatch(async () =>
+        {
+            TripSelectionToolbar.Opacity = 0;
+            TripSelectionToolbar.TranslationY = -12;
+            await Task.WhenAll(
+                TripSelectionToolbar.FadeToAsync(1, 180, Easing.CubicOut),
+                TripSelectionToolbar.TranslateToAsync(0, 0, 220, Easing.CubicOut));
+        });
     }
 
     private async void TripTapped(object? sender, TappedEventArgs args)

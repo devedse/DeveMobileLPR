@@ -53,7 +53,7 @@
             </Button>
         </Grid>
 
-        <Border Grid.Row="1" IsVisible="{Binding IsTripSelectionMode}" Padding="12,8" Style="{StaticResource CompactCard}">
+        <Border x:Name="TripSelectionToolbar" Grid.Row="1" IsVisible="{Binding IsTripSelectionMode}" Opacity="0" Padding="12,8" Style="{StaticResource CompactCard}" TranslationY="-12">
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
                 <Label FontAttributes="Bold" Text="{Binding SelectedTripCount, StringFormat='{}{0} selected'}" VerticalOptions="Center" />
                 <Button Clicked="CancelTripSelectionClicked" Grid.Column="1" Style="{StaticResource CompactSecondaryButton}" Text="Cancel" />
