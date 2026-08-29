@@ -1,8 +1,19 @@
 namespace DeveMobileLPR.App.Controls;
 
+using DeveMobileLPR.App.ViewModels;
+
 public partial class DriveInputSelector : ContentView
 {
     public DriveInputSelector() => InitializeComponent();
+
+    private void SingleZoomDragCompleted(object? sender, EventArgs args)
+    {
+        if (sender is Slider slider
+            && BindingContext is DriveViewModel viewModel)
+        {
+            viewModel.CommitSingleZoom(slider.Value);
+        }
+    }
 
     private async void MultiModeToggled(object? sender, ToggledEventArgs args)
     {

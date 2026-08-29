@@ -58,7 +58,22 @@ internal sealed class AppSettings : IDriveSettings
     public float Zoom
     {
         get => Math.Clamp(Preferences.Default.Get(ZoomKey, 1f), 1f, 5f);
-        set => Preferences.Default.Set(ZoomKey, Math.Clamp(value, 1f, 5f));
+        set
+        {
+            var normalized = Math.Clamp(value, 1f, 5f);
+#if ANDROID
+            // The setup slider can be followed immediately by Android terminating the process.
+            // Commit this tiny, user-facing value synchronously so it cannot remain in the
+            // SharedPreferences apply queue and be lost during that shutdown.
+            var context = global::Android.App.Application.Context;
+            var preferences = context.GetSharedPreferences(
+                $"{context.PackageName}_preferences",
+                global::Android.Content.FileCreationMode.Private);
+            preferences?.Edit()?.PutFloat(ZoomKey, normalized)?.Commit();
+#else
+            Preferences.Default.Set(ZoomKey, normalized);
+#endif
+        }
     }
 
     public string CameraId

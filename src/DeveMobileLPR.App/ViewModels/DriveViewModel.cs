@@ -161,6 +161,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
             if (SetProperty(ref _zoom, value))
             {
                 SelectedSingleSource?.SetZoomFromActiveCamera(value);
+                _settings.Zoom = (float)_zoom;
                 QueueInputConfigurationUpdate();
                 OnPropertyChanged(nameof(ZoomLabel));
             }
@@ -171,6 +172,21 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     public double ActiveZoomMinimum => SelectedSingleSource?.MinimumZoom ?? 1d;
     public double ActiveZoomMaximum => SelectedSingleSource?.MaximumZoom ?? 5d;
     public string ActiveCameraName => SelectedSingleSource?.Name ?? _selectedCamera ?? "Camera";
+
+    public void CommitSingleZoom(double value)
+    {
+        if (SelectedSingleSource is not { IsIntegratedCamera: true } selected)
+        {
+            return;
+        }
+
+        selected.SetZoomFromActiveCamera(value);
+        _zoom = selected.Zoom;
+        _settings.Zoom = (float)_zoom;
+        QueueInputConfigurationUpdate();
+        OnPropertyChanged(nameof(Zoom));
+        OnPropertyChanged(nameof(ZoomLabel));
+    }
 
     public string NetworkStreamUrl
     {
@@ -218,6 +234,17 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
 
         var configuration = _settings.InputConfiguration;
         var profiles = configuration.Sources.ToDictionary(profile => profile.SourceId, StringComparer.Ordinal);
+        if (configuration.Mode == DriveInputMode.Single)
+        {
+            var selectedId = configuration.SelectedSingleSourceId ?? "rear";
+            if (profiles.TryGetValue(selectedId, out var selectedProfile))
+            {
+                // Zoom is also stored independently for backward compatibility and is the
+                // authoritative value for the active single camera. Reapply it before options
+                // are constructed so a stale/normalized profile cannot reset the UI to 1x.
+                profiles[selectedId] = selectedProfile with { Zoom = _settings.Zoom };
+            }
+        }
         var optionsById = new Dictionary<string, DriveSourceOptionViewModel>(StringComparer.Ordinal);
 
         DriveSourceOptionViewModel Create(DriveSourceCapability capability)
@@ -240,7 +267,11 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
                     capability.Kind == DriveSourceKind.NetworkLlHls ? _settings.NetworkStreamUrl : null);
             }
 
-            var option = new DriveSourceOptionViewModel(capability, profile, QueueInputConfigurationUpdate);
+            DriveSourceOptionViewModel? option = null;
+            option = new DriveSourceOptionViewModel(
+                capability,
+                profile,
+                () => SourceOptionChanged(option!));
             optionsById.Add(capability.Id, option);
             return option;
         }
@@ -307,6 +338,21 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     private static bool IsValidNetworkUrl(string value) =>
         Uri.TryCreate(value?.Trim(), UriKind.Absolute, out var uri)
         && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+
+    private void SourceOptionChanged(DriveSourceOptionViewModel source)
+    {
+        if (!IsMultiCamera
+            && ReferenceEquals(source, SelectedSingleSource)
+            && source.IsIntegratedCamera)
+        {
+            _zoom = source.Zoom;
+            _settings.Zoom = (float)_zoom;
+            OnPropertyChanged(nameof(Zoom));
+            OnPropertyChanged(nameof(ZoomLabel));
+        }
+
+        QueueInputConfigurationUpdate();
+    }
 
     private void QueueInputConfigurationUpdate()
     {
