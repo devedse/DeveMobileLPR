@@ -173,6 +173,19 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     public double ActiveZoomMaximum => SelectedSingleSource?.MaximumZoom ?? 5d;
     public string ActiveCameraName => SelectedSingleSource?.Name ?? _selectedCamera ?? "Camera";
 
+    public void PreviewSingleZoom(double value)
+    {
+        if (SelectedSingleSource is not { IsIntegratedCamera: true } selected)
+        {
+            return;
+        }
+
+        selected.SetZoomFromActiveCamera(value);
+        _zoom = selected.Zoom;
+        OnPropertyChanged(nameof(Zoom));
+        OnPropertyChanged(nameof(ZoomLabel));
+    }
+
     public void CommitSingleZoom(double value)
     {
         if (SelectedSingleSource is not { IsIntegratedCamera: true } selected)

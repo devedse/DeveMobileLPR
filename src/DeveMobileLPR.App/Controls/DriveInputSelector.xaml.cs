@@ -6,6 +6,14 @@ public partial class DriveInputSelector : ContentView
 {
     public DriveInputSelector() => InitializeComponent();
 
+    private void SingleZoomChanged(object? sender, ValueChangedEventArgs args)
+    {
+        if (BindingContext is DriveViewModel viewModel)
+        {
+            viewModel.PreviewSingleZoom(args.NewValue);
+        }
+    }
+
     private void SingleZoomDragCompleted(object? sender, EventArgs args)
     {
         if (sender is Slider slider
