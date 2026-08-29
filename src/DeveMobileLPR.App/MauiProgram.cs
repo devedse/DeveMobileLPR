@@ -36,7 +36,7 @@ public static class MauiProgram
 #if ANDROID
         builder.ConfigureMauiHandlers(handlers =>
         {
-            handlers.AddHandler<CameraPreview, CameraPreviewHandler>();
+            handlers.AddHandler<CameraPreview, Platforms.Android.Camera.CameraPreviewHandler>();
         });
 #elif WINDOWS
         builder.ConfigureMauiHandlers(handlers => handlers.AddHandler<CameraPreview, CameraPreviewHandler>());

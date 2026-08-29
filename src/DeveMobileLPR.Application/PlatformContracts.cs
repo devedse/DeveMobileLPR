@@ -69,16 +69,47 @@ public interface IApplicationLog
     void Clear();
 }
 
+/// <summary>Platform-neutral description of how the requested field of view is being produced.</summary>
+public enum DriveZoomKind
+{
+    Unavailable,
+    Pending,
+    CameraManaged,
+    Optical,
+    Digital,
+    Hybrid
+}
+
+public sealed record DriveZoomState(
+    DriveZoomKind Kind,
+    float RequestedRatio,
+    float CameraRatio,
+    float DigitalRatio,
+    float? MaximumCameraRatio = null)
+{
+    public static DriveZoomState Unavailable(float requestedRatio = 1f) =>
+        new(DriveZoomKind.Unavailable, requestedRatio, 1f, 1f);
+
+    public static DriveZoomState Pending(float requestedRatio) =>
+        new(DriveZoomKind.Pending, requestedRatio, 1f, 1f);
+}
+
 public interface IDriveVideoInput : IDriveFrameSourceTelemetry, IAsyncDisposable
 {
     event EventHandler<DriveInputDiagnostic>? Diagnostic;
     event EventHandler<IReadOnlyList<CameraChoice>>? CameraChoicesChanged;
+    event EventHandler<DriveZoomState>? ZoomStateChanged
+    {
+        add { }
+        remove { }
+    }
 
     IReadOnlyList<CameraChoice> CameraChoices { get; }
     string SelectedCameraId { get; }
     bool IsReady { get; }
     bool SupportsNetworkStreams { get; }
-    IReadOnlyList<DriveSourceCapability> SourceCapabilities { get; }
+    IReadOnlyList<DriveSourceCapability> SourceCapabilities => [];
+    DriveZoomState ZoomState => DriveZoomState.Unavailable();
 
     Task InitializeAsync(string preferredCameraId, CancellationToken cancellationToken = default);
     Task StartAsync(CancellationToken cancellationToken = default);
@@ -88,7 +119,7 @@ public interface IDriveVideoInput : IDriveFrameSourceTelemetry, IAsyncDisposable
     void SetNetworkStreamUrl(string value);
     Task ApplyConfigurationAsync(
         DriveInputConfiguration configuration,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default) => Task.CompletedTask;
 }
 
 public interface IDriveFrameSourceTelemetry

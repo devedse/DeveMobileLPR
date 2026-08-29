@@ -8,7 +8,7 @@ DeveMobileLPR is an offline-first .NET MAUI app for Dutch license-plate recognit
 
 ## Highlights
 
-- Android CameraX and Windows webcam capture with latest-frame backpressure.
+- Android CameraX, direct USB/UVC, and Windows webcam capture with latest-frame backpressure.
 - YOLOv9-S plate detection and CCT-S V2 OCR.
 - Android LiteRT GPU inference with explicit CPU fallback.
 - Windows ONNX Runtime with DirectML and CPU fallback.
