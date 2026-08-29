@@ -33,6 +33,15 @@ public partial class SettingsPage : ContentPage
     private async void OpenAppLogsClicked(object? sender, EventArgs args) =>
         await Navigation.PushModalAsync(new NavigationPage(new AppLogsPage(_appLog)));
 
+    private async void SeedDebugHistoryClicked(object? sender, EventArgs args)
+    {
+#if DEBUG
+        await _viewModel.SeedDebugHistoryAsync();
+#else
+        await Task.CompletedTask;
+#endif
+    }
+
     private async void CameraCapabilitiesClicked(object? sender, EventArgs args)
     {
 #if ANDROID

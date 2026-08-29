@@ -1,6 +1,8 @@
 using DeveMobileLPR.App.Services;
 using DeveMobileLPR.Application;
 using DeveMobileLPR.App.UI;
+using DeveMobileLPR.Geometry;
+using DeveMobileLPR.Imaging;
 using DeveMobileLPR.Recognition;
 using DeveMobileLPR.Storage;
 
@@ -99,7 +101,18 @@ internal sealed class SettingsViewModel : ViewModelBase
             option => option.Sound == _settings.KnownVehicleSound);
     }
 
-    public bool IsBusy { get => _isBusy; private set => SetProperty(ref _isBusy, value); }
+    public bool IsBusy
+    {
+        get => _isBusy;
+        private set
+        {
+            if (SetProperty(ref _isBusy, value))
+            {
+                OnPropertyChanged(nameof(IsNotBusy));
+            }
+        }
+    }
+    public bool IsNotBusy => !IsBusy;
     public string StatusMessage { get => _statusMessage; private set => SetProperty(ref _statusMessage, value); }
     public bool HasStatus => !string.IsNullOrWhiteSpace(StatusMessage);
     public string RdwTitle { get => _rdwTitle; private set => SetProperty(ref _rdwTitle, value); }
@@ -116,6 +129,17 @@ internal sealed class SettingsViewModel : ViewModelBase
     public IReadOnlyList<KnownVehicleSoundOption> KnownVehicleSoundOptions { get; }
     public IReadOnlyList<RecognitionTuningSection> RecognitionTuningSections { get; }
     public bool IsBackgroundScanningAvailable => _backgroundScanning.IsSupported;
+    public bool ShowDebugTools
+    {
+        get
+        {
+#if DEBUG
+            return true;
+#else
+            return false;
+#endif
+        }
+    }
 
     public bool ContinueScanningInBackground
     {
@@ -378,6 +402,133 @@ internal sealed class SettingsViewModel : ViewModelBase
             OnPropertyChanged(nameof(HasStatus));
         }
     }
+
+#if DEBUG
+    public async Task SeedDebugHistoryAsync()
+    {
+        if (IsBusy)
+        {
+            return;
+        }
+
+        IsBusy = true;
+        SetStatus("Adding debug trips, sightings, routes, and vehicle pictures…");
+        try
+        {
+            ThrowIfDriveActive();
+            await _coordinator.InitializeAsync();
+            var repository = _coordinator.Repository;
+            var now = DateTimeOffset.Now;
+            var vehicles = new[]
+            {
+                new VehicleRecord("12AB34", "Volvo", "XC40 Recharge", 48950m, 2023, "Electric", "SUV"),
+                new VehicleRecord("K123YZ", "Volkswagen", "Golf", 32900m, 2021, "Petrol", "Hatchback"),
+                new VehicleRecord("G456KL", "Tesla", "Model 3", 44990m, 2022, "Electric", "Sedan"),
+                new VehicleRecord("P789RT", "BMW", "320e", 52900m, 2024, "Plug-in hybrid", "Sedan")
+            };
+
+            var sightingCount = 0;
+            for (var tripIndex = 0; tripIndex < 5; tripIndex++)
+            {
+                var startedAt = now.AddDays(-tripIndex).AddHours(-2 - tripIndex);
+                var start = new GeoPoint(52.0907 + tripIndex * 0.003, 5.1214 + tripIndex * 0.004, 5);
+                var trip = await repository.StartTripAsync(startedAt, start, CancellationToken.None);
+                for (var pointIndex = 0; pointIndex < 5; pointIndex++)
+                {
+                    await repository.AddTripPointAsync(
+                        trip.Id,
+                        startedAt.AddMinutes(pointIndex * 3),
+                        new GeoPoint(
+                            start.Latitude + pointIndex * 0.0025,
+                            start.Longitude + pointIndex * 0.0035,
+                            5 + pointIndex),
+                        CancellationToken.None);
+                }
+
+                for (var vehicleIndex = 0; vehicleIndex < 2 + tripIndex % 2; vehicleIndex++)
+                {
+                    var vehicle = vehicles[(tripIndex + vehicleIndex) % vehicles.Length];
+                    var seenAt = startedAt.AddMinutes(2 + vehicleIndex * 4);
+                    var bounds = new BoundingBox(270, 230, 370, 265);
+                    var plate = new ConfirmedPlate(
+                        Guid.NewGuid(),
+                        seenAt,
+                        seenAt.AddSeconds(2),
+                        bounds,
+                        new ConsensusResult(vehicle.NormalizedPlate, vehicle.NormalizedPlate, "NL", 0.94f, 5));
+                    var sighting = await repository.AddOrMergeAsync(
+                        plate,
+                        new GeoPoint(start.Latitude + 0.004, start.Longitude + 0.006, 7),
+                        vehicle,
+                        trip.Id,
+                        CancellationToken.None);
+                    using var frame = CreateDebugVehicleFrame(vehicleIndex + tripIndex);
+                    var snapshot = await _coordinator.VehicleImageStore.SaveAsync(
+                        sighting.Id,
+                        frame,
+                        bounds,
+                        CancellationToken.None);
+                    await repository.SetSnapshotReferenceAsync(sighting.Id, snapshot, CancellationToken.None);
+                    sightingCount++;
+                }
+
+                await repository.EndTripAsync(
+                    trip.Id,
+                    startedAt.AddMinutes(14 + tripIndex * 3),
+                    new GeoPoint(start.Latitude + 0.01, start.Longitude + 0.014, 6),
+                    CancellationToken.None);
+            }
+
+            await RefreshAsync();
+            SetStatus($"Added 5 debug trips, {sightingCount} sightings, route points, and vehicle pictures.");
+        }
+        catch (Exception exception)
+        {
+            SetStatus($"Debug history could not be added: {exception.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private static Yuv420Frame CreateDebugVehicleFrame(int variant)
+    {
+        const int width = 640;
+        const int height = 360;
+        var pixels = new int[width * height];
+        var carColors = new[] { 0xD94B4B, 0x3978C5, 0x4BAA70, 0xD49B32, 0x8054B8 };
+        var carColor = carColors[variant % carColors.Length];
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var rgb = y < 150
+                    ? 0x9CCBE8
+                    : y < 300 ? 0x434951 : 0x272B30;
+                if (x is >= 90 and <= 550 && y is >= 105 and <= 305)
+                {
+                    rgb = carColor;
+                }
+                if (x is >= 175 and <= 465 && y is >= 120 and <= 195)
+                {
+                    rgb = 0xA9D8EE;
+                }
+                if ((x is >= 125 and <= 205 || x is >= 435 and <= 515) && y is >= 285 and <= 335)
+                {
+                    rgb = 0x17191C;
+                }
+                if (x is >= 270 and <= 370 && y is >= 230 and <= 265)
+                {
+                    rgb = 0xF2E8B7;
+                }
+                pixels[y * width + x] = unchecked((int)0xFF000000) | rgb;
+            }
+        }
+
+        return ArgbFrameFactory.Create(pixels, width, height, variant, DateTimeOffset.Now);
+    }
+#endif
 
     private void RefreshRdw()
     {

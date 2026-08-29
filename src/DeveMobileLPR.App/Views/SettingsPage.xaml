@@ -10,6 +10,16 @@
         <VerticalStackLayout Style="{StaticResource PageScrollContent}">
             <controls:PageHeader Eyebrow="Make it yours" IsBusy="{Binding IsBusy}" Title="Settings" />
 
+            <Border IsVisible="{Binding ShowDebugTools}" Style="{StaticResource HighlightCard}">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                    <VerticalStackLayout Spacing="3">
+                        <Label Style="{StaticResource SectionTitle}" Text="Debug data" />
+                        <Label Style="{StaticResource SecondaryText}" Text="Add five realistic test trips with route points, vehicle sightings, and generated pictures." />
+                    </VerticalStackLayout>
+                    <Button AutomationId="seed_debug_history_button" Clicked="SeedDebugHistoryClicked" Grid.Column="1" IsEnabled="{Binding IsNotBusy}" Style="{StaticResource CompactButton}" Text="Add test trips" VerticalOptions="Center" />
+                </Grid>
+            </Border>
+
             <Border Style="{StaticResource Card}">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                     <VerticalStackLayout Spacing="3">
