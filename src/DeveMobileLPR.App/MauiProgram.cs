@@ -40,6 +40,8 @@ public static class MauiProgram
         });
 #elif WINDOWS
         builder.ConfigureMauiHandlers(handlers => handlers.AddHandler<CameraPreview, CameraPreviewHandler>());
+#elif IOS
+        builder.ConfigureMauiHandlers(handlers => handlers.AddHandler<CameraPreview, CameraPreviewHandler>());
 #endif
         builder.Services.AddSingleton<AppSettings>();
         builder.Services.AddSingleton<AppLogService>();
@@ -72,6 +74,14 @@ public static class MauiProgram
         builder.Services.AddSingleton<IRecognitionPipelineProvider, WindowsRecognitionPipelineProvider>();
         builder.Services.AddSingleton<IVideoFileBackend, WindowsVideoFileBackend>();
         builder.Services.AddSingleton<IPlatformSettingsInfo, WindowsPlatformSettingsInfo>();
+        builder.Services.AddSingleton<IDriveDisplayMode, PassiveDriveDisplayMode>();
+#elif IOS
+        builder.Services.AddSingleton<IDriveSourceCatalog, IosDriveSourceCatalog>();
+        builder.Services.AddSingleton<IBackgroundScanningManager, IosNoOpBackgroundScanningManager>();
+        builder.Services.AddSingleton<IDriveLocationTrackerFactory, IosLocationTrackerFactory>();
+        builder.Services.AddSingleton<IRecognitionPipelineProvider, IosRecognitionPipelineProvider>();
+        builder.Services.AddSingleton<IVideoFileBackend, IosVideoFileBackend>();
+        builder.Services.AddSingleton<IPlatformSettingsInfo, IosPlatformSettingsInfo>();
         builder.Services.AddSingleton<IDriveDisplayMode, PassiveDriveDisplayMode>();
 #endif
         builder.Services.AddSingleton<IVehicleImageStore>(services => new VehicleImageStore(

@@ -3,6 +3,7 @@ name: GitHubActionsBuilds
 
 on:
   push:
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -14,13 +15,20 @@ jobs:
       contents: write
     runs-on: ubuntu-latest
     outputs:
-      build_number: ${{ steps.buildnumber.outputs.build_number }}
+      build_number: ${{ steps.buildnumber.outputs.build_number || steps.pr_buildnumber.outputs.build_number }}
     steps:
       - name: Generate build number
         id: buildnumber
+        if: github.event_name != 'pull_request'
         uses: onyxmueller/build-tag-number@v1
         with:
           token: ${{ secrets.github_token }}
+
+      - name: Use run number for pull requests
+        id: pr_buildnumber
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: echo "build_number=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
 
   generate_litert_model:
     runs-on: ubuntu-latest
@@ -47,6 +55,100 @@ jobs:
             artifacts/models/cct_s_v2_global_float32.tflite
           if-no-files-found: error
           retention-days: 1
+
+  build_ios:
+    name: Build iPhone app
+    needs: [generate_version_number, generate_litert_model]
+    # .NET 10's iOS 26 workload requires Xcode 26; macOS 15 still defaults to Xcode 16.4.
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      DEVEMOBILELPR_MODEL_DIR: ${{ github.workspace }}/artifacts/models
+      BUILD_NUMBER: ${{ needs.generate_version_number.outputs.build_number }}
+      BUILD_VERSION: 1.0.${{ needs.generate_version_number.outputs.build_number }}
+      # The runner retains the 26.2 simulator runtime required by actool; the pinned .NET
+      # bindings target the API-compatible 26.0 SDK, so Build-iOS permits this minor mismatch.
+      DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Install iOS workload
+        shell: pwsh
+        run: dotnet workload install maui-ios --skip-manifest-update
+
+      - name: Download and verify source models
+        shell: pwsh
+        run: ./eng/Download-Models.ps1
+
+      - name: Download generated LiteRT models
+        uses: actions/download-artifact@v8
+        with:
+          name: litert-models-${{ github.sha }}
+          path: artifacts/models
+
+      - name: Verify generated LiteRT models
+        shell: pwsh
+        run: ./eng/Generate-LiteRt-Models.ps1
+
+      - name: Restore iPhone target
+        shell: pwsh
+        run: dotnet restore src/DeveMobileLPR.App/DeveMobileLPR.App.csproj -p:IosOnly=true
+
+      - name: Build unsigned iPhone device app
+        shell: pwsh
+        run: ./eng/Build-iOS.ps1 -Configuration Release -Version $env:BUILD_VERSION -ApplicationVersion $env:BUILD_NUMBER
+
+      - name: Verify iPhone bundle version and LiteRT models
+        shell: pwsh
+        run: |
+          $bundleRoot = 'src/DeveMobileLPR.App/bin/Release/net10.0-ios/ios-arm64'
+          $bundle = Get-ChildItem -LiteralPath $bundleRoot -Filter '*.app' -Directory | Select-Object -First 1
+          if ($null -eq $bundle) {
+            throw "No iPhone app bundle was produced under $bundleRoot."
+          }
+
+          $bundledFiles = Get-ChildItem -LiteralPath $bundle.FullName -File -Recurse
+          foreach ($model in @('yolo-v9-s-608-license-plates-raw_float32.tflite', 'cct_s_v2_global_float32.tflite')) {
+            if (-not ($bundledFiles | Where-Object Name -EQ $model)) {
+              throw "The iPhone app bundle does not contain $model."
+            }
+          }
+
+          $displayVersion = & /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' (Join-Path $bundle.FullName 'Info.plist')
+          $buildNumber = & /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' (Join-Path $bundle.FullName 'Info.plist')
+          if ($displayVersion -ne $env:BUILD_VERSION -or $buildNumber -ne $env:BUILD_NUMBER) {
+            throw "Unexpected iPhone bundle version $displayVersion ($buildNumber); expected $env:BUILD_VERSION ($env:BUILD_NUMBER)."
+          }
+
+      - name: Package unsigned iPhone IPA
+        shell: pwsh
+        run: |
+          $bundleRoot = 'src/DeveMobileLPR.App/bin/Release/net10.0-ios/ios-arm64'
+          $bundle = Get-ChildItem -LiteralPath $bundleRoot -Filter '*.app' -Directory | Select-Object -First 1
+          if ($null -eq $bundle) {
+            throw "No iPhone app bundle was produced under $bundleRoot."
+          }
+          $payload = Join-Path $env:RUNNER_TEMP 'Payload'
+          New-Item -ItemType Directory -Path $payload -Force | Out-Null
+          Copy-Item -LiteralPath $bundle.FullName -Destination $payload -Recurse
+          New-Item -ItemType Directory -Path 'artifacts/ios' -Force | Out-Null
+          & /usr/bin/ditto -c -k --sequesterRsrc --keepParent $payload "artifacts/ios/DeveMobileLPR-iPhone-$env:BUILD_VERSION-unsigned.ipa"
+
+      - name: Upload unsigned iPhone IPA
+        uses: actions/upload-artifact@v7
+        with:
+          name: DeveMobileLPR-iPhone-${{ env.BUILD_VERSION }}
+          path: artifacts/ios/*.ipa
+          if-no-files-found: error
+          retention-days: 14
 
   build:
     needs: [generate_version_number, generate_litert_model]
@@ -191,7 +293,7 @@ jobs:
           retention-days: 7
 
   release:
-    needs: [generate_version_number, build]
+    needs: [generate_version_number, build, build_ios]
     if: github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.build.outputs.release_signed == 'true'
     runs-on: windows-latest
     permissions:
@@ -215,6 +317,12 @@ jobs:
           name: DeveMobileLPR-Windows-1.0.${{ needs.generate_version_number.outputs.build_number }}
           path: artifacts/windows/win-x64
 
+      - name: Download unsigned iPhone IPA
+        uses: actions/download-artifact@v8
+        with:
+          name: DeveMobileLPR-iPhone-1.0.${{ needs.generate_version_number.outputs.build_number }}
+          path: artifacts/ios
+
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v3
         with:
@@ -226,5 +334,6 @@ jobs:
             artifacts/android/*.apk
             artifacts/windows/win-x64/DeveMobileLPR.exe
             artifacts/rdw-downloader/*.zip
+            artifacts/ios/*.ipa
           fail_on_unmatched_files: true
           make_latest: true
