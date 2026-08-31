@@ -103,6 +103,7 @@ internal sealed class HistoryViewModel : ViewModelBase
         ShowTripsCommand = new Command(() => SelectSection(HistorySection.Trips));
         ShowVehiclesCommand = new Command(() => SelectSection(HistorySection.Vehicles));
         ResetVehicleFiltersCommand = new Command(ResetVehicleFilters);
+        ClearTripSelectionCommand = new Command(ClearTripSelection);
         RefreshCommand = new AsyncCommand(LoadAsync);
         LoadMoreTripsCommand = new AsyncCommand(LoadMoreTripsAsync, () => _hasMoreTrips);
         LoadMoreVehiclesCommand = new AsyncCommand(LoadMoreVehiclesAsync, () => _hasMoreVehicles);
@@ -115,6 +116,7 @@ internal sealed class HistoryViewModel : ViewModelBase
     public ICommand ShowTripsCommand { get; }
     public ICommand ShowVehiclesCommand { get; }
     public ICommand ResetVehicleFiltersCommand { get; }
+    public ICommand ClearTripSelectionCommand { get; }
     public AsyncCommand RefreshCommand { get; }
     public AsyncCommand LoadMoreTripsCommand { get; }
     public AsyncCommand LoadMoreVehiclesCommand { get; }

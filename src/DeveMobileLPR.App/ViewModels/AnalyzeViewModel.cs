@@ -104,6 +104,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
         _previousFrameCommand = new AsyncCommand(PreviousFrameAsync, () => IsReviewing && _currentFrameIndex > 0);
         _nextFrameCommand = new AsyncCommand(NextFrameAsync, () => IsReviewing && _result is not null && _currentFrameIndex < _result.Frames.Count - 1);
         _cancelCommand = new Command(Cancel, () => IsProcessing);
+        CloseReviewCommand = new Command(CloseReview);
     }
 
     public IReadOnlyList<FrameSamplingOption> SamplingOptions { get; }
@@ -114,6 +115,7 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     public ICommand PreviousFrameCommand => _previousFrameCommand;
     public ICommand NextFrameCommand => _nextFrameCommand;
     public ICommand CancelCommand => _cancelCommand;
+    public ICommand CloseReviewCommand { get; }
     public string SelectedFileName { get => _selectedFileName; private set => SetProperty(ref _selectedFileName, value); }
     public bool HasSelectedFile => _stagedPath is not null;
     public bool IsProcessing

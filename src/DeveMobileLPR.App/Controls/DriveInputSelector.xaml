@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <ContentView x:Class="DeveMobileLPR.App.Controls.DriveInputSelector" x:DataType="vm:DriveViewModel" x:Name="Root"
  xmlns="http://schemas.microsoft.com/dotnet/2021/maui" xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+ xmlns:behaviors="clr-namespace:DeveMobileLPR.App.Behaviors"
  xmlns:vm="clr-namespace:DeveMobileLPR.App.ViewModels">
  <VerticalStackLayout Spacing="12">
   <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14" IsVisible="{Binding SupportsMultiCamera}">
    <VerticalStackLayout Spacing="2"><Label FontAttributes="Bold" FontSize="15" Text="Multi camera" /><Label FontSize="11" Text="Run several independent video sources and plate detectors." TextColor="{DynamicResource TextSecondary}" /></VerticalStackLayout>
-   <Switch AutomationId="multi_camera_toggle" Grid.Column="1" IsToggled="{Binding IsMultiCamera}" Toggled="MultiModeToggled" VerticalOptions="Center" />
+   <Switch AutomationId="multi_camera_toggle" Grid.Column="1" IsToggled="{Binding IsMultiCamera}" VerticalOptions="Center" />
   </Grid>
   <VerticalStackLayout IsVisible="{Binding IsSingleCamera}" Spacing="10">
     <VerticalStackLayout Spacing="3"><Label Style="{StaticResource FieldCaption}" Text="Video source" /><Picker AutomationId="single_source_picker" ItemDisplayBinding="{Binding Name, x:DataType=vm:DriveSourceOptionViewModel}" ItemsSource="{Binding SingleSources}" SelectedIndexChanged="SingleSourceChanged" SelectedItem="{Binding SelectedSingleSource}" Title="Select camera or stream" /></VerticalStackLayout>
@@ -20,7 +21,15 @@
      </VerticalStackLayout>
     </Border>
   </VerticalStackLayout>
-  <VerticalStackLayout x:Name="MultiPanel" IsVisible="{Binding IsMultiCamera}" Opacity="1" Spacing="10">
+  <VerticalStackLayout Spacing="10">
+   <VerticalStackLayout.Behaviors>
+    <behaviors:AnimatedVisibilityBehavior
+        EnterDuration="180"
+        EnterEasing="{x:Static Easing.CubicOut}"
+        ExitDuration="140"
+        ExitEasing="{x:Static Easing.CubicIn}"
+        IsShown="{Binding BindingContext.IsMultiCamera, Source={x:Reference Root}}" />
+   </VerticalStackLayout.Behaviors>
    <Border BackgroundColor="#332815" Padding="10" Stroke="#F5C542" StrokeThickness="1"><Label FontSize="12" Text="{Binding MultiCameraWarning}" TextColor="#FFD96A" /></Border>
    <Border Padding="10" Style="{StaticResource DriveControlCard}"><Label FontSize="11" Text="Crop enlarges a smaller part of the camera stream and normally loses detail. Prefer a dedicated cropped sensor mode when available: on Pixel phones it can read the high-resolution sensor centre directly and retain substantially more detail." TextColor="{DynamicResource TextSecondary}" /></Border>
    <VerticalStackLayout BindableLayout.ItemsSource="{Binding MultiSources}" Spacing="8">

@@ -4,8 +4,10 @@
     x:DataType="vm:HistoryViewModel"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:behaviors="clr-namespace:DeveMobileLPR.App.Behaviors"
     xmlns:controls="clr-namespace:DeveMobileLPR.App.Controls"
-    xmlns:vm="clr-namespace:DeveMobileLPR.App.ViewModels">
+    xmlns:vm="clr-namespace:DeveMobileLPR.App.ViewModels"
+    x:Name="HistoryPageRoot">
     <ContentPage.Resources>
         <Style x:Key="HistoryTabButton" BasedOn="{StaticResource CompactSecondaryButton}" TargetType="Button">
             <Setter Property="BackgroundColor" Value="{DynamicResource SurfaceRaised}" />
@@ -13,7 +15,7 @@
         </Style>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12" Style="{StaticResource PageGrid}">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12" Style="{StaticResource PageGrid}">
         <!-- This is deliberately the only fixed content on the page. -->
         <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
             <Button
@@ -54,22 +56,35 @@
         </Grid>
 
         <Grid
-            x:Name="TripSelectionToolbarHost"
-            Grid.Row="1"
+            Grid.Row="2"
             HeightRequest="0"
             IsClippedToBounds="True"
-            IsVisible="False">
-            <Border x:Name="TripSelectionToolbar" Opacity="0" Padding="12,8" Scale="0.98" Style="{StaticResource CompactCard}" TranslationY="-12" VerticalOptions="Start">
-                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+            IsVisible="False"
+            Opacity="0"
+            Scale="0.98"
+            TranslationY="12">
+            <!-- The selection state and transition configuration stay in XAML; the reusable
+                 behavior supplies the interpolation that MAUI does not expose in XAML itself. -->
+            <Grid.Behaviors>
+                <behaviors:AnimatedVisibilityBehavior
+                    EnterDuration="220"
+                    EnterEasing="{x:Static Easing.CubicOut}"
+                    ExitDuration="160"
+                    ExitEasing="{x:Static Easing.CubicIn}"
+                    HiddenTranslationY="12"
+                    IsShown="{Binding BindingContext.IsTripSelectionMode, Source={x:Reference HistoryPageRoot}}" />
+            </Grid.Behaviors>
+            <Border Padding="12,8" Style="{StaticResource CompactCard}" VerticalOptions="Start">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10" RowDefinitions="Auto">
                     <Label FontAttributes="Bold" Text="{Binding SelectedTripCount, StringFormat='{}{0} selected'}" VerticalOptions="Center" />
-                    <Button Clicked="CancelTripSelectionClicked" Grid.Column="1" Style="{StaticResource CompactSecondaryButton}" Text="Cancel" />
+                    <Button Command="{Binding ClearTripSelectionCommand}" Grid.Column="1" Style="{StaticResource CompactSecondaryButton}" Text="Cancel" />
                     <Button Clicked="RemoveTripsClicked" Grid.Column="2" IsEnabled="{Binding CanRemoveTrips}" Style="{StaticResource DangerButton}" Text="{Binding RemoveTripsText}" />
                 </Grid>
             </Border>
         </Grid>
 
         <RefreshView
-            Grid.Row="2"
+            Grid.Row="1"
             Command="{Binding RefreshCommand}"
             IsRefreshing="{Binding IsBusy}"
             IsVisible="{Binding ShowDashboard}">
@@ -114,7 +129,7 @@
         </RefreshView>
 
         <RefreshView
-            Grid.Row="2"
+            Grid.Row="1"
             Command="{Binding RefreshCommand}"
             IsRefreshing="{Binding IsBusy}"
             IsVisible="{Binding ShowTrips}">
@@ -184,7 +199,7 @@
         </RefreshView>
 
         <RefreshView
-            Grid.Row="2"
+            Grid.Row="1"
             Command="{Binding RefreshCommand}"
             IsRefreshing="{Binding IsBusy}"
             IsVisible="{Binding ShowVehicles}">

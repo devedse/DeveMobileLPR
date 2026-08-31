@@ -32,8 +32,6 @@ public partial class AnalyzePage : ContentPage
         }
     }
 
-    private void CloseReviewClicked(object? sender, EventArgs args) => _viewModel.CloseReview();
-
     private async void TimelineDragCompleted(object? sender, EventArgs args)
     {
         if (sender is Slider slider)
