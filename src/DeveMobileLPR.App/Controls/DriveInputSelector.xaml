@@ -24,11 +24,13 @@
   <VerticalStackLayout Spacing="10">
    <VerticalStackLayout.Behaviors>
     <behaviors:AnimatedVisibilityBehavior
+        x:DataType="vm:DriveViewModel"
+        BindingContext="{Binding BindingContext, Source={x:Reference Root}, x:DataType=ContentView}"
         EnterDuration="180"
         EnterEasing="{x:Static Easing.CubicOut}"
         ExitDuration="140"
         ExitEasing="{x:Static Easing.CubicIn}"
-        IsShown="{Binding BindingContext.IsMultiCamera, Source={x:Reference Root}}" />
+        IsShown="{Binding IsMultiCamera}" />
    </VerticalStackLayout.Behaviors>
    <Border BackgroundColor="#332815" Padding="10" Stroke="#F5C542" StrokeThickness="1"><Label FontSize="12" Text="{Binding MultiCameraWarning}" TextColor="#FFD96A" /></Border>
    <Border Padding="10" Style="{StaticResource DriveControlCard}"><Label FontSize="11" Text="Crop enlarges a smaller part of the camera stream and normally loses detail. Prefer a dedicated cropped sensor mode when available: on Pixel phones it can read the high-resolution sensor centre directly and retain substantially more detail." TextColor="{DynamicResource TextSecondary}" /></Border>
