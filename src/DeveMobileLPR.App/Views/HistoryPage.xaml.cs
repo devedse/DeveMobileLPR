@@ -31,20 +31,35 @@ public partial class HistoryPage : ContentPage
 
     private void ViewModelPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName != nameof(HistoryViewModel.IsTripSelectionMode)
-            || !_viewModel.IsTripSelectionMode)
+        if (args.PropertyName != nameof(HistoryViewModel.IsTripSelectionMode))
         {
             return;
         }
 
-        Dispatcher.Dispatch(async () =>
+        Dispatcher.Dispatch(async () => await AnimateTripSelectionToolbarAsync(_viewModel.IsTripSelectionMode));
+    }
+
+    private async Task AnimateTripSelectionToolbarAsync(bool show)
+    {
+        TripSelectionToolbar.CancelAnimations();
+        if (show)
         {
             TripSelectionToolbar.Opacity = 0;
             TripSelectionToolbar.TranslationY = -12;
+            TripSelectionToolbar.Scale = 0.98;
+            TripSelectionToolbar.IsVisible = true;
             await Task.WhenAll(
                 TripSelectionToolbar.FadeToAsync(1, 180, Easing.CubicOut),
-                TripSelectionToolbar.TranslateToAsync(0, 0, 220, Easing.CubicOut));
-        });
+                TripSelectionToolbar.TranslateToAsync(0, 0, 220, Easing.CubicOut),
+                TripSelectionToolbar.ScaleToAsync(1, 220, Easing.CubicOut));
+            return;
+        }
+
+        await Task.WhenAll(
+            TripSelectionToolbar.FadeToAsync(0, 120, Easing.CubicIn),
+            TripSelectionToolbar.TranslateToAsync(0, -8, 140, Easing.CubicIn),
+            TripSelectionToolbar.ScaleToAsync(0.98, 140, Easing.CubicIn));
+        TripSelectionToolbar.IsVisible = false;
     }
 
     private async void TripTapped(object? sender, TappedEventArgs args)
@@ -82,13 +97,46 @@ public partial class HistoryPage : ContentPage
                         await OpenOrSelectTripAsync(trip);
                     }
                 })));
+        ApplyAndroidTouchFeedback(platformView);
         EventHandler<Android.Views.View.TouchEventArgs> handler = (_, eventArgs) =>
-            eventArgs.Handled = eventArgs.Event is { } motionEvent
-                && detector.OnTouchEvent(motionEvent);
+        {
+            if (eventArgs.Event is not { } motionEvent)
+            {
+                return;
+            }
+
+            if (motionEvent.ActionMasked == Android.Views.MotionEventActions.Down)
+            {
+                platformView.Pressed = true;
+            }
+            else if (motionEvent.ActionMasked is Android.Views.MotionEventActions.Up
+                     or Android.Views.MotionEventActions.Cancel)
+            {
+                platformView.PostDelayed(() => platformView.Pressed = false, 80);
+            }
+            eventArgs.Handled = detector.OnTouchEvent(motionEvent);
+        };
         _androidTouchHandlers[platformView] = handler;
         platformView.Touch += handler;
 #endif
     }
+
+#if ANDROID
+    private static void ApplyAndroidTouchFeedback(Android.Views.View view)
+    {
+        view.Clickable = true;
+        view.LongClickable = true;
+        using var attribute = new Android.Util.TypedValue();
+        if (view.Context?.Theme?.ResolveAttribute(
+                Android.Resource.Attribute.SelectableItemBackground,
+                attribute,
+                true) == true
+            && attribute.ResourceId != 0)
+        {
+            view.Foreground = view.Context.GetDrawable(attribute.ResourceId);
+        }
+    }
+#endif
 
     private async Task OpenOrSelectTripAsync(TripCardViewModel trip)
     {

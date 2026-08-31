@@ -146,7 +146,18 @@ internal sealed class AppSettings : IDriveSettings
             lock (_inputConfigurationGate)
             {
                 _inputConfiguration = value;
-                Preferences.Default.Set(InputConfigurationKey, JsonSerializer.Serialize(value));
+                var json = JsonSerializer.Serialize(value);
+#if ANDROID
+                // This contains the per-source zoom and selected source. Persist it synchronously:
+                // Android can stop the process immediately after the setup screen loses focus.
+                var context = global::Android.App.Application.Context;
+                var preferences = context.GetSharedPreferences(
+                    $"{context.PackageName}_preferences",
+                    global::Android.Content.FileCreationMode.Private);
+                preferences?.Edit()?.PutString(InputConfigurationKey, json)?.Commit();
+#else
+                Preferences.Default.Set(InputConfigurationKey, json);
+#endif
             }
         }
     }

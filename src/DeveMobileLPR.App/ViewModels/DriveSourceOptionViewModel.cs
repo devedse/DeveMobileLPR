@@ -51,6 +51,8 @@ internal sealed class DriveSourceOptionViewModel : ViewModelBase
     public IReadOnlyList<VideoResolution> Resolutions { get; }
     public double MinimumZoom => Capability.MinimumZoom;
     public double MaximumZoom => Capability.MaximumZoom;
+    public bool SupportsZoom => MaximumZoom > MinimumZoom + 0.01d;
+    public bool DoesNotSupportZoom => !SupportsZoom;
     public string ZoomLabel => $"{Zoom:0.0}×";
     public double MaximumCrop => Math.Min(4d, MaximumZoom);
     public string CropLabel => $"{Crop:0.0}×";

@@ -18,6 +18,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
     private string _networkStreamUrl;
     private double _zoom;
     private bool _isMultiCamera;
+    private bool _isLoadingInputSources;
     private DriveSourceOptionViewModel? _selectedSingleSource;
     private string _inputConfigurationError = string.Empty;
     private string _transientMessage = string.Empty;
@@ -93,14 +94,17 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
             if (SetProperty(ref _selectedSingleSource, value) && value is not null)
             {
                 _zoom = value.Zoom;
-                _settings.Zoom = (float)_zoom;
                 OnPropertyChanged(nameof(Zoom));
                 OnPropertyChanged(nameof(ZoomLabel));
                 OnPropertyChanged(nameof(ActiveZoomMinimum));
                 OnPropertyChanged(nameof(ActiveZoomMaximum));
                 OnPropertyChanged(nameof(ActiveCameraName));
                 OnPropertyChanged(nameof(SingleSourceIsNetwork));
-                QueueInputConfigurationUpdate();
+                if (!_isLoadingInputSources)
+                {
+                    _settings.Zoom = (float)_zoom;
+                    QueueInputConfigurationUpdate();
+                }
             }
         }
     }
@@ -180,7 +184,10 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        selected.SetZoomFromActiveCamera(value);
+        // Do not rely on Android raising DragCompleted. Mouse-driven emulator gestures and
+        // interrupted touch streams can omit it. The option setter is the authoritative path:
+        // it updates the label and synchronously persists the per-source configuration.
+        selected.Zoom = value;
         _zoom = selected.Zoom;
         OnPropertyChanged(nameof(Zoom));
         OnPropertyChanged(nameof(ZoomLabel));
@@ -278,28 +285,36 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
             return option;
         }
 
-        foreach (var capability in capabilities
-                     .Where(source => source.Kind is DriveSourceKind.LogicalCamera or DriveSourceKind.NetworkLlHls))
+        _isLoadingInputSources = true;
+        try
         {
-            SingleSources.Add(Create(capability));
-        }
-        foreach (var capability in capabilities
-                     .Where(source => source.Kind == DriveSourceKind.PhysicalCamera
-                         || source.Id == "front"
-                         || source.Kind == DriveSourceKind.NetworkLlHls))
-        {
-            MultiSources.Add(Create(capability));
-        }
+            foreach (var capability in capabilities
+                         .Where(source => source.Kind is DriveSourceKind.LogicalCamera or DriveSourceKind.NetworkLlHls))
+            {
+                SingleSources.Add(Create(capability));
+            }
+            foreach (var capability in capabilities
+                         .Where(source => source.Kind == DriveSourceKind.PhysicalCamera
+                             || source.Id == "front"
+                             || source.Kind == DriveSourceKind.NetworkLlHls))
+            {
+                MultiSources.Add(Create(capability));
+            }
 
-        _isMultiCamera = SupportsMultiCamera && configuration.Mode == DriveInputMode.Multi;
-        _selectedSingleSource = SingleSources.FirstOrDefault(source =>
-                source.Id == (configuration.SelectedSingleSourceId ?? "rear"))
-            ?? SingleSources.FirstOrDefault();
-        if (_selectedSingleSource is not null)
-        {
-            _zoom = _selectedSingleSource.Zoom;
-            _settings.Zoom = (float)_zoom;
+            _isMultiCamera = SupportsMultiCamera && configuration.Mode == DriveInputMode.Multi;
+            _selectedSingleSource = SingleSources.FirstOrDefault(source =>
+                    source.Id == (configuration.SelectedSingleSourceId ?? "rear"))
+                ?? SingleSources.FirstOrDefault();
+            if (_selectedSingleSource is not null)
+            {
+                _zoom = _selectedSingleSource.Zoom;
+            }
         }
+        finally
+        {
+            _isLoadingInputSources = false;
+        }
+        _settings.Zoom = (float)_zoom;
         InputConfigurationError = GetInputConfigurationError();
         OnPropertyChanged(nameof(IsMultiCamera));
         OnPropertyChanged(nameof(IsSingleCamera));
@@ -343,6 +358,11 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
 
     private void SourceOptionChanged(DriveSourceOptionViewModel source)
     {
+        if (_isLoadingInputSources)
+        {
+            return;
+        }
+
         if (!IsMultiCamera
             && ReferenceEquals(source, SelectedSingleSource)
             && source.IsIntegratedCamera)
@@ -358,7 +378,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
 
     private void QueueInputConfigurationUpdate()
     {
-        if (SingleSources.Count == 0)
+        if (_isLoadingInputSources || SingleSources.Count == 0)
         {
             return;
         }
