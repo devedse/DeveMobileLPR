@@ -53,13 +53,20 @@
             </Button>
         </Grid>
 
-        <Border x:Name="TripSelectionToolbar" Grid.Row="1" IsVisible="False" Opacity="0" Padding="12,8" Scale="0.98" Style="{StaticResource CompactCard}" TranslationY="-12">
-            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
-                <Label FontAttributes="Bold" Text="{Binding SelectedTripCount, StringFormat='{}{0} selected'}" VerticalOptions="Center" />
-                <Button Clicked="CancelTripSelectionClicked" Grid.Column="1" Style="{StaticResource CompactSecondaryButton}" Text="Cancel" />
-                <Button Clicked="RemoveTripsClicked" Grid.Column="2" IsEnabled="{Binding CanRemoveTrips}" Style="{StaticResource DangerButton}" Text="{Binding RemoveTripsText}" />
-            </Grid>
-        </Border>
+        <Grid
+            x:Name="TripSelectionToolbarHost"
+            Grid.Row="1"
+            HeightRequest="0"
+            IsClippedToBounds="True"
+            IsVisible="False">
+            <Border x:Name="TripSelectionToolbar" Opacity="0" Padding="12,8" Scale="0.98" Style="{StaticResource CompactCard}" TranslationY="-12" VerticalOptions="Start">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                    <Label FontAttributes="Bold" Text="{Binding SelectedTripCount, StringFormat='{}{0} selected'}" VerticalOptions="Center" />
+                    <Button Clicked="CancelTripSelectionClicked" Grid.Column="1" Style="{StaticResource CompactSecondaryButton}" Text="Cancel" />
+                    <Button Clicked="RemoveTripsClicked" Grid.Column="2" IsEnabled="{Binding CanRemoveTrips}" Style="{StaticResource DangerButton}" Text="{Binding RemoveTripsText}" />
+                </Grid>
+            </Border>
+        </Grid>
 
         <RefreshView
             Grid.Row="2"

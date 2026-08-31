@@ -5,6 +5,7 @@ namespace DeveMobileLPR.App.Views;
 
 public partial class HistoryPage : ContentPage
 {
+    private const string TripSelectionHeightAnimation = "TripSelectionHeight";
     private readonly HistoryViewModel _viewModel;
 #if ANDROID
     private readonly Dictionary<Android.Views.View, EventHandler<Android.Views.View.TouchEventArgs>> _androidTouchHandlers = [];
@@ -42,24 +43,50 @@ public partial class HistoryPage : ContentPage
     private async Task AnimateTripSelectionToolbarAsync(bool show)
     {
         TripSelectionToolbar.CancelAnimations();
+        TripSelectionToolbarHost.AbortAnimation(TripSelectionHeightAnimation);
         if (show)
         {
+            TripSelectionToolbarHost.IsVisible = true;
+            TripSelectionToolbarHost.HeightRequest = 0;
             TripSelectionToolbar.Opacity = 0;
             TripSelectionToolbar.TranslationY = -12;
             TripSelectionToolbar.Scale = 0.98;
-            TripSelectionToolbar.IsVisible = true;
+            var availableWidth = TripSelectionToolbarHost.Width > 0
+                ? TripSelectionToolbarHost.Width
+                : Width;
+            var expandedHeight = TripSelectionToolbar
+                .Measure(availableWidth, double.PositiveInfinity)
+                .Height;
             await Task.WhenAll(
+                AnimateTripSelectionHeightAsync(0, expandedHeight, 220, Easing.CubicOut),
                 TripSelectionToolbar.FadeToAsync(1, 180, Easing.CubicOut),
                 TripSelectionToolbar.TranslateToAsync(0, 0, 220, Easing.CubicOut),
                 TripSelectionToolbar.ScaleToAsync(1, 220, Easing.CubicOut));
+            TripSelectionToolbarHost.HeightRequest = -1;
             return;
         }
 
+        var currentHeight = TripSelectionToolbarHost.Height;
         await Task.WhenAll(
+            AnimateTripSelectionHeightAsync(currentHeight, 0, 160, Easing.CubicIn),
             TripSelectionToolbar.FadeToAsync(0, 120, Easing.CubicIn),
             TripSelectionToolbar.TranslateToAsync(0, -8, 140, Easing.CubicIn),
             TripSelectionToolbar.ScaleToAsync(0.98, 140, Easing.CubicIn));
-        TripSelectionToolbar.IsVisible = false;
+        TripSelectionToolbarHost.HeightRequest = 0;
+        TripSelectionToolbarHost.IsVisible = false;
+    }
+
+    private Task AnimateTripSelectionHeightAsync(double start, double end, uint duration, Easing easing)
+    {
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var animation = new Animation(value => TripSelectionToolbarHost.HeightRequest = value, start, end);
+        animation.Commit(
+            TripSelectionToolbarHost,
+            TripSelectionHeightAnimation,
+            length: duration,
+            easing: easing,
+            finished: (_, _) => completion.TrySetResult());
+        return completion.Task;
     }
 
     private async void TripTapped(object? sender, TappedEventArgs args)
