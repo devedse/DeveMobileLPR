@@ -10,6 +10,27 @@ namespace DeveMobileLPR.Application.Tests;
 public sealed class DriveCoordinatorTests
 {
     [Fact]
+    public async Task ShortTripWithoutSightingsIsDiscardedAndReported()
+    {
+        var repository = new FakeRepository();
+        var input = new TestVideoInput();
+        await using var coordinator = await CreateCoordinatorAsync(
+            repository,
+            input,
+            new TestLocationFactory(),
+            new TestDeviceExperience());
+        var reported = 0;
+        coordinator.ShortEmptyTripDiscarded += (_, _) => reported++;
+
+        await coordinator.InitializeAsync();
+        await coordinator.StartDriveAsync();
+        await coordinator.StopDriveAsync();
+
+        Assert.Equal(1, repository.DeletedTripCount);
+        Assert.Equal(1, reported);
+    }
+
+    [Fact]
     public async Task LiveZoomIsAppliedAndPersistedInTheSelectedSourceProfile()
     {
         var settings = new TestSettings();
@@ -366,12 +387,14 @@ public sealed class DriveCoordinatorTests
     }
 
     [Theory]
-    [InlineData(0, KnownVehicleSound.Chime, 0)]
-    [InlineData(3, KnownVehicleSound.None, 0)]
-    [InlineData(3, KnownVehicleSound.Radar, 1)]
+    [InlineData(0, KnownVehicleSound.Chime, KnownVehicleSoundMode.Always, 0)]
+    [InlineData(3, KnownVehicleSound.None, KnownVehicleSoundMode.Always, 0)]
+    [InlineData(3, KnownVehicleSound.Radar, KnownVehicleSoundMode.Always, 1)]
+    [InlineData(3, KnownVehicleSound.Radar, KnownVehicleSoundMode.Off, 0)]
     public async Task KnownVehicleSoundPlaysOnlyForPreviouslySeenVehicles(
         int priorSightingCount,
         KnownVehicleSound selectedSound,
+        KnownVehicleSoundMode mode,
         int expectedSoundCount)
     {
         var repository = new FakeRepository
@@ -380,7 +403,11 @@ public sealed class DriveCoordinatorTests
         };
         var pipeline = new ConfirmingPipeline();
         var device = new TestDeviceExperience();
-        var settings = new TestSettings { KnownVehicleSound = selectedSound };
+        var settings = new TestSettings
+        {
+            KnownVehicleSound = selectedSound,
+            KnownVehicleSoundMode = mode
+        };
         await using var coordinator = await StartDrivingAsync(repository, pipeline, device: device, settings: settings);
         var confirmationPublished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         coordinator.SnapshotChanged += (_, snapshot) =>
@@ -592,6 +619,7 @@ public sealed class DriveCoordinatorTests
     {
         public bool TrackLocation { get; set; } = true;
         public bool SaveVehicleImages { get; set; }
+        public KnownVehicleSoundMode KnownVehicleSoundMode { get; set; } = KnownVehicleSoundMode.Always;
         public KnownVehicleSound KnownVehicleSound { get; set; } = KnownVehicleSound.None;
         public float Zoom { get; set; } = 1;
         public string CameraId { get; set; } = "rear";
@@ -872,6 +900,7 @@ public sealed class DriveCoordinatorTests
             return Task.FromResult($"vehicle-snapshots/{sightingId}.jpg");
         }
         public string? ResolvePath(string? reference) => null;
+        public Task DeleteAsync(string reference, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task DeleteAllAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
@@ -895,6 +924,7 @@ public sealed class DriveCoordinatorTests
         public int InitializeCount { get; private set; }
         public int StartTripCount { get; private set; }
         public int EndTripCount { get; private set; }
+        public int DeletedTripCount { get; private set; }
         public int ReviseCount { get; private set; }
         public int SetSnapshotReferenceCount { get; private set; }
         public Task InitializeAsync(CancellationToken cancellationToken) { InitializeCount++; return Task.CompletedTask; }
@@ -970,6 +1000,11 @@ public sealed class DriveCoordinatorTests
         public Task<IReadOnlyList<Sighting>> GetAllSightingsAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Sighting>>([]);
         public Task<IReadOnlyList<Sighting>> FindByPlateAsync(string normalizedPlate, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Sighting>>([]);
         public Task<Sighting?> GetMostExpensiveAsync(CancellationToken cancellationToken) => Task.FromResult<Sighting?>(null);
+        public Task<DeletedTrips> DeleteTripsAsync(IReadOnlyCollection<long> tripIds, CancellationToken cancellationToken)
+        {
+            DeletedTripCount += tripIds.Count;
+            return Task.FromResult(new DeletedTrips(tripIds.Count, 0, []));
+        }
         public Task DeleteHistoryAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         private static TripSummary Trip(long id, DateTimeOffset start, DateTimeOffset? end) =>
             new(id, start, end, 0, 0, 0, null, null, null, null);

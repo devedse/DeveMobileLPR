@@ -16,6 +16,17 @@ The Android models are mechanically derived from the pinned ONNX models above. T
 | SixLabors.ImageSharp 3.1.12 | [Six Labors ImageSharp](https://github.com/SixLabors/ImageSharp/tree/v3.1.12) | Six Labors Split License 1.0 |
 | Leaflet 1.9.4 | [Leaflet](https://github.com/Leaflet/Leaflet/tree/v1.9.4) | BSD-2-Clause |
 | Leaflet.markercluster 1.5.3 | [Leaflet.markercluster](https://github.com/Leaflet/Leaflet.markercluster/tree/v1.5.3) | MIT |
+| Known-vehicle Bell, Confirm, Glass, and Pulse sounds | [Kenney Interface Sounds](https://kenney.nl/assets/interface-sounds) | CC0 1.0 |
+| Known-vehicle Scanner sound | [Kenney Sci-fi Sounds](https://kenney.nl/assets/sci-fi-sounds) | CC0 1.0 |
+| Known-vehicle Funny horn sound | [Bicycle Horn](https://opengameart.org/content/bicycle-horn), AntumDeluge | CC0 1.0 |
+| Known-vehicle Short car signal sound | [Car signal](https://opengameart.org/content/car-signal), Yaroslav_Novikov | CC0 1.0 |
+| Known-vehicle Engine start sound | [Car engine Start Up 02](https://opengameart.org/content/car-engine-start-up-02), looneybits | CC0 1.0 |
+| Known-vehicle Car door sound | [Car_door_SFX](https://opengameart.org/content/cardoorsfx), looneybits | CC0 1.0 |
+| Known-vehicle Kalimba sound | [Kalimba Two-Notes](https://opengameart.org/content/kalimba-two-notes), railkill | CC0 1.0 |
+| Known-vehicle Steam whistle sound | [Steam whistle](https://opengameart.org/content/steam-whistle), bart | CC0 1.0 |
+| Known-vehicle Applause sound | [Well Done](https://opengameart.org/content/well-done), qubodup | CC0 1.0 |
+| Known-vehicle Orchestral chimes sound | [UI Sound Effects](https://opengameart.org/content/ui-sound-effects-button-clicks-user-feedback-notifications), Robin Lamb | CC0 1.0 |
+| Known-vehicle Bell ding sound | [Bell dings/chimes](https://opengameart.org/content/bell-dingschimes), PWL | CC0 1.0 |
 
 The RDW database builder uses these additional inputs:
 

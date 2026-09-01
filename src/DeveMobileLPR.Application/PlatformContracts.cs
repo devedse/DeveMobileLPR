@@ -8,6 +8,7 @@ public interface IDriveSettings
 {
     bool TrackLocation { get; set; }
     bool SaveVehicleImages { get; set; }
+    KnownVehicleSoundMode KnownVehicleSoundMode { get; set; }
     KnownVehicleSound KnownVehicleSound { get; set; }
     float Zoom { get; set; }
     string CameraId { get; set; }
@@ -25,7 +26,29 @@ public enum KnownVehicleSound
     None,
     Chime,
     Radar,
-    Sparkle
+    Sparkle,
+    Bell,
+    Confirm,
+    Glass,
+    Pulse,
+    Scanner,
+    CarHorn,
+    CarSignal,
+    EngineStart,
+    DoorClose,
+    Kalimba,
+    SteamWhistle,
+    Applause,
+    OrchestralChimes,
+    BellDing
+}
+
+public enum KnownVehicleSoundMode
+{
+    Off,
+    Always,
+    DifferentLocation,
+    After24Hours
 }
 
 public interface IVehicleImageEncoder
@@ -47,6 +70,7 @@ public interface IVehicleImageStore
         CancellationToken cancellationToken);
 
     string? ResolvePath(string? reference);
+    Task DeleteAsync(string reference, CancellationToken cancellationToken);
     Task DeleteAllAsync(CancellationToken cancellationToken);
 }
 

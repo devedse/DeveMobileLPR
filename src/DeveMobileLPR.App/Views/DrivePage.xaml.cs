@@ -59,6 +59,11 @@ public partial class DrivePage : ContentPage
         ApplyDriveMode(isDriving);
         if (!isDriving)
         {
+            if (_viewModel.HasTransientMessage)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(2));
+                _viewModel.ClearTransientMessage();
+            }
             await CloseOnceAsync();
         }
     }

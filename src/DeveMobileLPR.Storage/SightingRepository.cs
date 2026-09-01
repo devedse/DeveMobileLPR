@@ -385,14 +385,20 @@ public sealed class SightingRepository : ISightingRepository
             BodyType = group.Max(sighting => sighting.BodyType)
         });
 
-        var ordered = query.Sort == VehicleHistorySort.HighestValue
-            ? projected
+        var ordered = query.Sort switch
+        {
+            VehicleHistorySort.HighestValue => projected
                 .OrderByDescending(row => row.CatalogPrice)
                 .ThenByDescending(row => row.LastSeenAt)
-                .ThenBy(row => row.NormalizedPlate)
-            : projected
+                .ThenBy(row => row.NormalizedPlate),
+            VehicleHistorySort.MostSightings => projected
+                .OrderByDescending(row => row.SightingCount)
+                .ThenByDescending(row => row.LastSeenAt)
+                .ThenBy(row => row.NormalizedPlate),
+            _ => projected
                 .OrderByDescending(row => row.LastSeenAt)
-                .ThenBy(row => row.NormalizedPlate);
+                .ThenBy(row => row.NormalizedPlate)
+        };
 
         var rows = await ordered
             .Skip(Math.Max(0, query.Offset))
@@ -425,9 +431,10 @@ public sealed class SightingRepository : ISightingRepository
     {
         ArgumentNullException.ThrowIfNull(normalizedPlate);
         await using var context = _contexts.CreateDbContext();
-        var row = await context.Sightings.AsNoTracking()
+        var candidates = context.Sightings.AsNoTracking()
             .Where(sighting => sighting.NormalizedPlate == normalizedPlate
-                && (excludeTripId == null || sighting.TripId != excludeTripId.Value))
+                && (excludeTripId == null || sighting.TripId != excludeTripId.Value));
+        var row = await candidates
             .GroupBy(sighting => sighting.NormalizedPlate)
             .Select(group => new
             {
@@ -436,9 +443,29 @@ public sealed class SightingRepository : ISightingRepository
             })
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
-        return row is null
-            ? PriorVehicleSightings.None
-            : new PriorVehicleSightings(row.Count, row.LastSeenAt);
+        if (row is null)
+        {
+            return PriorVehicleSightings.None;
+        }
+
+        var lastLocated = await candidates
+            .Where(sighting => sighting.Latitude != null && sighting.Longitude != null)
+            .OrderByDescending(sighting => sighting.LastSeenAt)
+            .ThenByDescending(sighting => sighting.Id)
+            .Select(sighting => new
+            {
+                sighting.Latitude,
+                sighting.Longitude,
+                sighting.LocationAccuracyMeters
+            })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return new PriorVehicleSightings(
+            row.Count,
+            row.LastSeenAt,
+            lastLocated is null
+                ? null
+                : ToLocation(lastLocated.Latitude, lastLocated.Longitude, lastLocated.LocationAccuracyMeters));
     }
 
     public async Task<HistoryStatistics> GetStatisticsAsync(DateTimeOffset from, DateTimeOffset until, CancellationToken cancellationToken)
@@ -517,6 +544,42 @@ public sealed class SightingRepository : ISightingRepository
         await context.Sightings.ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
         await context.Trips.ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<DeletedTrips> DeleteTripsAsync(
+        IReadOnlyCollection<long> tripIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(tripIds);
+        var ids = tripIds.Where(id => id > 0).Distinct().ToArray();
+        if (ids.Length == 0)
+        {
+            return new DeletedTrips(0, 0, []);
+        }
+
+        await using var context = _contexts.CreateDbContext();
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        var snapshots = await context.Sightings
+            .Where(sighting => sighting.TripId != null && ids.Contains(sighting.TripId.Value))
+            .Where(sighting => sighting.SnapshotReference != null)
+            .Select(sighting => sighting.SnapshotReference!)
+            .Distinct()
+            .ToArrayAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var sightingCount = await context.Sightings
+            .Where(sighting => sighting.TripId != null && ids.Contains(sighting.TripId.Value))
+            .ExecuteDeleteAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await context.TripPoints
+            .Where(point => ids.Contains(point.TripId))
+            .ExecuteDeleteAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var tripCount = await context.Trips
+            .Where(trip => ids.Contains(trip.Id))
+            .ExecuteDeleteAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return new DeletedTrips(tripCount, sightingCount, snapshots);
     }
 
     /// <summary>

@@ -82,7 +82,7 @@
                         </VerticalStackLayout>
                         <VerticalStackLayout Spacing="0" WidthRequest="180">
                             <Grid ColumnDefinitions="*,Auto"><Label Style="{StaticResource FieldCaption}" Text="Zoom" /><Label Grid.Column="1" FontAttributes="Bold" Text="{Binding ZoomLabel}" TextColor="{DynamicResource Primary}" /></Grid>
-                            <Slider Maximum="{Binding ActiveZoomMaximum}" Minimum="{Binding ActiveZoomMinimum}" Value="{Binding Zoom}" />
+                            <Slider Maximum="{Binding ActiveZoomMaximum}" Minimum="{Binding ActiveZoomMinimum}" Value="{Binding Zoom, Mode=TwoWay}" />
                         </VerticalStackLayout>
                     </HorizontalStackLayout>
                 </Border>
@@ -120,5 +120,15 @@
                 </Border>
             </Grid>
         </Grid>
+        <Border
+            BackgroundColor="#E61B1F26"
+            HorizontalOptions="Center"
+            IsVisible="{Binding HasTransientMessage}"
+            Padding="18,12"
+            Stroke="{DynamicResource Primary}"
+            StrokeThickness="1"
+            VerticalOptions="Center">
+            <Label FontAttributes="Bold" Text="{Binding TransientMessage}" TextColor="White" />
+        </Border>
     </Grid>
 </ContentPage>

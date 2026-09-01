@@ -258,7 +258,8 @@
                     <VisualState x:Name="Pressed">
                         <VisualState.Setters>
                             <Setter Property="BackgroundColor" Value="{DynamicResource SurfaceMuted}" />
-                            <Setter Property="Scale" Value="0.98" />
+                            <Setter Property="Opacity" Value="0.82" />
+                            <Setter Property="Scale" Value="0.96" />
                         </VisualState.Setters>
                     </VisualState>
                     <VisualState x:Name="Disabled">
@@ -280,7 +281,8 @@
                     <VisualState x:Name="Pressed">
                         <VisualState.Setters>
                             <Setter Property="BackgroundColor" Value="{DynamicResource DangerPressed}" />
-                            <Setter Property="Scale" Value="0.98" />
+                            <Setter Property="Opacity" Value="0.82" />
+                            <Setter Property="Scale" Value="0.96" />
                         </VisualState.Setters>
                     </VisualState>
                     <VisualState x:Name="Disabled">

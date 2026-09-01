@@ -9,6 +9,7 @@ internal sealed class AppSettings : IDriveSettings
     private const string SaveVehicleImagesKey = "save_vehicle_images";
     private const string ShowGuideKey = "show_road_guide";
     private const string KnownVehicleSoundKey = "known_vehicle_sound";
+    private const string KnownVehicleSoundModeKey = "known_vehicle_sound_mode";
     private const string ZoomKey = "camera_zoom";
     private const string CameraKey = "camera_id";
     private const string RecognitionFramesPerSecondKey = "recognition_frames_per_second";
@@ -55,10 +56,51 @@ internal sealed class AppSettings : IDriveSettings
             Enum.IsDefined(value) ? value.ToString() : nameof(KnownVehicleSound.None));
     }
 
+    public KnownVehicleSoundMode KnownVehicleSoundMode
+    {
+        get
+        {
+            if (!Preferences.Default.ContainsKey(KnownVehicleSoundModeKey))
+            {
+                // Preserve the previous single-picker behavior during migration: a selected
+                // sound meant enabled, while None meant disabled.
+                return KnownVehicleSound == KnownVehicleSound.None
+                    ? KnownVehicleSoundMode.Off
+                    : KnownVehicleSoundMode.Always;
+            }
+
+            var value = Preferences.Default.Get(
+                KnownVehicleSoundModeKey,
+                nameof(KnownVehicleSoundMode.Off));
+            return Enum.TryParse<KnownVehicleSoundMode>(value, out var mode)
+                && Enum.IsDefined(mode)
+                    ? mode
+                    : KnownVehicleSoundMode.Off;
+        }
+        set => Preferences.Default.Set(
+            KnownVehicleSoundModeKey,
+            Enum.IsDefined(value) ? value.ToString() : nameof(KnownVehicleSoundMode.Off));
+    }
+
     public float Zoom
     {
         get => Math.Clamp(Preferences.Default.Get(ZoomKey, 1f), 1f, 5f);
-        set => Preferences.Default.Set(ZoomKey, Math.Clamp(value, 1f, 5f));
+        set
+        {
+            var normalized = Math.Clamp(value, 1f, 5f);
+#if ANDROID
+            // The setup slider can be followed immediately by Android terminating the process.
+            // Commit this tiny, user-facing value synchronously so it cannot remain in the
+            // SharedPreferences apply queue and be lost during that shutdown.
+            var context = global::Android.App.Application.Context;
+            var preferences = context.GetSharedPreferences(
+                $"{context.PackageName}_preferences",
+                global::Android.Content.FileCreationMode.Private);
+            preferences?.Edit()?.PutFloat(ZoomKey, normalized)?.Commit();
+#else
+            Preferences.Default.Set(ZoomKey, normalized);
+#endif
+        }
     }
 
     public string CameraId
@@ -131,7 +173,18 @@ internal sealed class AppSettings : IDriveSettings
             lock (_inputConfigurationGate)
             {
                 _inputConfiguration = value;
-                Preferences.Default.Set(InputConfigurationKey, JsonSerializer.Serialize(value));
+                var json = JsonSerializer.Serialize(value);
+#if ANDROID
+                // This contains the per-source zoom and selected source. Persist it synchronously:
+                // Android can stop the process immediately after the setup screen loses focus.
+                var context = global::Android.App.Application.Context;
+                var preferences = context.GetSharedPreferences(
+                    $"{context.PackageName}_preferences",
+                    global::Android.Content.FileCreationMode.Private);
+                preferences?.Edit()?.PutString(InputConfigurationKey, json)?.Commit();
+#else
+                Preferences.Default.Set(InputConfigurationKey, json);
+#endif
             }
         }
     }

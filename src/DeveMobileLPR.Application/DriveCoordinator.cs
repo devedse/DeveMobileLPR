@@ -78,6 +78,7 @@ public sealed class DriveCoordinator : IAsyncDisposable
     }
 
     public event EventHandler<DriveSnapshot>? SnapshotChanged;
+    public event EventHandler? ShortEmptyTripDiscarded;
     public ISightingRepository Repository => _repository;
     public IVehicleImageStore VehicleImageStore => _vehicleImageStore;
     public DriveSnapshot Snapshot { get { lock (_stateGate) return CreateSnapshot(); } }
@@ -568,9 +569,24 @@ public sealed class DriveCoordinator : IAsyncDisposable
         if (trip is not null)
         {
             var endedAt = DateTimeOffset.UtcNow;
-            await CaptureFailureAsync(
-                () => _repository.EndTripAsync(trip.TripId, endedAt, trip.LocationAt(endedAt), CancellationToken.None),
-                failures);
+            try
+            {
+                var endedTrip = await _repository.EndTripAsync(
+                    trip.TripId,
+                    endedAt,
+                    trip.LocationAt(endedAt),
+                    CancellationToken.None).ConfigureAwait(false);
+                if (endedTrip.Duration < TimeSpan.FromMinutes(1) && endedTrip.SightingCount == 0)
+                {
+                    await _repository.DeleteTripsAsync([trip.TripId], CancellationToken.None).ConfigureAwait(false);
+                    AppendEvent("Discarded an empty trip shorter than one minute.");
+                    _dispatcher.Dispatch(() => ShortEmptyTripDiscarded?.Invoke(this, EventArgs.Empty));
+                }
+            }
+            catch (Exception exception)
+            {
+                failures.Add(exception);
+            }
         }
 
         // Clearing the field before disposing keeps a late reader from seeing a disposed tracker.
@@ -648,6 +664,37 @@ public sealed class DriveCoordinator : IAsyncDisposable
         {
             throw new InvalidOperationException("History was deleted, but vehicle image cleanup failed.", exception);
         }
+    }
+
+    public async Task<DeletedTrips> DeleteTripsAsync(
+        IReadOnlyCollection<long> tripIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (_driving || _stopping)
+        {
+            throw new InvalidOperationException("Stop the active drive before deleting trips.");
+        }
+
+        var deleted = await _repository.DeleteTripsAsync(tripIds, cancellationToken).ConfigureAwait(false);
+        var imageFailures = new List<Exception>();
+        foreach (var reference in deleted.SnapshotReferences)
+        {
+            try
+            {
+                await _vehicleImageStore.DeleteAsync(reference, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                imageFailures.Add(exception);
+            }
+        }
+        if (imageFailures.Count > 0)
+        {
+            throw new AggregateException(
+                "Trips were deleted, but one or more vehicle images could not be removed.",
+                imageFailures);
+        }
+        return deleted;
     }
 
     /// <summary>
@@ -767,8 +814,11 @@ public sealed class DriveCoordinator : IAsyncDisposable
         }
 
         if (result.Confirmation.Revision == 0
-            && result.Prior.SightingCount > 0
-            && _settings.KnownVehicleSound != KnownVehicleSound.None)
+            && _settings.KnownVehicleSound != KnownVehicleSound.None
+            && KnownVehicleAlertPolicy.ShouldPlay(
+                _settings.KnownVehicleSoundMode,
+                result.Prior,
+                sighting))
         {
             _deviceExperience.NotifyKnownVehicle(_settings.KnownVehicleSound);
         }

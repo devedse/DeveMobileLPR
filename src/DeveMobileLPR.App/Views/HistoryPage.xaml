@@ -4,8 +4,10 @@
     x:DataType="vm:HistoryViewModel"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:behaviors="clr-namespace:DeveMobileLPR.App.Behaviors"
     xmlns:controls="clr-namespace:DeveMobileLPR.App.Controls"
-    xmlns:vm="clr-namespace:DeveMobileLPR.App.ViewModels">
+    xmlns:vm="clr-namespace:DeveMobileLPR.App.ViewModels"
+    x:Name="HistoryPageRoot">
     <ContentPage.Resources>
         <Style x:Key="HistoryTabButton" BasedOn="{StaticResource CompactSecondaryButton}" TargetType="Button">
             <Setter Property="BackgroundColor" Value="{DynamicResource SurfaceRaised}" />
@@ -13,7 +15,7 @@
         </Style>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="Auto,*" RowSpacing="12" Style="{StaticResource PageGrid}">
+    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12" Style="{StaticResource PageGrid}">
         <!-- This is deliberately the only fixed content on the page. -->
         <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
             <Button
@@ -51,6 +53,36 @@
                     </DataTrigger>
                 </Button.Triggers>
             </Button>
+        </Grid>
+
+        <Grid
+            Grid.Row="2"
+            HeightRequest="0"
+            IsClippedToBounds="True"
+            IsVisible="False"
+            Opacity="0"
+            Scale="0.98"
+            TranslationY="12">
+            <!-- The selection state and transition configuration stay in XAML; the reusable
+                 behavior supplies the interpolation that MAUI does not expose in XAML itself. -->
+            <Grid.Behaviors>
+                <behaviors:AnimatedVisibilityBehavior
+                    x:DataType="vm:HistoryViewModel"
+                    BindingContext="{Binding BindingContext, Source={x:Reference HistoryPageRoot}, x:DataType=ContentPage}"
+                    EnterDuration="220"
+                    EnterEasing="{x:Static Easing.CubicOut}"
+                    ExitDuration="160"
+                    ExitEasing="{x:Static Easing.CubicIn}"
+                    HiddenTranslationY="12"
+                    IsShown="{Binding IsTripSelectionMode}" />
+            </Grid.Behaviors>
+            <Border Padding="12,8" Style="{StaticResource CompactCard}" VerticalOptions="Start">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10" RowDefinitions="Auto">
+                    <Label FontAttributes="Bold" Text="{Binding SelectedTripCount, StringFormat='{}{0} selected'}" VerticalOptions="Center" />
+                    <Button Command="{Binding ClearTripSelectionCommand}" Grid.Column="1" Style="{StaticResource CompactSecondaryButton}" Text="Cancel" />
+                    <Button Clicked="RemoveTripsClicked" Grid.Column="2" IsEnabled="{Binding CanRemoveTrips}" Style="{StaticResource DangerButton}" Text="{Binding RemoveTripsText}" />
+                </Grid>
+            </Border>
         </Grid>
 
         <RefreshView
@@ -109,8 +141,7 @@
                 ItemsSource="{Binding Trips}"
                 RemainingItemsThreshold="5"
                 RemainingItemsThresholdReachedCommand="{Binding LoadMoreTripsCommand}"
-                SelectionChanged="TripSelected"
-                SelectionMode="Single">
+                SelectionMode="None">
                 <CollectionView.ItemsLayout>
                     <LinearItemsLayout ItemSpacing="10" Orientation="Vertical" />
                 </CollectionView.ItemsLayout>
@@ -124,8 +155,16 @@
                 </CollectionView.EmptyView>
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="vm:TripCardViewModel">
-                        <Border Style="{StaticResource CompactCard}">
-                            <Grid RowDefinitions="Auto,Auto" RowSpacing="10">
+                        <Border HandlerChanged="TripCardHandlerChanged" Style="{StaticResource CompactCard}">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer CommandParameter="{Binding .}" Tapped="TripTapped" />
+                            </Border.GestureRecognizers>
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                <CheckBox
+                                    IsChecked="{Binding IsSelected}"
+                                    IsVisible="{Binding ShowSelectionCheckbox}"
+                                    VerticalOptions="Center" />
+                                <Grid Grid.Column="1" RowDefinitions="Auto,Auto" RowSpacing="10">
                                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="20">
                                     <VerticalStackLayout Spacing="2" WidthRequest="105">
                                         <Label FontAttributes="Bold" FontSize="18" Text="{Binding Day}" />
@@ -152,6 +191,7 @@
                                         <Label Style="{StaticResource MutedText}" Text="{Binding HighlightPlate}" />
                                     </VerticalStackLayout>
                                     <Label Grid.Column="1" FontSize="24" Text="›" TextColor="{DynamicResource TextMuted}" VerticalOptions="Center" />
+                                </Grid>
                                 </Grid>
                             </Grid>
                         </Border>
@@ -192,22 +232,20 @@
                                 <Picker ItemsSource="{Binding VehicleSortOptions}" SelectedItem="{Binding SelectedVehicleSort}" />
                             </VerticalStackLayout>
                         </FlexLayout>
+                        <Border IsVisible="{Binding ShowVehiclesEmpty}" Margin="0,4,0,0" Style="{StaticResource CompactCard}" VerticalOptions="Start">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                <VerticalStackLayout Spacing="3">
+                                    <Label Style="{StaticResource SettingTitle}" Text="No vehicles found" />
+                                    <Label Style="{StaticResource SecondaryText}" Text="No confirmed vehicles match the current search and filters." />
+                                </VerticalStackLayout>
+                                <Button Grid.Column="1" Command="{Binding ResetVehicleFiltersCommand}" Style="{StaticResource CompactSecondaryButton}" Text="Reset filters" VerticalOptions="Center" />
+                            </Grid>
+                        </Border>
                     </VerticalStackLayout>
                 </CollectionView.Header>
                 <CollectionView.ItemsLayout>
                     <LinearItemsLayout ItemSpacing="10" Orientation="Vertical" />
                 </CollectionView.ItemsLayout>
-                <CollectionView.EmptyView>
-                    <Border IsVisible="{Binding ShowVehiclesEmpty}" Margin="0,4,0,0" Style="{StaticResource CompactCard}" VerticalOptions="Start">
-                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                            <VerticalStackLayout Spacing="3">
-                                <Label Style="{StaticResource SettingTitle}" Text="No vehicles found" />
-                                <Label Style="{StaticResource SecondaryText}" Text="No confirmed vehicles match the current search and filters." />
-                            </VerticalStackLayout>
-                            <Button Grid.Column="1" Command="{Binding ResetVehicleFiltersCommand}" Style="{StaticResource CompactSecondaryButton}" Text="Reset filters" VerticalOptions="Center" />
-                        </Grid>
-                    </Border>
-                </CollectionView.EmptyView>
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="vm:VehicleCardViewModel">
                         <Border Style="{StaticResource CompactCard}">

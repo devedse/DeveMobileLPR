@@ -241,15 +241,19 @@ public sealed record VehicleHistorySummary(
     GeoPoint? LastLocation,
     string? SnapshotReference);
 
-public sealed record PriorVehicleSightings(int SightingCount, DateTimeOffset? LastSeenAt)
+public sealed record PriorVehicleSightings(
+    int SightingCount,
+    DateTimeOffset? LastSeenAt,
+    GeoPoint? LastLocation = null)
 {
-    public static PriorVehicleSightings None { get; } = new(0, null);
+    public static PriorVehicleSightings None { get; } = new(0, null, null);
 }
 
 public enum VehicleHistorySort
 {
     MostRecent,
-    HighestValue
+    HighestValue,
+    MostSightings
 }
 
 public sealed record VehicleHistoryQuery(
@@ -279,6 +283,11 @@ public sealed record HistoryStatistics(
     int UniqueVehicleCount,
     double DistanceMeters,
     Sighting? MostExpensiveSighting);
+
+public sealed record DeletedTrips(
+    int TripCount,
+    int SightingCount,
+    IReadOnlyList<string> SnapshotReferences);
 
 public interface IPlateDetector
 {
@@ -336,5 +345,6 @@ public interface ISightingRepository
     Task<IReadOnlyList<Sighting>> GetAllSightingsAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<Sighting>> FindByPlateAsync(string normalizedPlate, CancellationToken cancellationToken);
     Task<Sighting?> GetMostExpensiveAsync(CancellationToken cancellationToken);
+    Task<DeletedTrips> DeleteTripsAsync(IReadOnlyCollection<long> tripIds, CancellationToken cancellationToken);
     Task DeleteHistoryAsync(CancellationToken cancellationToken);
 }

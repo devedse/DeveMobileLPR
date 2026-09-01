@@ -78,7 +78,7 @@
 
         <Grid IsVisible="{Binding IsReviewing}" RowDefinitions="Auto,*,Auto,Auto,Auto" RowSpacing="8" Style="{StaticResource PageGrid}">
             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
-                <Button Clicked="CloseReviewClicked" Style="{StaticResource CompactSecondaryButton}" Text="Back" />
+                <Button Command="{Binding CloseReviewCommand}" Style="{StaticResource CompactSecondaryButton}" Text="Back" />
                 <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
                     <Label Style="{StaticResource SectionTitle}" Text="{Binding CurrentFrameTitle}" />
                     <Label Style="{StaticResource MutedText}" Text="{Binding CurrentFrameDetail}" />
