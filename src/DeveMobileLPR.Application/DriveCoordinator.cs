@@ -814,8 +814,11 @@ public sealed class DriveCoordinator : IAsyncDisposable
         }
 
         if (result.Confirmation.Revision == 0
-            && result.Prior.SightingCount > 0
-            && _settings.KnownVehicleSound != KnownVehicleSound.None)
+            && _settings.KnownVehicleSound != KnownVehicleSound.None
+            && KnownVehicleAlertPolicy.ShouldPlay(
+                _settings.KnownVehicleSoundMode,
+                result.Prior,
+                sighting))
         {
             _deviceExperience.NotifyKnownVehicle(_settings.KnownVehicleSound);
         }

@@ -309,24 +309,27 @@ public sealed class SightingRepositoryTests : IAsyncLifetime
     {
         var now = DateTimeOffset.UtcNow;
         var firstTrip = await _repository.StartTripAsync(now.AddDays(-3), null, CancellationToken.None);
-        await _repository.AddOrMergeAsync(Confirmed("AB1234", now.AddDays(-3), 3), null, null, firstTrip.Id, CancellationToken.None);
+        await _repository.AddOrMergeAsync(Confirmed("AB1234", now.AddDays(-3), 3), new GeoPoint(52.0, 5.0, 10), null, firstTrip.Id, CancellationToken.None);
         await _repository.EndTripAsync(firstTrip.Id, now.AddDays(-3).AddMinutes(1), null, CancellationToken.None);
         var secondTrip = await _repository.StartTripAsync(now.AddHours(-2), null, CancellationToken.None);
-        await _repository.AddOrMergeAsync(Confirmed("AB1234", now.AddHours(-2), 3), null, null, secondTrip.Id, CancellationToken.None);
+        await _repository.AddOrMergeAsync(Confirmed("AB1234", now.AddHours(-2), 3), new GeoPoint(53.0, 5.0, 10), null, secondTrip.Id, CancellationToken.None);
         await _repository.EndTripAsync(secondTrip.Id, now.AddHours(-2).AddMinutes(1), null, CancellationToken.None);
-        await _repository.AddOrMergeAsync(Confirmed("AB1234", now.AddMinutes(-5), 3), null, null, null, CancellationToken.None);
+        await _repository.AddOrMergeAsync(Confirmed("AB1234", now.AddMinutes(-5), 3), new GeoPoint(54.0, 5.0, 10), null, null, CancellationToken.None);
 
         var all = await _repository.GetPriorVehicleSightingsAsync("AB1234", null, CancellationToken.None);
         Assert.Equal(3, all.SightingCount);
         Assert.Equal(now.AddMinutes(-5), all.LastSeenAt);
+        Assert.Equal(new GeoPoint(54.0, 5.0, 10), all.LastLocation);
 
         var excludingSecondTrip = await _repository.GetPriorVehicleSightingsAsync("AB1234", secondTrip.Id, CancellationToken.None);
         Assert.Equal(2, excludingSecondTrip.SightingCount);
         Assert.Equal(now.AddMinutes(-5), excludingSecondTrip.LastSeenAt);
+        Assert.Equal(new GeoPoint(54.0, 5.0, 10), excludingSecondTrip.LastLocation);
 
         var unknown = await _repository.GetPriorVehicleSightingsAsync("ZZ9999", null, CancellationToken.None);
         Assert.Equal(0, unknown.SightingCount);
         Assert.Null(unknown.LastSeenAt);
+        Assert.Null(unknown.LastLocation);
     }
 
     [Fact]

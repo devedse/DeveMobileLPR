@@ -69,12 +69,20 @@
                             IsToggled="{Binding ShowRoadGuide}"
                             Title="Show road guide" />
                         <BoxView Style="{StaticResource DividerLine}" />
-                        <Label Style="{StaticResource SettingTitle}" Text="Known vehicle sound" />
+                        <Label Style="{StaticResource SettingTitle}" Text="Known vehicle alerts" />
                         <Picker
-                            ItemsSource="{Binding KnownVehicleSoundOptions}"
-                            SelectedItem="{Binding SelectedKnownVehicleSound}"
-                            Title="Choose a sound" />
-                        <Label Style="{StaticResource SettingDescription}" Text="{Binding KnownVehicleSoundDetail, StringFormat='{}{0}. Selecting a sound plays a preview.'}" />
+                            ItemsSource="{Binding KnownVehicleSoundModeOptions}"
+                            SelectedItem="{Binding SelectedKnownVehicleSoundMode}"
+                            Title="Choose when alerts play" />
+                        <Label Style="{StaticResource SettingDescription}" Text="{Binding KnownVehicleSoundModeDetail}" />
+                        <VerticalStackLayout IsVisible="{Binding KnownVehicleSoundEnabled}" Spacing="4">
+                            <Label Style="{StaticResource SettingTitle}" Text="Alert sound" />
+                            <Picker
+                                ItemsSource="{Binding KnownVehicleSoundOptions}"
+                                SelectedItem="{Binding SelectedKnownVehicleSound}"
+                                Title="Choose a sound" />
+                            <Label Style="{StaticResource SettingDescription}" Text="{Binding KnownVehicleSoundDetail, StringFormat='{}{0}. Selecting a sound plays a preview.'}" />
+                        </VerticalStackLayout>
                         <BoxView IsVisible="{Binding IsBackgroundScanningAvailable}" Style="{StaticResource DividerLine}" />
                         <controls:SettingsToggleRow
                             Description="{Binding BackgroundScanningDescription}"

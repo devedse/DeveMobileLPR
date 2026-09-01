@@ -18,6 +18,11 @@ The Android models are mechanically derived from the pinned ONNX models above. T
 | Leaflet.markercluster 1.5.3 | [Leaflet.markercluster](https://github.com/Leaflet/Leaflet.markercluster/tree/v1.5.3) | MIT |
 | Known-vehicle Bell, Confirm, Glass, and Pulse sounds | [Kenney Interface Sounds](https://kenney.nl/assets/interface-sounds) | CC0 1.0 |
 | Known-vehicle Scanner sound | [Kenney Sci-fi Sounds](https://kenney.nl/assets/sci-fi-sounds) | CC0 1.0 |
+| Known-vehicle Car horn sound | [Car Horn.wav](https://commons.wikimedia.org/wiki/File:Car_Horn.wav), 15HPanska_Ruttner_Jan | CC0 1.0 |
+| Known-vehicle Short car signal sound | [Car signal](https://opengameart.org/content/car-signal), Yaroslav_Novikov | CC0 1.0 |
+| Known-vehicle Engine start sound | [Car engine Start Up 02](https://opengameart.org/content/car-engine-start-up-02), looneybits | CC0 1.0 |
+| Known-vehicle Car door sound | [Car_door_SFX](https://opengameart.org/content/cardoorsfx), looneybits | CC0 1.0 |
+| Known-vehicle Kalimba sound | [Kalimba Two-Notes](https://opengameart.org/content/kalimba-two-notes), railkill | CC0 1.0 |
 
 The RDW database builder uses these additional inputs:
 

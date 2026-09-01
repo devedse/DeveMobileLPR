@@ -241,9 +241,12 @@ public sealed record VehicleHistorySummary(
     GeoPoint? LastLocation,
     string? SnapshotReference);
 
-public sealed record PriorVehicleSightings(int SightingCount, DateTimeOffset? LastSeenAt)
+public sealed record PriorVehicleSightings(
+    int SightingCount,
+    DateTimeOffset? LastSeenAt,
+    GeoPoint? LastLocation = null)
 {
-    public static PriorVehicleSightings None { get; } = new(0, null);
+    public static PriorVehicleSightings None { get; } = new(0, null, null);
 }
 
 public enum VehicleHistorySort

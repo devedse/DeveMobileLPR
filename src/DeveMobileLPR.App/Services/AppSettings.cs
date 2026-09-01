@@ -9,6 +9,7 @@ internal sealed class AppSettings : IDriveSettings
     private const string SaveVehicleImagesKey = "save_vehicle_images";
     private const string ShowGuideKey = "show_road_guide";
     private const string KnownVehicleSoundKey = "known_vehicle_sound";
+    private const string KnownVehicleSoundModeKey = "known_vehicle_sound_mode";
     private const string ZoomKey = "camera_zoom";
     private const string CameraKey = "camera_id";
     private const string RecognitionFramesPerSecondKey = "recognition_frames_per_second";
@@ -53,6 +54,32 @@ internal sealed class AppSettings : IDriveSettings
         set => Preferences.Default.Set(
             KnownVehicleSoundKey,
             Enum.IsDefined(value) ? value.ToString() : nameof(KnownVehicleSound.None));
+    }
+
+    public KnownVehicleSoundMode KnownVehicleSoundMode
+    {
+        get
+        {
+            if (!Preferences.Default.ContainsKey(KnownVehicleSoundModeKey))
+            {
+                // Preserve the previous single-picker behavior during migration: a selected
+                // sound meant enabled, while None meant disabled.
+                return KnownVehicleSound == KnownVehicleSound.None
+                    ? KnownVehicleSoundMode.Off
+                    : KnownVehicleSoundMode.Always;
+            }
+
+            var value = Preferences.Default.Get(
+                KnownVehicleSoundModeKey,
+                nameof(KnownVehicleSoundMode.Off));
+            return Enum.TryParse<KnownVehicleSoundMode>(value, out var mode)
+                && Enum.IsDefined(mode)
+                    ? mode
+                    : KnownVehicleSoundMode.Off;
+        }
+        set => Preferences.Default.Set(
+            KnownVehicleSoundModeKey,
+            Enum.IsDefined(value) ? value.ToString() : nameof(KnownVehicleSoundMode.Off));
     }
 
     public float Zoom

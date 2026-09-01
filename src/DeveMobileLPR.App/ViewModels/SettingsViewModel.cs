@@ -24,6 +24,14 @@ internal sealed record KnownVehicleSoundOption(
     public override string ToString() => Name;
 }
 
+internal sealed record KnownVehicleSoundModeOption(
+    string Name,
+    string Detail,
+    KnownVehicleSoundMode Mode)
+{
+    public override string ToString() => Name;
+}
+
 internal sealed record RecognitionTuningValue(
     string Name,
     string Value,
@@ -52,6 +60,7 @@ internal sealed class SettingsViewModel : ViewModelBase
     private string _permissionsDetail = "Checking platform permissions…";
     private RecognitionFrameRateOption _selectedRecognitionFrameRate;
     private KnownVehicleSoundOption _selectedKnownVehicleSound;
+    private KnownVehicleSoundModeOption _selectedKnownVehicleSoundMode;
 
     public SettingsViewModel(
         AppSettings settings,
@@ -82,23 +91,33 @@ internal sealed class SettingsViewModel : ViewModelBase
             new("12 FPS", "High · more CPU/GPU use for fast-moving traffic", 12),
             new("Unlimited", "Maximum throughput · submits every available analysis frame and drops stale queued frames", 0)
         ];
+        KnownVehicleSoundModeOptions =
+        [
+            new("Off", "No alert sound is played for previously seen vehicles", KnownVehicleSoundMode.Off),
+            new("Every previous sighting", "Plays whenever a vehicle with any earlier sighting is confirmed", KnownVehicleSoundMode.Always),
+            new("More than 100 m away", "Plays only when the current and most recent saved locations are more than 100 m apart. Both locations must be available, so Save location trail must be enabled", KnownVehicleSoundMode.DifferentLocation),
+            new("Not seen for 24 hours", "Plays only when at least 24 hours have passed since the previous sighting", KnownVehicleSoundMode.After24Hours)
+        ];
         KnownVehicleSoundOptions =
         [
-            new("None", "No sound when a previously seen vehicle is confirmed", KnownVehicleSound.None),
-            new("Chime", "A short two-note confirmation", KnownVehicleSound.Chime),
-            new("Radar", "A compact electronic double ping", KnownVehicleSound.Radar),
-            new("Sparkle", "A bright three-note flourish", KnownVehicleSound.Sparkle),
-            new("Bell", "A concise bell-like notification", KnownVehicleSound.Bell),
-            new("Confirm", "A warm digital confirmation", KnownVehicleSound.Confirm),
-            new("Glass", "A clear glassy accent", KnownVehicleSound.Glass),
-            new("Pulse", "A more urgent electronic pulse", KnownVehicleSound.Pulse),
-            new("Scanner", "A quick sci-fi scanner ping", KnownVehicleSound.Scanner)
+            new("Car horn", "A real two-honk car horn recording", KnownVehicleSound.CarHorn),
+            new("Short car signal", "A compact real vehicle horn", KnownVehicleSound.CarSignal),
+            new("Engine start", "A real car engine starting", KnownVehicleSound.EngineStart),
+            new("Car door", "A real car door closing", KnownVehicleSound.DoorClose),
+            new("Kalimba", "Two friendly notes played on a real kalimba", KnownVehicleSound.Kalimba)
         ];
         _selectedRecognitionFrameRate = RecognitionFrameRateOptions.FirstOrDefault(
                 option => option.MaximumFramesPerSecond == _settings.RecognitionFramesPerSecond)
             ?? RecognitionFrameRateOptions[1];
-        _selectedKnownVehicleSound = KnownVehicleSoundOptions.First(
-            option => option.Sound == _settings.KnownVehicleSound);
+        _selectedKnownVehicleSoundMode = KnownVehicleSoundModeOptions.First(
+            option => option.Mode == _settings.KnownVehicleSoundMode);
+        _selectedKnownVehicleSound = KnownVehicleSoundOptions.FirstOrDefault(
+                option => option.Sound == _settings.KnownVehicleSound)
+            ?? KnownVehicleSoundOptions[0];
+        if (_settings.KnownVehicleSound != _selectedKnownVehicleSound.Sound)
+        {
+            _settings.KnownVehicleSound = _selectedKnownVehicleSound.Sound;
+        }
     }
 
     public bool IsBusy
@@ -127,6 +146,7 @@ internal sealed class SettingsViewModel : ViewModelBase
     public string RecognitionEngineDescription => _platform.RecognitionEngineDescription;
     public IReadOnlyList<RecognitionFrameRateOption> RecognitionFrameRateOptions { get; }
     public IReadOnlyList<KnownVehicleSoundOption> KnownVehicleSoundOptions { get; }
+    public IReadOnlyList<KnownVehicleSoundModeOption> KnownVehicleSoundModeOptions { get; }
     public IReadOnlyList<RecognitionTuningSection> RecognitionTuningSections { get; }
     public bool IsBackgroundScanningAvailable => _backgroundScanning.IsSupported;
     public bool ShowDebugTools
@@ -179,6 +199,28 @@ internal sealed class SettingsViewModel : ViewModelBase
     }
 
     public string RecognitionFrameRateDetail => SelectedRecognitionFrameRate.Detail;
+
+    public KnownVehicleSoundModeOption SelectedKnownVehicleSoundMode
+    {
+        get => _selectedKnownVehicleSoundMode;
+        set
+        {
+            if (SetProperty(ref _selectedKnownVehicleSoundMode, value))
+            {
+                _settings.KnownVehicleSoundMode = value.Mode;
+                if (value.Mode != KnownVehicleSoundMode.Off
+                    && _settings.KnownVehicleSound == KnownVehicleSound.None)
+                {
+                    _settings.KnownVehicleSound = SelectedKnownVehicleSound.Sound;
+                }
+                OnPropertyChanged(nameof(KnownVehicleSoundModeDetail));
+                OnPropertyChanged(nameof(KnownVehicleSoundEnabled));
+            }
+        }
+    }
+
+    public string KnownVehicleSoundModeDetail => SelectedKnownVehicleSoundMode.Detail;
+    public bool KnownVehicleSoundEnabled => SelectedKnownVehicleSoundMode.Mode != KnownVehicleSoundMode.Off;
 
     public KnownVehicleSoundOption SelectedKnownVehicleSound
     {

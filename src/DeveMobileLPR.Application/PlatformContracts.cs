@@ -8,6 +8,7 @@ public interface IDriveSettings
 {
     bool TrackLocation { get; set; }
     bool SaveVehicleImages { get; set; }
+    KnownVehicleSoundMode KnownVehicleSoundMode { get; set; }
     KnownVehicleSound KnownVehicleSound { get; set; }
     float Zoom { get; set; }
     string CameraId { get; set; }
@@ -30,7 +31,20 @@ public enum KnownVehicleSound
     Confirm,
     Glass,
     Pulse,
-    Scanner
+    Scanner,
+    CarHorn,
+    CarSignal,
+    EngineStart,
+    DoorClose,
+    Kalimba
+}
+
+public enum KnownVehicleSoundMode
+{
+    Off,
+    Always,
+    DifferentLocation,
+    After24Hours
 }
 
 public interface IVehicleImageEncoder

@@ -431,9 +431,10 @@ public sealed class SightingRepository : ISightingRepository
     {
         ArgumentNullException.ThrowIfNull(normalizedPlate);
         await using var context = _contexts.CreateDbContext();
-        var row = await context.Sightings.AsNoTracking()
+        var candidates = context.Sightings.AsNoTracking()
             .Where(sighting => sighting.NormalizedPlate == normalizedPlate
-                && (excludeTripId == null || sighting.TripId != excludeTripId.Value))
+                && (excludeTripId == null || sighting.TripId != excludeTripId.Value));
+        var row = await candidates
             .GroupBy(sighting => sighting.NormalizedPlate)
             .Select(group => new
             {
@@ -442,9 +443,29 @@ public sealed class SightingRepository : ISightingRepository
             })
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
-        return row is null
-            ? PriorVehicleSightings.None
-            : new PriorVehicleSightings(row.Count, row.LastSeenAt);
+        if (row is null)
+        {
+            return PriorVehicleSightings.None;
+        }
+
+        var lastLocated = await candidates
+            .Where(sighting => sighting.Latitude != null && sighting.Longitude != null)
+            .OrderByDescending(sighting => sighting.LastSeenAt)
+            .ThenByDescending(sighting => sighting.Id)
+            .Select(sighting => new
+            {
+                sighting.Latitude,
+                sighting.Longitude,
+                sighting.LocationAccuracyMeters
+            })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return new PriorVehicleSightings(
+            row.Count,
+            row.LastSeenAt,
+            lastLocated is null
+                ? null
+                : ToLocation(lastLocated.Latitude, lastLocated.Longitude, lastLocated.LocationAccuracyMeters));
     }
 
     public async Task<HistoryStatistics> GetStatisticsAsync(DateTimeOffset from, DateTimeOffset until, CancellationToken cancellationToken)

@@ -106,6 +106,11 @@ internal sealed class MauiDeviceExperience(
         KnownVehicleSound.Glass => "known_vehicle_glass.wav",
         KnownVehicleSound.Pulse => "known_vehicle_pulse.wav",
         KnownVehicleSound.Scanner => "known_vehicle_scanner.wav",
+        KnownVehicleSound.CarHorn => "known_vehicle_car_horn.wav",
+        KnownVehicleSound.CarSignal => "known_vehicle_car_signal.wav",
+        KnownVehicleSound.EngineStart => "known_vehicle_engine_start.wav",
+        KnownVehicleSound.DoorClose => "known_vehicle_door_close.wav",
+        KnownVehicleSound.Kalimba => "known_vehicle_kalimba.wav",
         _ => throw new ArgumentOutOfRangeException(nameof(sound), sound, null)
     };
 }

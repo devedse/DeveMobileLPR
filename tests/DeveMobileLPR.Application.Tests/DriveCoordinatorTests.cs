@@ -387,12 +387,14 @@ public sealed class DriveCoordinatorTests
     }
 
     [Theory]
-    [InlineData(0, KnownVehicleSound.Chime, 0)]
-    [InlineData(3, KnownVehicleSound.None, 0)]
-    [InlineData(3, KnownVehicleSound.Radar, 1)]
+    [InlineData(0, KnownVehicleSound.Chime, KnownVehicleSoundMode.Always, 0)]
+    [InlineData(3, KnownVehicleSound.None, KnownVehicleSoundMode.Always, 0)]
+    [InlineData(3, KnownVehicleSound.Radar, KnownVehicleSoundMode.Always, 1)]
+    [InlineData(3, KnownVehicleSound.Radar, KnownVehicleSoundMode.Off, 0)]
     public async Task KnownVehicleSoundPlaysOnlyForPreviouslySeenVehicles(
         int priorSightingCount,
         KnownVehicleSound selectedSound,
+        KnownVehicleSoundMode mode,
         int expectedSoundCount)
     {
         var repository = new FakeRepository
@@ -401,7 +403,11 @@ public sealed class DriveCoordinatorTests
         };
         var pipeline = new ConfirmingPipeline();
         var device = new TestDeviceExperience();
-        var settings = new TestSettings { KnownVehicleSound = selectedSound };
+        var settings = new TestSettings
+        {
+            KnownVehicleSound = selectedSound,
+            KnownVehicleSoundMode = mode
+        };
         await using var coordinator = await StartDrivingAsync(repository, pipeline, device: device, settings: settings);
         var confirmationPublished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         coordinator.SnapshotChanged += (_, snapshot) =>
@@ -613,6 +619,7 @@ public sealed class DriveCoordinatorTests
     {
         public bool TrackLocation { get; set; } = true;
         public bool SaveVehicleImages { get; set; }
+        public KnownVehicleSoundMode KnownVehicleSoundMode { get; set; } = KnownVehicleSoundMode.Always;
         public KnownVehicleSound KnownVehicleSound { get; set; } = KnownVehicleSound.None;
         public float Zoom { get; set; } = 1;
         public string CameraId { get; set; } = "rear";
