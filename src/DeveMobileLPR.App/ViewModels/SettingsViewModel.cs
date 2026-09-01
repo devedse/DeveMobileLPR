@@ -100,11 +100,15 @@ internal sealed class SettingsViewModel : ViewModelBase
         ];
         KnownVehicleSoundOptions =
         [
-            new("Car horn", "A real two-honk car horn recording", KnownVehicleSound.CarHorn),
+            new("Funny horn", "A playful honk from a child's plastic bicycle horn", KnownVehicleSound.CarHorn),
             new("Short car signal", "A compact real vehicle horn", KnownVehicleSound.CarSignal),
             new("Engine start", "A real car engine starting", KnownVehicleSound.EngineStart),
             new("Car door", "A real car door closing", KnownVehicleSound.DoorClose),
-            new("Kalimba", "Two friendly notes played on a real kalimba", KnownVehicleSound.Kalimba)
+            new("Kalimba", "Two friendly notes played on a real kalimba", KnownVehicleSound.Kalimba),
+            new("Steam whistle", "A bright real steam-whistle blast", KnownVehicleSound.SteamWhistle),
+            new("Applause", "A short burst of real people clapping", KnownVehicleSound.Applause),
+            new("Orchestral chimes", "A short musical phrase played on orchestral chimes", KnownVehicleSound.OrchestralChimes),
+            new("Bell ding", "A clear recorded bell with a natural ring", KnownVehicleSound.BellDing)
         ];
         _selectedRecognitionFrameRate = RecognitionFrameRateOptions.FirstOrDefault(
                 option => option.MaximumFramesPerSecond == _settings.RecognitionFramesPerSecond)

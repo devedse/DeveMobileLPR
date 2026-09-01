@@ -36,7 +36,11 @@ public enum KnownVehicleSound
     CarSignal,
     EngineStart,
     DoorClose,
-    Kalimba
+    Kalimba,
+    SteamWhistle,
+    Applause,
+    OrchestralChimes,
+    BellDing
 }
 
 public enum KnownVehicleSoundMode
