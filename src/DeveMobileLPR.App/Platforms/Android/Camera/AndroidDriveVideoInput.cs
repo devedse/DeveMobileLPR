@@ -710,6 +710,12 @@ internal sealed class AndroidDriveVideoInput : IDriveVideoInput
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
         }
+        catch (Exception exception)
+        {
+            Diagnostic?.Invoke(this, new DriveInputDiagnostic(
+                $"Automatic camera recovery failed: {exception.Message}",
+                true));
+        }
         finally
         {
             Interlocked.CompareExchange(ref _physicalRetryCancellation, null, cancellation);

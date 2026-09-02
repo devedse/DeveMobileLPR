@@ -1,3 +1,4 @@
+using DeveMobileLPR.App.Controls;
 using DeveMobileLPR.App.Services;
 using DeveMobileLPR.App.ViewModels;
 
@@ -6,13 +7,11 @@ namespace DeveMobileLPR.App.Views;
 public partial class HistoryPage : ContentPage
 {
     private readonly HistoryViewModel _viewModel;
-    private readonly ITripCardGestureAdapter _tripCardGestures;
 
-    internal HistoryPage(HistoryViewModel viewModel, ITripCardGestureAdapter tripCardGestures)
+    internal HistoryPage(HistoryViewModel viewModel)
     {
         InitializeComponent();
         BindingContext = _viewModel = viewModel;
-        _tripCardGestures = tripCardGestures;
     }
 
     protected override async void OnAppearing()
@@ -29,40 +28,35 @@ public partial class HistoryPage : ContentPage
 
     private async void TripTapped(object? sender, TappedEventArgs args)
     {
-        // The native adapter owns Android's full touch stream to distinguish taps from long presses.
-        if (_tripCardGestures.HandlesTap) return;
-        if (args.Parameter is not TripCardViewModel trip) return;
-        await OpenOrSelectTripAsync(trip);
-    }
-
-    private void TripCardHandlerChanged(object? sender, EventArgs args)
-    {
-        if (sender is not Border card)
+        if (args.Parameter is TripCardViewModel trip)
         {
-            return;
+            await this.RunSafelyAsync(
+                "Could not open trip",
+                () => OpenOrSelectTripAsync(trip, nativeGesture: false));
         }
-
-        _tripCardGestures.Attach(
-            card,
-            () => MainThread.BeginInvokeOnMainThread(() =>
-            {
-                if (card.BindingContext is TripCardViewModel trip)
-                {
-                    _viewModel.BeginTripSelection(trip);
-                }
-            }),
-            () => MainThread.BeginInvokeOnMainThread(async () =>
-            {
-                if (card.BindingContext is TripCardViewModel trip)
-                {
-                    await OpenOrSelectTripAsync(trip);
-                }
-            }));
     }
 
-    private async Task OpenOrSelectTripAsync(TripCardViewModel trip)
+    private void TripLongPressed(object? sender, EventArgs args)
     {
-        if (_tripCardGestures.HandlesTap && _viewModel.IsTripSelectionMode)
+        if (sender is TripCardView { BindingContext: TripCardViewModel trip })
+        {
+            _viewModel.BeginTripSelection(trip);
+        }
+    }
+
+    private async void NativeTripTapped(object? sender, EventArgs args)
+    {
+        if (sender is TripCardView { BindingContext: TripCardViewModel trip })
+        {
+            await this.RunSafelyAsync(
+                "Could not open trip",
+                () => OpenOrSelectTripAsync(trip, nativeGesture: true));
+        }
+    }
+
+    private async Task OpenOrSelectTripAsync(TripCardViewModel trip, bool nativeGesture)
+    {
+        if (nativeGesture && _viewModel.IsTripSelectionMode)
         {
             _viewModel.ToggleTripSelection(trip);
             return;
@@ -71,26 +65,36 @@ public partial class HistoryPage : ContentPage
     }
 
 
-    private async void RemoveTripsClicked(object? sender, EventArgs args)
-    {
-        var count = _viewModel.SelectedTripCount;
-        if (count == 0) return;
-        var confirmed = await DisplayAlertAsync(
-            "Remove trips?",
-            $"Are you sure you want to remove {count} trips?\n\nAll cars + images scanned during these trips will be removed too.",
-            "Remove",
-            "Cancel");
-        if (!confirmed) return;
-        await _viewModel.DeleteSelectedTripsAsync();
-    }
+    private async void RemoveTripsClicked(object? sender, EventArgs args) =>
+        await this.RunSafelyAsync(
+            "Could not remove trips",
+            async () =>
+            {
+                var count = _viewModel.SelectedTripCount;
+                if (count == 0)
+                {
+                    return;
+                }
+                var confirmed = await DisplayAlertAsync(
+                    "Remove trips?",
+                    $"Are you sure you want to remove {count} trips?\n\nAll cars + images scanned during these trips will be removed too.",
+                    "Remove",
+                    "Cancel");
+                if (confirmed)
+                {
+                    await _viewModel.DeleteSelectedTripsAsync();
+                }
+            });
 
     private async void VehicleSelected(object? sender, SelectionChangedEventArgs args)
     {
         if (args.CurrentSelection.FirstOrDefault() is not VehicleCardViewModel vehicle) return;
         VehiclesList.SelectedItem = null;
-        await Navigation.PushAsync(new VehicleDetailPage(
-            _viewModel.Coordinator.Repository,
-            _viewModel.Coordinator.VehicleImageStore,
-            vehicle.NormalizedPlate));
+        await this.RunSafelyAsync(
+            "Could not open vehicle",
+            () => Navigation.PushAsync(new VehicleDetailPage(
+                _viewModel.Coordinator.Repository,
+                _viewModel.Coordinator.VehicleImageStore,
+                vehicle.NormalizedPlate)));
     }
 }
