@@ -1,3 +1,4 @@
+using DeveMobileLPR.App.Services;
 using DeveMobileLPR.App.ViewModels;
 
 namespace DeveMobileLPR.App.Views;
@@ -7,13 +8,18 @@ public partial class SettingsPage : ContentPage
     private const double PairedCardMinimumWidth = 656;
     private const double RdwSideBySideMinimumWidth = 466;
     private readonly SettingsViewModel _viewModel;
-    private readonly Services.AppLogService _appLog;
+    private readonly AppLogService _appLog;
+    private readonly ICameraCapabilitiesLauncher _cameraCapabilities;
 
-    internal SettingsPage(SettingsViewModel viewModel, Services.AppLogService appLog)
+    internal SettingsPage(
+        SettingsViewModel viewModel,
+        AppLogService appLog,
+        ICameraCapabilitiesLauncher cameraCapabilities)
     {
         InitializeComponent();
         BindingContext = _viewModel = viewModel;
         _appLog = appLog;
+        _cameraCapabilities = cameraCapabilities;
     }
 
     protected override async void OnAppearing()
@@ -42,15 +48,8 @@ public partial class SettingsPage : ContentPage
 #endif
     }
 
-    private async void CameraCapabilitiesClicked(object? sender, EventArgs args)
-    {
-#if ANDROID
-        await Navigation.PushModalAsync(new NavigationPage(
-            new Platforms.Android.Camera.CameraCapabilitiesPage()));
-#else
-        await Task.CompletedTask;
-#endif
-    }
+    private async void CameraCapabilitiesClicked(object? sender, EventArgs args) =>
+        await _cameraCapabilities.ShowAsync();
 
     private async void BackgroundScanningToggled(object? sender, ToggledEventArgs args)
     {

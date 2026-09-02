@@ -33,6 +33,14 @@ public sealed class HistoryBackupServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public void Constructor_RejectsDatabaseOutsideRoot()
+    {
+        var outsidePath = Path.Combine(Path.GetDirectoryName(_root)!, "outside", "sightings.sqlite");
+
+        Assert.Throws<ArgumentException>(() => new HistoryBackupService(_root, outsidePath));
+    }
+
+    [Fact]
     public async Task Backup_RoundTripsHistoryAndScreenshots_WithoutRdw_AndIgnoresFormatVersion()
     {
         var createdAt = new DateTimeOffset(2026, 8, 20, 14, 15, 16, TimeSpan.FromHours(2));

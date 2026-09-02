@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
 using DeveMobileLPR.App.Services;
 using DeveMobileLPR.Application;
 using DeveMobileLPR.App.UI;
@@ -7,7 +8,7 @@ using DeveMobileLPR.Recognition;
 
 namespace DeveMobileLPR.App.ViewModels;
 
-internal sealed class TripCardViewModel(
+internal sealed partial class TripCardViewModel(
     long id,
     string day,
     string time,
@@ -17,9 +18,13 @@ internal sealed class TripCardViewModel(
     string sightingCount,
     string highlight,
     string highlightPlate,
+    bool alwaysShowSelectionCheckbox,
     Action<TripCardViewModel, bool> selectionChanged) : ViewModelBase
 {
+    [ObservableProperty]
     private bool _isSelected;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowSelectionCheckbox))]
     private bool _isSelectionMode;
     public long Id { get; } = id;
     public string Day { get; } = day;
@@ -30,23 +35,9 @@ internal sealed class TripCardViewModel(
     public string SightingCount { get; } = sightingCount;
     public string Highlight { get; } = highlight;
     public string HighlightPlate { get; } = highlightPlate;
-    public bool ShowSelectionCheckbox => OperatingSystem.IsWindows() || IsSelectionMode;
-    public bool IsSelected
-    {
-        get => _isSelected;
-        set
-        {
-            if (SetProperty(ref _isSelected, value)) selectionChanged(this, value);
-        }
-    }
-    public bool IsSelectionMode
-    {
-        get => _isSelectionMode;
-        set
-        {
-            if (SetProperty(ref _isSelectionMode, value)) OnPropertyChanged(nameof(ShowSelectionCheckbox));
-        }
-    }
+    public bool ShowSelectionCheckbox => alwaysShowSelectionCheckbox || IsSelectionMode;
+
+    partial void OnIsSelectedChanged(bool value) => selectionChanged(this, value);
 }
 
 internal sealed record VehicleCardViewModel(
@@ -70,21 +61,27 @@ internal enum HistorySection
     Vehicles
 }
 
-internal sealed class HistoryViewModel : ViewModelBase
+internal sealed partial class HistoryViewModel : ViewModelBase
 {
     private const int PageSize = 50;
     private const string AllTime = "All time";
     private const string AnyValue = "Any value";
     private const string MostRecent = "Most recent";
     private readonly DriveCoordinator _coordinator;
+    private readonly ITripCardGestureAdapter _tripCardGestures;
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private bool _isBusy;
     private HistorySection _selectedSection = HistorySection.Dashboard;
     private string _searchText = string.Empty;
+    [ObservableProperty]
     private string _todayTrips = "0";
+    [ObservableProperty]
     private string _todayUnique = "0";
+    [ObservableProperty]
     private string _todayDistance = "0 km";
+    [ObservableProperty]
     private string _todayTopValue = "—";
+    [ObservableProperty]
     private string _todayTopPlate = "No valued car yet";
     private string _selectedPeriod = AllTime;
     private string _selectedMinimumValue = AnyValue;
@@ -92,21 +89,25 @@ internal sealed class HistoryViewModel : ViewModelBase
     private bool _hasMoreTrips;
     private bool _hasMoreVehicles;
     private bool _isTripSelectionMode;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCommandError))]
+    private string _commandError = string.Empty;
     private bool _suppressTripSelectionCallback;
     private int _vehicleQueryVersion;
     private CancellationTokenSource? _searchCancellation;
 
-    public HistoryViewModel(DriveCoordinator coordinator)
+    public HistoryViewModel(DriveCoordinator coordinator, ITripCardGestureAdapter tripCardGestures)
     {
         _coordinator = coordinator;
+        _tripCardGestures = tripCardGestures;
         ShowDashboardCommand = new Command(() => SelectSection(HistorySection.Dashboard));
         ShowTripsCommand = new Command(() => SelectSection(HistorySection.Trips));
         ShowVehiclesCommand = new Command(() => SelectSection(HistorySection.Vehicles));
         ResetVehicleFiltersCommand = new Command(ResetVehicleFilters);
         ClearTripSelectionCommand = new Command(ClearTripSelection);
-        RefreshCommand = new AsyncCommand(LoadAsync);
-        LoadMoreTripsCommand = new AsyncCommand(LoadMoreTripsAsync, () => _hasMoreTrips);
-        LoadMoreVehiclesCommand = new AsyncCommand(LoadMoreVehiclesAsync, () => _hasMoreVehicles);
+        RefreshCommand = new AsyncCommand(LoadAsync, HandleCommandFailure);
+        LoadMoreTripsCommand = new AsyncCommand(LoadMoreTripsAsync, HandleCommandFailure, () => _hasMoreTrips);
+        LoadMoreVehiclesCommand = new AsyncCommand(LoadMoreVehiclesAsync, HandleCommandFailure, () => _hasMoreVehicles);
     }
 
     public ObservableCollection<TripCardViewModel> Trips { get; } = [];
@@ -136,6 +137,7 @@ internal sealed class HistoryViewModel : ViewModelBase
     public bool ShowVehicles => _selectedSection == HistorySection.Vehicles;
     public bool ShowTripsEmpty => ShowTrips && !IsBusy && Trips.Count == 0;
     public bool ShowVehiclesEmpty => ShowVehicles && !IsBusy && Vehicles.Count == 0;
+    public bool HasCommandError => !string.IsNullOrWhiteSpace(CommandError);
     public bool IsTripSelectionMode
     {
         get => _isTripSelectionMode;
@@ -150,12 +152,6 @@ internal sealed class HistoryViewModel : ViewModelBase
     public int SelectedTripCount => Trips.Count(trip => trip.IsSelected);
     public bool CanRemoveTrips => SelectedTripCount > 0;
     public string RemoveTripsText => $"Remove {SelectedTripCount} {(SelectedTripCount == 1 ? "trip" : "trips")}";
-    public string TodayTrips { get => _todayTrips; private set => SetProperty(ref _todayTrips, value); }
-    public string TodayUnique { get => _todayUnique; private set => SetProperty(ref _todayUnique, value); }
-    public string TodayDistance { get => _todayDistance; private set => SetProperty(ref _todayDistance, value); }
-    public string TodayTopValue { get => _todayTopValue; private set => SetProperty(ref _todayTopValue, value); }
-    public string TodayTopPlate { get => _todayTopPlate; private set => SetProperty(ref _todayTopPlate, value); }
-
     public string SelectedPeriod
     {
         get => _selectedPeriod;
@@ -188,6 +184,7 @@ internal sealed class HistoryViewModel : ViewModelBase
 
     public async Task LoadAsync()
     {
+        CommandError = string.Empty;
         await _loadGate.WaitAsync();
         try
         {
@@ -200,20 +197,22 @@ internal sealed class HistoryViewModel : ViewModelBase
             var vehiclesTask = repository.GetVehicleHistoryAsync(CreateVehicleQuery(0), CancellationToken.None);
             await Task.WhenAll(todayTask, tripsTask, vehiclesTask);
 
-            var today = todayTask.Result;
+            var today = await todayTask;
             TodayTrips = today.TripCount.ToString();
             TodayUnique = today.UniqueVehicleCount.ToString();
             TodayDistance = DisplayFormat.Distance(today.DistanceMeters);
             TodayTopValue = DisplayFormat.CompactPrice(today.MostExpensiveSighting?.Vehicle?.CatalogPrice);
             TodayTopPlate = today.MostExpensiveSighting?.DisplayPlate ?? "No valued car yet";
 
+            var trips = await tripsTask;
+            var vehicles = await vehiclesTask;
             ClearTripSelection();
             Trips.Clear();
-            AppendTrips(tripsTask.Result);
-            SetHasMoreTrips(tripsTask.Result.Count == PageSize);
+            AppendTrips(trips);
+            SetHasMoreTrips(trips.Count == PageSize);
 
-            ReplaceVehicles(vehiclesTask.Result);
-            SetHasMoreVehicles(vehiclesTask.Result.Count == PageSize);
+            ReplaceVehicles(vehicles);
+            SetHasMoreVehicles(vehicles.Count == PageSize);
             NotifyEmptyStates();
         }
         finally
@@ -244,6 +243,9 @@ internal sealed class HistoryViewModel : ViewModelBase
         {
         }
     }
+
+    private void HandleCommandFailure(Exception exception) =>
+        CommandError = $"History could not be updated: {exception.Message}";
 
     private VehicleHistoryQuery CreateVehicleQuery(int offset)
     {
@@ -314,6 +316,7 @@ internal sealed class HistoryViewModel : ViewModelBase
                 $"{trip.SightingCount} confirmed",
                 DisplayFormat.CompactPrice(trip.MostExpensiveCatalogPrice),
                 trip.MostExpensiveDisplayPlate ?? "No RDW value",
+                !_tripCardGestures.HandlesTap,
                 TripSelectionChanged));
         }
     }

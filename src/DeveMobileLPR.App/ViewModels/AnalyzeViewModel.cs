@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
 using DeveMobileLPR.App.Services;
 using DeveMobileLPR.Application;
 using DeveMobileLPR.Recognition;
@@ -12,9 +13,11 @@ internal sealed record FrameSamplingOption(string Name, string Detail, int? Inte
     public override string ToString() => Name;
 }
 
-internal sealed class AnalysisListItem : ViewModelBase
+internal sealed partial class AnalysisListItem : ViewModelBase
 {
+    [ObservableProperty]
     private string _detail;
+    [ObservableProperty]
     private double _progress;
 
     public AnalysisListItem(
@@ -34,17 +37,15 @@ internal sealed class AnalysisListItem : ViewModelBase
     }
 
     public string Title { get; }
-    public string Detail { get => _detail; set => SetProperty(ref _detail, value); }
     public string SourceStatus { get; }
     public bool IsProcessing { get; }
     public bool CanDelete => DeleteCommand is not null;
     public ICommand? OpenCommand { get; }
     public ICommand? DeleteCommand { get; }
-    public double Progress { get => _progress; set => SetProperty(ref _progress, value); }
 }
 internal sealed record AnalyzedPlateIndexItem(string DisplayPlate, string Detail, ICommand OpenCommand);
 
-internal sealed class AnalyzeViewModel : ViewModelBase
+internal sealed partial class AnalyzeViewModel : ViewModelBase
 {
     private const int MaximumPreviewCacheEntries = 8;
     private readonly VideoAnalysisService _analysis;
@@ -62,24 +63,36 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     private AnalysisListItem? _processingItem;
     private VideoAnalysisResult? _result;
     private string? _stagedPath;
+    [ObservableProperty]
     private string _selectedFileName = "No video selected";
     private FrameSamplingOption _selectedSampling;
     private bool _isProcessing;
     private bool _isReviewing;
+    [ObservableProperty]
     private double _progress;
+    [ObservableProperty]
     private string _progressText = string.Empty;
+    [ObservableProperty]
     private string _statusMessage = "Select a video to create a private, on-device analysis run.";
     private int _currentFrameIndex;
+    [ObservableProperty]
     private ImageSource? _currentPreview;
     private AnalyzedVideoFrame? _currentFrame;
+    [ObservableProperty]
     private string _currentFrameTitle = string.Empty;
+    [ObservableProperty]
     private string _currentFrameDetail = string.Empty;
+    [ObservableProperty]
     private double _currentPositionFraction;
+    [ObservableProperty]
     private IReadOnlyList<double> _detectionMarkers = [];
+    [ObservableProperty]
     private IReadOnlyList<double> _framePositions = [];
     private bool _initialized;
     private int _customSamplingInterval = 15;
+    [ObservableProperty]
     private bool _limitToFirstThirtySeconds;
+    [ObservableProperty]
     private RecognitionStreamDiagnostics? _processingDiagnostics;
 
     public AnalyzeViewModel(
@@ -100,9 +113,9 @@ internal sealed class AnalyzeViewModel : ViewModelBase
             new("Custom interval", "Choose exactly how many source frames to skip between recognition runs", null)
         ];
         _selectedSampling = SamplingOptions[2];
-        _processCommand = new AsyncCommand(ProcessAsync, () => HasSelectedFile && !IsProcessing);
-        _previousFrameCommand = new AsyncCommand(PreviousFrameAsync, () => IsReviewing && _currentFrameIndex > 0);
-        _nextFrameCommand = new AsyncCommand(NextFrameAsync, () => IsReviewing && _result is not null && _currentFrameIndex < _result.Frames.Count - 1);
+        _processCommand = new AsyncCommand(ProcessAsync, HandleCommandFailure, () => HasSelectedFile && !IsProcessing);
+        _previousFrameCommand = new AsyncCommand(PreviousFrameAsync, HandleCommandFailure, () => IsReviewing && _currentFrameIndex > 0);
+        _nextFrameCommand = new AsyncCommand(NextFrameAsync, HandleCommandFailure, () => IsReviewing && _result is not null && _currentFrameIndex < _result.Frames.Count - 1);
         _cancelCommand = new Command(Cancel, () => IsProcessing);
         CloseReviewCommand = new Command(CloseReview);
     }
@@ -116,7 +129,6 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     public ICommand NextFrameCommand => _nextFrameCommand;
     public ICommand CancelCommand => _cancelCommand;
     public ICommand CloseReviewCommand { get; }
-    public string SelectedFileName { get => _selectedFileName; private set => SetProperty(ref _selectedFileName, value); }
     public bool HasSelectedFile => _stagedPath is not null;
     public bool IsProcessing
     {
@@ -136,11 +148,6 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     public bool ShowSetup => !IsReviewing;
     public bool HasAnalyses => Analyses.Count > 0;
     public bool HasDetectedPlates => DetectedPlates.Count > 0;
-    public double Progress { get => _progress; private set => SetProperty(ref _progress, value); }
-    public string ProgressText { get => _progressText; private set => SetProperty(ref _progressText, value); }
-    public string StatusMessage { get => _statusMessage; private set => SetProperty(ref _statusMessage, value); }
-    public RecognitionStreamDiagnostics? ProcessingDiagnostics { get => _processingDiagnostics; private set => SetProperty(ref _processingDiagnostics, value); }
-    public ImageSource? CurrentPreview { get => _currentPreview; private set => SetProperty(ref _currentPreview, value); }
     public AnalyzedVideoFrame? CurrentFrame
     {
         get => _currentFrame;
@@ -158,11 +165,6 @@ internal sealed class AnalyzeViewModel : ViewModelBase
     public IReadOnlyList<DriveOverlay> CurrentOverlays => CurrentFrame is null
         ? []
         : DriveOverlayFactory.CreateAnalyzedFrameOverlays(CurrentFrame, RecognitionDebugEnabled);
-    public string CurrentFrameTitle { get => _currentFrameTitle; private set => SetProperty(ref _currentFrameTitle, value); }
-    public string CurrentFrameDetail { get => _currentFrameDetail; private set => SetProperty(ref _currentFrameDetail, value); }
-    public double CurrentPositionFraction { get => _currentPositionFraction; set => SetProperty(ref _currentPositionFraction, value); }
-    public IReadOnlyList<double> DetectionMarkers { get => _detectionMarkers; private set => SetProperty(ref _detectionMarkers, value); }
-    public IReadOnlyList<double> FramePositions { get => _framePositions; private set => SetProperty(ref _framePositions, value); }
     public bool RecognitionDebugEnabled => _settings.TrackingDiagnosticsEnabled;
     public bool ShowProcessingDiagnostics => IsProcessing && RecognitionDebugEnabled;
     public bool ShowCurrentDiagnostics => RecognitionDebugEnabled && CurrentFrame?.Diagnostics is not null;
@@ -179,12 +181,6 @@ internal sealed class AnalyzeViewModel : ViewModelBase
                 _processCommand.RaiseCanExecuteChanged();
             }
         }
-    }
-
-    public bool LimitToFirstThirtySeconds
-    {
-        get => _limitToFirstThirtySeconds;
-        set => SetProperty(ref _limitToFirstThirtySeconds, value);
     }
 
     public FrameSamplingOption SelectedSampling
@@ -416,6 +412,9 @@ internal sealed class AnalyzeViewModel : ViewModelBase
             CurrentReads.Add($"Preview unavailable: {exception.Message}");
         }
     }
+
+    private void HandleCommandFailure(Exception exception) =>
+        StatusMessage = $"Command failed: {exception.Message}";
 
     private void Cancel() => _runCancellation?.Cancel();
 

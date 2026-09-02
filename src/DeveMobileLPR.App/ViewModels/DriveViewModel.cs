@@ -36,7 +36,7 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         _snapshot = coordinator.Snapshot;
         _networkStreamUrl = settings.NetworkStreamUrl;
         _zoom = settings.Zoom;
-        ToggleDriveCommand = new AsyncCommand(ToggleDriveAsync);
+        ToggleDriveCommand = new AsyncCommand(ToggleDriveAsync, HandleCommandFailure);
         _coordinator.SnapshotChanged += SnapshotChanged;
         _coordinator.ShortEmptyTripDiscarded += ShortEmptyTripDiscarded;
         _durationTimer = new Timer(_ => MainThread.BeginInvokeOnMainThread(() => OnPropertyChanged(nameof(Duration))), null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
@@ -477,6 +477,9 @@ internal sealed class DriveViewModel : ViewModelBase, IDisposable
         snapshot.IsInputReady
         && !snapshot.IsInputTransitioning
         && snapshot.InputGeneration == expectedInputGeneration;
+
+    private void HandleCommandFailure(Exception exception) =>
+        TransientMessage = $"Drive action failed: {exception.Message}";
 
     private async Task ToggleDriveAsync()
     {
