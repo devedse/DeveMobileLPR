@@ -183,33 +183,33 @@
                                     IsVisible="{Binding ShowSelectionCheckbox, Source={x:Reference TripCard}, x:DataType=controls:TripCardView}"
                                     VerticalOptions="Center" />
                                 <Grid Grid.Column="1" RowDefinitions="Auto,Auto" RowSpacing="10">
-                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="20">
-                                    <VerticalStackLayout Spacing="2" WidthRequest="105">
-                                        <Label FontAttributes="Bold" FontSize="18" Text="{Binding Day}" />
-                                        <Label Style="{StaticResource SecondaryText}" Text="{Binding Time}" />
-                                    </VerticalStackLayout>
-                                    <Grid Grid.Column="1" ColumnDefinitions="*,*,*" ColumnSpacing="14" VerticalOptions="Center">
-                                        <VerticalStackLayout Spacing="1">
-                                            <Label FontAttributes="Bold" Text="{Binding Duration}" />
-                                            <Label Style="{StaticResource MutedText}" Text="DURATION" />
+                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                        <VerticalStackLayout Spacing="2" WidthRequest="90">
+                                            <Label FontAttributes="Bold" FontSize="18" Text="{Binding Day}" />
+                                            <Label Style="{StaticResource SecondaryText}" Text="{Binding Time}" />
                                         </VerticalStackLayout>
-                                        <VerticalStackLayout Grid.Column="1" Spacing="1">
-                                            <Label FontAttributes="Bold" Text="{Binding Distance}" />
-                                            <Label Style="{StaticResource MutedText}" Text="DISTANCE" />
-                                        </VerticalStackLayout>
-                                        <VerticalStackLayout Grid.Column="2" Spacing="1">
-                                            <Label FontAttributes="Bold" Text="{Binding VehicleCount}" />
-                                            <Label Style="{StaticResource MutedText}" Text="VEHICLES" />
-                                        </VerticalStackLayout>
+                                        <Grid Grid.Column="1" ColumnDefinitions="*,*,*" ColumnSpacing="6" VerticalOptions="Center">
+                                            <VerticalStackLayout Spacing="1">
+                                                <Label FontAttributes="Bold" Text="{Binding Duration}" />
+                                                <Label LineBreakMode="NoWrap" Style="{StaticResource MutedText}" Text="DURATION" />
+                                            </VerticalStackLayout>
+                                            <VerticalStackLayout Grid.Column="1" Spacing="1">
+                                                <Label FontAttributes="Bold" Text="{Binding Distance}" />
+                                                <Label LineBreakMode="NoWrap" Style="{StaticResource MutedText}" Text="DISTANCE" />
+                                            </VerticalStackLayout>
+                                            <VerticalStackLayout Grid.Column="2" Spacing="1">
+                                                <Label FontAttributes="Bold" Text="{Binding VehicleCount}" />
+                                                <Label LineBreakMode="NoWrap" Style="{StaticResource MutedText}" Text="VEHICLES" />
+                                            </VerticalStackLayout>
+                                        </Grid>
                                     </Grid>
-                                </Grid>
-                                <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalOptions="Center">
-                                    <VerticalStackLayout Spacing="2">
-                                        <Label FontAttributes="Bold" Text="{Binding Highlight}" TextColor="{DynamicResource ValueAccent}" />
-                                        <Label Style="{StaticResource MutedText}" Text="{Binding HighlightPlate}" />
-                                    </VerticalStackLayout>
-                                    <Label Grid.Column="1" FontSize="24" Text="›" TextColor="{DynamicResource TextMuted}" VerticalOptions="Center" />
-                                </Grid>
+                                    <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalOptions="Center">
+                                        <VerticalStackLayout Spacing="2">
+                                            <Label FontAttributes="Bold" Text="{Binding Highlight}" TextColor="{DynamicResource ValueAccent}" />
+                                            <Label Style="{StaticResource MutedText}" Text="{Binding HighlightPlate}" />
+                                        </VerticalStackLayout>
+                                        <Label Grid.Column="1" FontSize="24" Text="›" TextColor="{DynamicResource TextMuted}" VerticalOptions="Center" />
+                                    </Grid>
                                 </Grid>
                             </Grid>
                         </controls:TripCardView>

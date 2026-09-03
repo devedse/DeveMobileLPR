@@ -22,6 +22,8 @@ internal sealed class TripCardView : Border
 
     public bool ShowSelectionCheckbox => !_usesNativeGestures || IsSelectionMode;
 
+    internal bool UsesNativeGestures => _usesNativeGestures;
+
     internal void SetUsesNativeGestures(bool value)
     {
         if (_usesNativeGestures == value)

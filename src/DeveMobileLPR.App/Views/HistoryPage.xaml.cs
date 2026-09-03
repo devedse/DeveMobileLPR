@@ -28,6 +28,10 @@ public partial class HistoryPage : ContentPage
 
     private async void TripTapped(object? sender, TappedEventArgs args)
     {
+        if (sender is TripCardView { UsesNativeGestures: true })
+        {
+            return;
+        }
         if (args.Parameter is TripCardViewModel trip)
         {
             await this.RunSafelyAsync(
