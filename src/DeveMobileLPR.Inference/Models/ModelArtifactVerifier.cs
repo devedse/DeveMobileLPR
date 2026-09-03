@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+using DeveMobileLPR.IO;
 
 namespace DeveMobileLPR.Inference.Models;
 
@@ -16,9 +16,8 @@ public static class ModelArtifactVerifier
             return false;
         }
 
-        await using var stream = File.OpenRead(path);
-        var hash = await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false);
-        return Convert.ToHexString(hash).Equals(artifact.Sha256, StringComparison.OrdinalIgnoreCase);
+        var hash = await FileHash.Sha256Async(path, cancellationToken).ConfigureAwait(false);
+        return hash.Equals(artifact.Sha256, StringComparison.OrdinalIgnoreCase);
     }
 
     public static async Task VerifyAsync(

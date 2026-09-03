@@ -1,6 +1,6 @@
 using System.IO.Compression;
-using System.Security.Cryptography;
 using System.Text.Json;
+using DeveMobileLPR.IO;
 using Microsoft.Data.Sqlite;
 
 namespace DeveMobileLPR.Storage;
@@ -654,18 +654,8 @@ public sealed class HistoryBackupService
         }
     }
 
-    private static async Task<string> Sha256Async(string path, CancellationToken cancellationToken)
-    {
-        await using var stream = new FileStream(
-            path,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            1024 * 1024,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
-        var hash = await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false);
-        return Convert.ToHexString(hash).ToLowerInvariant();
-    }
+    private static async Task<string> Sha256Async(string path, CancellationToken cancellationToken) =>
+        (await FileHash.Sha256Async(path, cancellationToken).ConfigureAwait(false)).ToLowerInvariant();
 
     internal static async Task CreateArchiveAsync(
         string sourceDirectory,
@@ -743,9 +733,11 @@ public sealed class HistoryBackupService
 
     private static bool IsWithin(string root, string path)
     {
-        var prefix = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-            + Path.DirectorySeparatorChar;
-        return path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+        var relative = Path.GetRelativePath(root, path);
+        return !Path.IsPathRooted(relative)
+            && relative is not "." and not ".."
+            && !relative.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+            && !relative.StartsWith($"..{Path.AltDirectorySeparatorChar}", StringComparison.Ordinal);
     }
 
     private static string FileNamePart(string value)

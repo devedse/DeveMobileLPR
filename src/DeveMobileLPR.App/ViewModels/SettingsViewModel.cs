@@ -1,3 +1,4 @@
+using CommunityToolkit.Mvvm.ComponentModel;
 using DeveMobileLPR.App.Services;
 using DeveMobileLPR.Application;
 using DeveMobileLPR.App.UI;
@@ -42,7 +43,7 @@ internal sealed record RecognitionTuningSection(
     string Description,
     IReadOnlyList<RecognitionTuningValue> Values);
 
-internal sealed class SettingsViewModel : ViewModelBase
+internal sealed partial class SettingsViewModel : ViewModelBase
 {
     private readonly AppSettings _settings;
     private readonly DriveCoordinator _coordinator;
@@ -53,10 +54,15 @@ internal sealed class SettingsViewModel : ViewModelBase
     private readonly IPlatformSettingsInfo _platform;
     private readonly IDeviceExperience _deviceExperience;
     private bool _isBusy;
+    [ObservableProperty]
     private string _statusMessage = string.Empty;
+    [ObservableProperty]
     private string _rdwTitle = "RDW data not installed";
+    [ObservableProperty]
     private string _rdwDetail = "Import the generated rdw.sqlite file to add make, model, value, fuel, year, and body type.";
+    [ObservableProperty]
     private string _historyDetail = "Loading local history…";
+    [ObservableProperty]
     private string _permissionsDetail = "Checking platform permissions…";
     private RecognitionFrameRateOption _selectedRecognitionFrameRate;
     private KnownVehicleSoundOption _selectedKnownVehicleSound;
@@ -136,13 +142,8 @@ internal sealed class SettingsViewModel : ViewModelBase
         }
     }
     public bool IsNotBusy => !IsBusy;
-    public string StatusMessage { get => _statusMessage; private set => SetProperty(ref _statusMessage, value); }
     public bool HasStatus => !string.IsNullOrWhiteSpace(StatusMessage);
-    public string RdwTitle { get => _rdwTitle; private set => SetProperty(ref _rdwTitle, value); }
-    public string RdwDetail { get => _rdwDetail; private set => SetProperty(ref _rdwDetail, value); }
     public Color RdwColor => _rdw.IsInstalled ? Color.FromArgb("#58E0C2") : Color.FromArgb("#F5C542");
-    public string HistoryDetail { get => _historyDetail; private set => SetProperty(ref _historyDetail, value); }
-    public string PermissionsDetail { get => _permissionsDetail; private set => SetProperty(ref _permissionsDetail, value); }
     public string Version => $"DeveMobileLPR {AppInfo.Current.VersionString} ({AppInfo.Current.BuildString})";
     public string BackgroundScanningDescription => _platform.BackgroundScanningDescription;
     public string OpenSettingsLabel => _platform.OpenSettingsLabel;

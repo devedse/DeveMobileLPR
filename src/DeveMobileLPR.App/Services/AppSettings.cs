@@ -20,8 +20,14 @@ internal sealed class AppSettings : IDriveSettings
     private const string InputConfigurationKey = "drive_input_configuration_v1";
     private const int DefaultRecognitionFramesPerSecond = 4;
     private readonly object _inputConfigurationGate = new();
+    private readonly IAppPreferenceWriter _preferenceWriter;
     private string _networkStreamUrl = string.Empty;
     private DriveInputConfiguration? _inputConfiguration;
+
+    public AppSettings(IAppPreferenceWriter preferenceWriter)
+    {
+        _preferenceWriter = preferenceWriter;
+    }
 
     public bool TrackLocation
     {
@@ -85,22 +91,7 @@ internal sealed class AppSettings : IDriveSettings
     public float Zoom
     {
         get => Math.Clamp(Preferences.Default.Get(ZoomKey, 1f), 1f, 5f);
-        set
-        {
-            var normalized = Math.Clamp(value, 1f, 5f);
-#if ANDROID
-            // The setup slider can be followed immediately by Android terminating the process.
-            // Commit this tiny, user-facing value synchronously so it cannot remain in the
-            // SharedPreferences apply queue and be lost during that shutdown.
-            var context = global::Android.App.Application.Context;
-            var preferences = context.GetSharedPreferences(
-                $"{context.PackageName}_preferences",
-                global::Android.Content.FileCreationMode.Private);
-            preferences?.Edit()?.PutFloat(ZoomKey, normalized)?.Commit();
-#else
-            Preferences.Default.Set(ZoomKey, normalized);
-#endif
-        }
+        set => _preferenceWriter.Set(ZoomKey, Math.Clamp(value, 1f, 5f));
     }
 
     public string CameraId
@@ -173,18 +164,7 @@ internal sealed class AppSettings : IDriveSettings
             lock (_inputConfigurationGate)
             {
                 _inputConfiguration = value;
-                var json = JsonSerializer.Serialize(value);
-#if ANDROID
-                // This contains the per-source zoom and selected source. Persist it synchronously:
-                // Android can stop the process immediately after the setup screen loses focus.
-                var context = global::Android.App.Application.Context;
-                var preferences = context.GetSharedPreferences(
-                    $"{context.PackageName}_preferences",
-                    global::Android.Content.FileCreationMode.Private);
-                preferences?.Edit()?.PutString(InputConfigurationKey, json)?.Commit();
-#else
-                Preferences.Default.Set(InputConfigurationKey, json);
-#endif
+                _preferenceWriter.Set(InputConfigurationKey, JsonSerializer.Serialize(value));
             }
         }
     }

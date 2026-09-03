@@ -12,6 +12,7 @@ using Plugin.Maui.Audio;
 using DeveMobileLPR.App.Platforms.Android.Background;
 using DeveMobileLPR.App.Platforms.Android.Camera;
 using DeveMobileLPR.App.Platforms.Android.Display;
+using DeveMobileLPR.App.Platforms.Android.History;
 using DeveMobileLPR.App.Platforms.Android.Inference;
 using DeveMobileLPR.App.Platforms.Android.Location;
 using DeveMobileLPR.App.Platforms.Android.Settings;
@@ -37,9 +38,14 @@ public static class MauiProgram
         builder.ConfigureMauiHandlers(handlers =>
         {
             handlers.AddHandler<CameraPreview, CameraPreviewHandler>();
+            handlers.AddHandler<TripCardView, AndroidTripCardViewHandler>();
         });
 #elif WINDOWS
-        builder.ConfigureMauiHandlers(handlers => handlers.AddHandler<CameraPreview, CameraPreviewHandler>());
+        builder.ConfigureMauiHandlers(handlers =>
+        {
+            handlers.AddHandler<CameraPreview, CameraPreviewHandler>();
+            handlers.AddHandler<TripCardView, Microsoft.Maui.Handlers.BorderHandler>();
+        });
 #endif
         builder.Services.AddSingleton<AppSettings>();
         builder.Services.AddSingleton<AppLogService>();
@@ -64,7 +70,9 @@ public static class MauiProgram
         builder.Services.AddSingleton<IRecognitionPipelineProvider, AndroidRecognitionPipelineProvider>();
         builder.Services.AddSingleton<IVideoFileBackend, AndroidVideoFileBackend>();
         builder.Services.AddSingleton<IPlatformSettingsInfo, AndroidPlatformSettingsInfo>();
+        builder.Services.AddSingleton<IAppPreferenceWriter, AndroidAppPreferenceWriter>();
         builder.Services.AddSingleton<IDriveDisplayMode, AndroidDriveDisplayMode>();
+        builder.Services.AddSingleton<ICameraCapabilitiesLauncher, AndroidCameraCapabilitiesLauncher>();
 #elif WINDOWS
         builder.Services.AddSingleton<IDriveSourceCatalog, WindowsDriveSourceCatalog>();
         builder.Services.AddSingleton<IBackgroundScanningManager, UnsupportedBackgroundScanningManager>();
@@ -72,7 +80,9 @@ public static class MauiProgram
         builder.Services.AddSingleton<IRecognitionPipelineProvider, WindowsRecognitionPipelineProvider>();
         builder.Services.AddSingleton<IVideoFileBackend, WindowsVideoFileBackend>();
         builder.Services.AddSingleton<IPlatformSettingsInfo, WindowsPlatformSettingsInfo>();
+        builder.Services.AddSingleton<IAppPreferenceWriter, MauiAppPreferenceWriter>();
         builder.Services.AddSingleton<IDriveDisplayMode, PassiveDriveDisplayMode>();
+        builder.Services.AddSingleton<ICameraCapabilitiesLauncher, UnsupportedCameraCapabilitiesLauncher>();
 #endif
         builder.Services.AddSingleton<IVehicleImageStore>(services => new VehicleImageStore(
             FileSystem.AppDataDirectory,
@@ -104,10 +114,12 @@ public static class MauiProgram
             services.GetRequiredService<DriveViewModel>(),
             services.GetRequiredService<Func<DrivePage>>()));
         builder.Services.AddSingleton(services => new AnalyzePage(services.GetRequiredService<AnalyzeViewModel>()));
-        builder.Services.AddSingleton(services => new HistoryPage(services.GetRequiredService<HistoryViewModel>()));
+        builder.Services.AddSingleton(services => new HistoryPage(
+            services.GetRequiredService<HistoryViewModel>()));
         builder.Services.AddSingleton(services => new SettingsPage(
             services.GetRequiredService<SettingsViewModel>(),
-            services.GetRequiredService<AppLogService>()));
+            services.GetRequiredService<AppLogService>(),
+            services.GetRequiredService<ICameraCapabilitiesLauncher>()));
         return builder.Build();
     }
 

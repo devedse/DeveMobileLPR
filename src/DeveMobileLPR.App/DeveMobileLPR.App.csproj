@@ -56,6 +56,7 @@
     <PackageReference Include="Microsoft.Maui.Controls" />
     <PackageReference Include="Microsoft.Maui.Essentials" />
     <PackageReference Include="Plugin.Maui.Audio" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="SixLabors.ImageSharp" />
   </ItemGroup>
   <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
