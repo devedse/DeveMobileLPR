@@ -1,3 +1,4 @@
+using DeveMobileLPR.App.Services;
 using DeveMobileLPR.App.ViewModels;
 using DeveMobileLPR.Application;
 using DeveMobileLPR.Recognition;
@@ -25,8 +26,11 @@ public partial class FullScreenMapPage : ContentPage
         HistoryMap.Map = map;
     }
 
-    private async void BackClicked(object? sender, EventArgs args) => await Navigation.PopAsync();
+    private async void BackClicked(object? sender, EventArgs args) =>
+        await this.RunSafelyAsync("Could not close map", Navigation.PopAsync);
 
     private async void MapVehicleSelected(object? sender, string normalizedPlate) =>
-        await Navigation.PushAsync(new VehicleDetailPage(_repository, _vehicleImageStore, normalizedPlate));
+        await this.RunSafelyAsync(
+            "Could not open vehicle",
+            () => Navigation.PushAsync(new VehicleDetailPage(_repository, _vehicleImageStore, normalizedPlate)));
 }

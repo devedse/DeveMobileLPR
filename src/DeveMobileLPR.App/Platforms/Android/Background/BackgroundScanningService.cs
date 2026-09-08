@@ -5,6 +5,7 @@ using Android.OS;
 using AndroidX.Core.App;
 using AndroidX.Core.Content;
 using DeveMobileLPR.App.Platforms.Android.Camera;
+using DeveMobileLPR.App.Services;
 using DeveMobileLPR.Application;
 using System.Runtime.Versioning;
 
@@ -31,7 +32,7 @@ internal sealed class BackgroundScanningService : Service
     {
         if (intent?.Action == StopAction)
         {
-            _ = StopDriveAsync();
+            StopDriveAsync().ObserveFailure("Background drive");
         }
         else
         {

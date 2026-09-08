@@ -1,3 +1,5 @@
+using DeveMobileLPR.App.Services;
+
 namespace DeveMobileLPR.App.Behaviors;
 
 /// <summary>
@@ -97,7 +99,8 @@ public sealed class AnimatedVisibilityBehavior : Behavior<VisualElement>
             return;
         }
 
-        view.Dispatcher.Dispatch(() => _ = TransitionAsync(view, show, ++_transitionId));
+        view.Dispatcher.Dispatch(() =>
+            TransitionAsync(view, show, ++_transitionId).ObserveFailure("Animation"));
     }
 
     private async Task TransitionAsync(VisualElement view, bool show, int transitionId)

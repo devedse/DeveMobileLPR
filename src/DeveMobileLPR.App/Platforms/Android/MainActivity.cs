@@ -1,6 +1,7 @@
 using Android.App;
 using Android.Content.PM;
 using DeveMobileLPR.App.Platforms.Android.Camera;
+using DeveMobileLPR.App.Services;
 
 namespace DeveMobileLPR.App;
 
@@ -31,7 +32,7 @@ public sealed class MainActivity : MauiAppCompatActivity
             }
             else
             {
-                _ = coordinator.StopDriveAsync();
+                coordinator.StopDriveAsync().ObserveFailure("Android lifecycle");
             }
         }
         services?.GetService<AndroidCameraLifecycleOwner>()?.SetActivityActive(false);

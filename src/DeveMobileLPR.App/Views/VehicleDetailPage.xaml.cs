@@ -1,3 +1,4 @@
+using DeveMobileLPR.App.Services;
 using DeveMobileLPR.App.ViewModels;
 using DeveMobileLPR.Application;
 using DeveMobileLPR.Recognition;
@@ -26,35 +27,45 @@ public partial class VehicleDetailPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        await _viewModel.LoadAsync();
+        await this.RunSafelyAsync(
+            "Could not load vehicle",
+            _viewModel.LoadAsync);
     }
 
-    private async void BackClicked(object? sender, EventArgs args) => await Navigation.PopAsync();
+    private async void BackClicked(object? sender, EventArgs args) =>
+        await this.RunSafelyAsync("Could not close vehicle", Navigation.PopAsync);
 
     private async void OpenLocationClicked(object? sender, EventArgs args)
     {
         if (sender is Button { CommandParameter: GeoPoint location })
         {
-            await this.OpenVehicleMapAsync(location);
+            await this.RunSafelyAsync(
+                "Could not open location",
+                () => this.OpenVehicleMapAsync(location));
         }
     }
 
     private async void MapRequested(object? sender, EventArgs args)
     {
         if (_isOpeningMap || _viewModel.Map is not { } map) return;
-        _isOpeningMap = true;
-        try
-        {
-            await Navigation.PushAsync(new FullScreenMapPage(
-                _repository,
-                _vehicleImageStore,
-                map,
-                "Vehicle sightings",
-                _viewModel.DisplayPlate));
-        }
-        finally
-        {
-            _isOpeningMap = false;
-        }
+        await this.RunSafelyAsync(
+            "Could not open vehicle map",
+            async () =>
+            {
+                _isOpeningMap = true;
+                try
+                {
+                    await Navigation.PushAsync(new FullScreenMapPage(
+                        _repository,
+                        _vehicleImageStore,
+                        map,
+                        "Vehicle sightings",
+                        _viewModel.DisplayPlate));
+                }
+                finally
+                {
+                    _isOpeningMap = false;
+                }
+            });
     }
 }

@@ -55,6 +55,12 @@ internal sealed class AppLogService : IApplicationLog
     public static void RecordCrash(Exception exception) =>
         WriteCore("CRASH", exception.ToString(), true);
 
+    public static void RecordCommandFailure(Exception exception) =>
+        WriteCore("COMMAND", exception.ToString(), true);
+
+    public static void RecordFailure(string category, Exception exception) =>
+        WriteCore(category, exception.ToString(), true);
+
     private static void GlobalUnhandledException(object sender, UnhandledExceptionEventArgs args)
     {
         if (args.ExceptionObject is Exception exception)

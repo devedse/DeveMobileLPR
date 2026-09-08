@@ -1,30 +1,15 @@
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
 using System.Windows.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
+using DeveMobileLPR.App.Services;
 
 namespace DeveMobileLPR.App.ViewModels;
 
-internal abstract class ViewModelBase : INotifyPropertyChanged
-{
-    public event PropertyChangedEventHandler? PropertyChanged;
+internal abstract class ViewModelBase : ObservableObject;
 
-    protected bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? name = null)
-    {
-        if (EqualityComparer<T>.Default.Equals(field, value))
-        {
-            return false;
-        }
-
-        field = value;
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-        return true;
-    }
-
-    protected void OnPropertyChanged([CallerMemberName] string? name = null) =>
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-}
-
-internal sealed class AsyncCommand(Func<Task> execute, Func<bool>? canExecute = null) : ICommand
+internal sealed class AsyncCommand(
+    Func<Task> execute,
+    Action<Exception> onException,
+    Func<bool>? canExecute = null) : ICommand
 {
     private bool _running;
     public event EventHandler? CanExecuteChanged;
@@ -42,6 +27,11 @@ internal sealed class AsyncCommand(Func<Task> execute, Func<bool>? canExecute = 
         try
         {
             await execute();
+        }
+        catch (Exception exception)
+        {
+            AppLogService.RecordCommandFailure(exception);
+            onException(exception);
         }
         finally
         {

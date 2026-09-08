@@ -15,49 +15,60 @@
         </Style>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12" Style="{StaticResource PageGrid}">
+    <Grid RowDefinitions="Auto,*,Auto" Style="{StaticResource PageGrid}">
         <!-- This is deliberately the only fixed content on the page. -->
-        <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
-            <Button
-                Command="{Binding ShowDashboardCommand}"
-                Style="{StaticResource HistoryTabButton}"
-                Text="Dashboard">
-                <Button.Triggers>
-                    <DataTrigger Binding="{Binding ShowDashboard}" TargetType="Button" Value="True">
-                        <Setter Property="BackgroundColor" Value="{DynamicResource Primary}" />
-                        <Setter Property="TextColor" Value="{DynamicResource OnPrimary}" />
-                    </DataTrigger>
-                </Button.Triggers>
-            </Button>
-            <Button
-                Grid.Column="1"
-                Command="{Binding ShowTripsCommand}"
-                Style="{StaticResource HistoryTabButton}"
-                Text="Trips">
-                <Button.Triggers>
-                    <DataTrigger Binding="{Binding ShowTrips}" TargetType="Button" Value="True">
-                        <Setter Property="BackgroundColor" Value="{DynamicResource Primary}" />
-                        <Setter Property="TextColor" Value="{DynamicResource OnPrimary}" />
-                    </DataTrigger>
-                </Button.Triggers>
-            </Button>
-            <Button
-                Grid.Column="2"
-                Command="{Binding ShowVehiclesCommand}"
-                Style="{StaticResource HistoryTabButton}"
-                Text="Vehicles">
-                <Button.Triggers>
-                    <DataTrigger Binding="{Binding ShowVehicles}" TargetType="Button" Value="True">
-                        <Setter Property="BackgroundColor" Value="{DynamicResource Primary}" />
-                        <Setter Property="TextColor" Value="{DynamicResource OnPrimary}" />
-                    </DataTrigger>
-                </Button.Triggers>
-            </Button>
-        </Grid>
+        <VerticalStackLayout Spacing="0">
+            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                <Button
+                    Command="{Binding ShowDashboardCommand}"
+                    Style="{StaticResource HistoryTabButton}"
+                    Text="Dashboard">
+                    <Button.Triggers>
+                        <DataTrigger Binding="{Binding ShowDashboard}" TargetType="Button" Value="True">
+                            <Setter Property="BackgroundColor" Value="{DynamicResource Primary}" />
+                            <Setter Property="TextColor" Value="{DynamicResource OnPrimary}" />
+                        </DataTrigger>
+                    </Button.Triggers>
+                </Button>
+                <Button
+                    Grid.Column="1"
+                    Command="{Binding ShowTripsCommand}"
+                    Style="{StaticResource HistoryTabButton}"
+                    Text="Trips">
+                    <Button.Triggers>
+                        <DataTrigger Binding="{Binding ShowTrips}" TargetType="Button" Value="True">
+                            <Setter Property="BackgroundColor" Value="{DynamicResource Primary}" />
+                            <Setter Property="TextColor" Value="{DynamicResource OnPrimary}" />
+                        </DataTrigger>
+                    </Button.Triggers>
+                </Button>
+                <Button
+                    Grid.Column="2"
+                    Command="{Binding ShowVehiclesCommand}"
+                    Style="{StaticResource HistoryTabButton}"
+                    Text="Vehicles">
+                    <Button.Triggers>
+                        <DataTrigger Binding="{Binding ShowVehicles}" TargetType="Button" Value="True">
+                            <Setter Property="BackgroundColor" Value="{DynamicResource Primary}" />
+                            <Setter Property="TextColor" Value="{DynamicResource OnPrimary}" />
+                        </DataTrigger>
+                    </Button.Triggers>
+                </Button>
+            </Grid>
+
+            <Border
+                IsVisible="{Binding HasCommandError}"
+                Margin="0,12,0,0"
+                Padding="12,8"
+                Style="{StaticResource CompactCard}">
+                <Label Style="{StaticResource SecondaryText}" Text="{Binding CommandError}" TextColor="{DynamicResource Danger}" />
+            </Border>
+        </VerticalStackLayout>
 
         <Grid
             Grid.Row="2"
             HeightRequest="0"
+            Margin="0,12,0,0"
             IsClippedToBounds="True"
             IsVisible="False"
             Opacity="0"
@@ -89,7 +100,8 @@
             Grid.Row="1"
             Command="{Binding RefreshCommand}"
             IsRefreshing="{Binding IsBusy}"
-            IsVisible="{Binding ShowDashboard}">
+            IsVisible="{Binding ShowDashboard}"
+            Margin="0,12,0,0">
             <ScrollView>
                 <VerticalStackLayout Padding="0,0,0,12" Spacing="16">
                     <controls:PageHeader Eyebrow="Your road journal" IsBusy="{Binding IsBusy}" Title="History" />
@@ -134,7 +146,8 @@
             Grid.Row="1"
             Command="{Binding RefreshCommand}"
             IsRefreshing="{Binding IsBusy}"
-            IsVisible="{Binding ShowTrips}">
+            IsVisible="{Binding ShowTrips}"
+            Margin="0,12,0,0">
             <CollectionView
                 x:Name="TripsList"
                 ItemSizingStrategy="MeasureAllItems"
@@ -155,46 +168,51 @@
                 </CollectionView.EmptyView>
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="vm:TripCardViewModel">
-                        <Border HandlerChanged="TripCardHandlerChanged" Style="{StaticResource CompactCard}">
-                            <Border.GestureRecognizers>
+                        <controls:TripCardView
+                            x:Name="TripCard"
+                            IsSelectionMode="{Binding IsSelectionMode}"
+                            NativeLongPressed="TripLongPressed"
+                            NativeTapped="NativeTripTapped"
+                            Style="{StaticResource CompactCard}">
+                            <controls:TripCardView.GestureRecognizers>
                                 <TapGestureRecognizer CommandParameter="{Binding .}" Tapped="TripTapped" />
-                            </Border.GestureRecognizers>
+                            </controls:TripCardView.GestureRecognizers>
                             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                                 <CheckBox
                                     IsChecked="{Binding IsSelected}"
-                                    IsVisible="{Binding ShowSelectionCheckbox}"
+                                    IsVisible="{Binding ShowSelectionCheckbox, Source={x:Reference TripCard}, x:DataType=controls:TripCardView}"
                                     VerticalOptions="Center" />
                                 <Grid Grid.Column="1" RowDefinitions="Auto,Auto" RowSpacing="10">
-                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="20">
-                                    <VerticalStackLayout Spacing="2" WidthRequest="105">
-                                        <Label FontAttributes="Bold" FontSize="18" Text="{Binding Day}" />
-                                        <Label Style="{StaticResource SecondaryText}" Text="{Binding Time}" />
-                                    </VerticalStackLayout>
-                                    <Grid Grid.Column="1" ColumnDefinitions="*,*,*" ColumnSpacing="14" VerticalOptions="Center">
-                                        <VerticalStackLayout Spacing="1">
-                                            <Label FontAttributes="Bold" Text="{Binding Duration}" />
-                                            <Label Style="{StaticResource MutedText}" Text="DURATION" />
+                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                        <VerticalStackLayout Spacing="2" WidthRequest="90">
+                                            <Label FontAttributes="Bold" FontSize="18" Text="{Binding Day}" />
+                                            <Label Style="{StaticResource SecondaryText}" Text="{Binding Time}" />
                                         </VerticalStackLayout>
-                                        <VerticalStackLayout Grid.Column="1" Spacing="1">
-                                            <Label FontAttributes="Bold" Text="{Binding Distance}" />
-                                            <Label Style="{StaticResource MutedText}" Text="DISTANCE" />
+                                        <Grid Grid.Column="1" ColumnDefinitions="*,*,*" ColumnSpacing="6" VerticalOptions="Center">
+                                            <VerticalStackLayout Spacing="1">
+                                                <Label FontAttributes="Bold" Text="{Binding Duration}" />
+                                                <Label LineBreakMode="NoWrap" Style="{StaticResource MutedText}" Text="DURATION" />
+                                            </VerticalStackLayout>
+                                            <VerticalStackLayout Grid.Column="1" Spacing="1">
+                                                <Label FontAttributes="Bold" Text="{Binding Distance}" />
+                                                <Label LineBreakMode="NoWrap" Style="{StaticResource MutedText}" Text="DISTANCE" />
+                                            </VerticalStackLayout>
+                                            <VerticalStackLayout Grid.Column="2" Spacing="1">
+                                                <Label FontAttributes="Bold" Text="{Binding VehicleCount}" />
+                                                <Label LineBreakMode="NoWrap" Style="{StaticResource MutedText}" Text="VEHICLES" />
+                                            </VerticalStackLayout>
+                                        </Grid>
+                                    </Grid>
+                                    <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalOptions="Center">
+                                        <VerticalStackLayout Spacing="2">
+                                            <Label FontAttributes="Bold" Text="{Binding Highlight}" TextColor="{DynamicResource ValueAccent}" />
+                                            <Label Style="{StaticResource MutedText}" Text="{Binding HighlightPlate}" />
                                         </VerticalStackLayout>
-                                        <VerticalStackLayout Grid.Column="2" Spacing="1">
-                                            <Label FontAttributes="Bold" Text="{Binding VehicleCount}" />
-                                            <Label Style="{StaticResource MutedText}" Text="VEHICLES" />
-                                        </VerticalStackLayout>
+                                        <Label Grid.Column="1" FontSize="24" Text="›" TextColor="{DynamicResource TextMuted}" VerticalOptions="Center" />
                                     </Grid>
                                 </Grid>
-                                <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalOptions="Center">
-                                    <VerticalStackLayout Spacing="2">
-                                        <Label FontAttributes="Bold" Text="{Binding Highlight}" TextColor="{DynamicResource ValueAccent}" />
-                                        <Label Style="{StaticResource MutedText}" Text="{Binding HighlightPlate}" />
-                                    </VerticalStackLayout>
-                                    <Label Grid.Column="1" FontSize="24" Text="›" TextColor="{DynamicResource TextMuted}" VerticalOptions="Center" />
-                                </Grid>
-                                </Grid>
                             </Grid>
-                        </Border>
+                        </controls:TripCardView>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
             </CollectionView>
@@ -204,7 +222,8 @@
             Grid.Row="1"
             Command="{Binding RefreshCommand}"
             IsRefreshing="{Binding IsBusy}"
-            IsVisible="{Binding ShowVehicles}">
+            IsVisible="{Binding ShowVehicles}"
+            Margin="0,12,0,0">
             <CollectionView
                 x:Name="VehiclesList"
                 ItemSizingStrategy="MeasureAllItems"

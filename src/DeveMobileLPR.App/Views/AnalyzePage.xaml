@@ -76,7 +76,7 @@
             </VerticalStackLayout>
         </ScrollView>
 
-        <Grid IsVisible="{Binding IsReviewing}" RowDefinitions="Auto,*,Auto,Auto,Auto" RowSpacing="8" Style="{StaticResource PageGrid}">
+        <Grid IsVisible="{Binding IsReviewing}" RowDefinitions="Auto,*,Auto,Auto" RowSpacing="8" Style="{StaticResource PageGrid}">
             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
                 <Button Command="{Binding CloseReviewCommand}" Style="{StaticResource CompactSecondaryButton}" Text="Back" />
                 <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
@@ -107,9 +107,10 @@
                 <Button Command="{Binding NextFrameCommand}" FontSize="24" Grid.Column="2" HeightRequest="40" Padding="0" SemanticProperties.Description="Next frame" Text="›" ToolTipProperties.Text="Next frame" WidthRequest="40" />
             </Grid>
 
-            <Grid Grid.Row="3" ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                <VerticalStackLayout IsVisible="{Binding HasDetectedPlates}" Spacing="4">
-                    <Label Style="{StaticResource MutedText}" Text="Confirmed plates" />
+            <VerticalStackLayout Grid.Row="3" Spacing="0">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                    <VerticalStackLayout IsVisible="{Binding HasDetectedPlates}" Spacing="4">
+                        <Label Style="{StaticResource MutedText}" Text="Confirmed plates" />
                     <CollectionView HeightRequest="44" ItemsSource="{Binding DetectedPlates}" ItemsLayout="HorizontalList" SelectionMode="None">
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="vm:AnalyzedPlateIndexItem">
@@ -117,9 +118,9 @@
                             </DataTemplate>
                         </CollectionView.ItemTemplate>
                     </CollectionView>
-                </VerticalStackLayout>
-                <Border Grid.Column="1" Padding="10,6" Style="{StaticResource CompactCard}">
-                    <ScrollView MaximumHeightRequest="64">
+                    </VerticalStackLayout>
+                    <Border Grid.Column="1" Padding="10,6" Style="{StaticResource CompactCard}">
+                        <ScrollView MaximumHeightRequest="64">
                         <VerticalStackLayout BindableLayout.ItemsSource="{Binding CurrentReads}" Spacing="3">
                             <BindableLayout.ItemTemplate>
                                 <DataTemplate x:DataType="x:String">
@@ -127,17 +128,18 @@
                                 </DataTemplate>
                             </BindableLayout.ItemTemplate>
                         </VerticalStackLayout>
-                    </ScrollView>
-                </Border>
-            </Grid>
+                        </ScrollView>
+                    </Border>
+                </Grid>
 
-            <Border Grid.Row="4" IsVisible="{Binding ShowCurrentDiagnostics}" Padding="10" Style="{StaticResource DriveControlCard}">
+                <Border IsVisible="{Binding ShowCurrentDiagnostics}" Margin="0,8,0,0" Padding="10" Style="{StaticResource DriveControlCard}">
                 <ScrollView HorizontalScrollBarVisibility="Never" Orientation="Horizontal">
                     <controls:RecognitionDiagnosticsDetails
                         BindingContext="{Binding CurrentFrame.Diagnostics}"
                         MinimumWidthRequest="760" />
-                </ScrollView>
-            </Border>
+                    </ScrollView>
+                </Border>
+            </VerticalStackLayout>
         </Grid>
     </Grid>
 </ContentPage>

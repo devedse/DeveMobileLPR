@@ -34,6 +34,7 @@ public partial class DrivePage : ContentPage
         }
         catch (Exception exception)
         {
+            AppLogService.RecordFailure("Drive", exception);
             await DisplayAlertAsync(
                 "Could not start drive",
                 exception.Message,
@@ -54,19 +55,22 @@ public partial class DrivePage : ContentPage
         base.OnDisappearing();
     }
 
-    private async void DriveModeChanged(object? sender, bool isDriving)
-    {
-        ApplyDriveMode(isDriving);
-        if (!isDriving)
-        {
-            if (_viewModel.HasTransientMessage)
+    private async void DriveModeChanged(object? sender, bool isDriving) =>
+        await this.RunSafelyAsync(
+            "Could not update drive view",
+            async () =>
             {
-                await Task.Delay(TimeSpan.FromSeconds(2));
-                _viewModel.ClearTransientMessage();
-            }
-            await CloseOnceAsync();
-        }
-    }
+                ApplyDriveMode(isDriving);
+                if (!isDriving)
+                {
+                    if (_viewModel.HasTransientMessage)
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(2));
+                        _viewModel.ClearTransientMessage();
+                    }
+                    await CloseOnceAsync();
+                }
+            });
 
     private void DriveMiddleAreaSizeChanged(object? sender, EventArgs args)
     {
@@ -84,7 +88,9 @@ public partial class DrivePage : ContentPage
 
     protected override bool OnBackButtonPressed()
     {
-        _ = StopAndCloseAsync();
+        this.RunSafelyAsync(
+            "Could not stop drive",
+            StopAndCloseAsync).ObserveFailure("UI");
         return true;
     }
 

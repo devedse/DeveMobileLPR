@@ -1,3 +1,4 @@
+using DeveMobileLPR.App.Services;
 using DeveMobileLPR.App.ViewModels;
 
 namespace DeveMobileLPR.App.Views;
@@ -18,17 +19,9 @@ public partial class DriveSetupPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        try
-        {
-            await _viewModel.InitializeAsync();
-        }
-        catch (Exception exception)
-        {
-            await DisplayAlertAsync(
-                "Could not prepare drive",
-                exception.Message,
-                "OK");
-        }
+        await this.RunSafelyAsync(
+            "Could not prepare drive",
+            _viewModel.InitializeAsync);
     }
 
     private async void StartDriveClicked(object? sender, EventArgs args)
@@ -38,14 +31,19 @@ public partial class DriveSetupPage : ContentPage
             return;
         }
 
-        _opening = true;
-        try
-        {
-            await Navigation.PushModalAsync(_drivePageFactory());
-        }
-        finally
-        {
-            _opening = false;
-        }
+        await this.RunSafelyAsync(
+            "Could not open drive",
+            async () =>
+            {
+                _opening = true;
+                try
+                {
+                    await Navigation.PushModalAsync(_drivePageFactory());
+                }
+                finally
+                {
+                    _opening = false;
+                }
+            });
     }
 }

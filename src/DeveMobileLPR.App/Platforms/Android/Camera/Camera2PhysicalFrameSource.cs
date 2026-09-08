@@ -634,6 +634,10 @@ internal sealed class Camera2PhysicalFrameSource : IDisposable
             catch (System.OperationCanceledException) when (cancellation.IsCancellationRequested)
             {
             }
+            catch (Exception exception)
+            {
+                Diagnostic?.Invoke(this, $"Camera health monitor failed: {exception.Message}");
+            }
         });
     }
 

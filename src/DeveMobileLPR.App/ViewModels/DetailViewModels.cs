@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using DeveMobileLPR.App.UI;
 using DeveMobileLPR.Application;
 using DeveMobileLPR.Recognition;
@@ -59,7 +60,7 @@ internal sealed record HistoryMapViewModel(
     IReadOnlyList<HistoryMapSightingViewModel> Sightings,
     bool CanOpenVehicleHistory);
 
-internal sealed class TripDetailViewModel(
+internal sealed partial class TripDetailViewModel(
     ISightingRepository repository,
     IVehicleImageStore vehicleImageStore,
     long tripId) : ViewModelBase
@@ -69,15 +70,24 @@ internal sealed class TripDetailViewModel(
     internal const string SortBySightings = "Most sightings";
 
     private bool _isBusy;
+    [ObservableProperty]
     private string _title = "Trip";
+    [ObservableProperty]
     private string _subtitle = "Loading…";
+    [ObservableProperty]
     private string _duration = "—";
+    [ObservableProperty]
     private string _distance = "—";
+    [ObservableProperty]
     private string _unique = "—";
+    [ObservableProperty]
     private string _highlight = "—";
     private string _selectedSort = SortByTime;
     private string _searchText = string.Empty;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasRoute))]
     private IReadOnlyList<TripPoint> _points = [];
+    [ObservableProperty]
     private HistoryMapViewModel? _map;
     private IReadOnlyList<TripVehicleCardViewModel> _loadedVehicles = [];
 
@@ -92,12 +102,6 @@ internal sealed class TripDetailViewModel(
             if (SetProperty(ref _isBusy, value)) OnPropertyChanged(nameof(ShowVehiclesEmpty));
         }
     }
-    public string Title { get => _title; private set => SetProperty(ref _title, value); }
-    public string Subtitle { get => _subtitle; private set => SetProperty(ref _subtitle, value); }
-    public string Duration { get => _duration; private set => SetProperty(ref _duration, value); }
-    public string Distance { get => _distance; private set => SetProperty(ref _distance, value); }
-    public string Unique { get => _unique; private set => SetProperty(ref _unique, value); }
-    public string Highlight { get => _highlight; private set => SetProperty(ref _highlight, value); }
     public string SearchText
     {
         get => _searchText;
@@ -114,8 +118,6 @@ internal sealed class TripDetailViewModel(
             if (SetProperty(ref _selectedSort, value)) ApplySort();
         }
     }
-    public IReadOnlyList<TripPoint> Points { get => _points; private set { if (SetProperty(ref _points, value)) { OnPropertyChanged(nameof(HasRoute)); } } }
-    public HistoryMapViewModel? Map { get => _map; private set => SetProperty(ref _map, value); }
     public bool HasRoute => Points.Count > 0;
     public GeoPoint? RouteDestination => Points.LastOrDefault()?.Location;
 
@@ -129,7 +131,7 @@ internal sealed class TripDetailViewModel(
             var pointsTask = repository.GetTripPointsAsync(tripId, CancellationToken.None);
             var sightingsTask = repository.GetSightingsForTripAsync(tripId, CancellationToken.None);
             await Task.WhenAll(tripTask, vehiclesTask, pointsTask, sightingsTask);
-            var trip = tripTask.Result;
+            var trip = await tripTask;
             if (trip is null)
             {
                 Subtitle = "This trip no longer exists.";
@@ -143,11 +145,11 @@ internal sealed class TripDetailViewModel(
             Distance = DisplayFormat.Distance(trip.DistanceMeters);
             Unique = trip.UniqueVehicleCount.ToString();
             Highlight = trip.MostExpensiveCatalogPrice is null ? "No RDW value" : $"{DisplayFormat.CompactPrice(trip.MostExpensiveCatalogPrice)} · {trip.MostExpensiveDisplayPlate}";
-            Points = pointsTask.Result;
-            var vehicleSummaries = vehiclesTask.Result;
+            Points = await pointsTask;
+            var vehicleSummaries = await vehiclesTask;
             Map = new HistoryMapViewModel(
                 Points.Select(point => point.Location).ToArray(),
-                CreateMapSightings(sightingsTask.Result, vehicleSummaries),
+                CreateMapSightings(await sightingsTask, vehicleSummaries),
                 true);
             _loadedVehicles = vehicleSummaries.Select(CreateVehicle).ToArray();
             ApplySort();
@@ -243,44 +245,38 @@ internal sealed class TripDetailViewModel(
     }
 }
 
-internal sealed class VehicleDetailViewModel(
+internal sealed partial class VehicleDetailViewModel(
     ISightingRepository repository,
     IVehicleImageStore vehicleImageStore,
     string normalizedPlate) : ViewModelBase
 {
+    [ObservableProperty]
     private bool _isBusy;
+    [ObservableProperty]
     private string _displayPlate = PlateText.FormatDutchPlate(normalizedPlate);
+    [ObservableProperty]
     private string _vehicleName = "Vehicle details unavailable";
+    [ObservableProperty]
     private string _metadata = "Import RDW for specifications";
+    [ObservableProperty]
     private string _price = "Unknown value";
+    [ObservableProperty]
     private string _appearances = "0";
+    [ObservableProperty]
     private string _trips = "0";
+    [ObservableProperty]
     private string _firstSeen = "—";
+    [ObservableProperty]
     private string _lastSeen = "—";
+    [ObservableProperty]
     private string _locationSummary = "No locations recorded";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasLocations))]
     private IReadOnlyList<Sighting> _locationSightings = [];
+    [ObservableProperty]
     private HistoryMapViewModel? _map;
 
     public ObservableCollection<SightingCardViewModel> Sightings { get; } = [];
-    public bool IsBusy { get => _isBusy; private set => SetProperty(ref _isBusy, value); }
-    public string DisplayPlate { get => _displayPlate; private set => SetProperty(ref _displayPlate, value); }
-    public string VehicleName { get => _vehicleName; private set => SetProperty(ref _vehicleName, value); }
-    public string Metadata { get => _metadata; private set => SetProperty(ref _metadata, value); }
-    public string Price { get => _price; private set => SetProperty(ref _price, value); }
-    public string Appearances { get => _appearances; private set => SetProperty(ref _appearances, value); }
-    public string Trips { get => _trips; private set => SetProperty(ref _trips, value); }
-    public string FirstSeen { get => _firstSeen; private set => SetProperty(ref _firstSeen, value); }
-    public string LastSeen { get => _lastSeen; private set => SetProperty(ref _lastSeen, value); }
-    public string LocationSummary { get => _locationSummary; private set => SetProperty(ref _locationSummary, value); }
-    public HistoryMapViewModel? Map { get => _map; private set => SetProperty(ref _map, value); }
-    public IReadOnlyList<Sighting> LocationSightings
-    {
-        get => _locationSightings;
-        private set
-        {
-            if (SetProperty(ref _locationSightings, value)) OnPropertyChanged(nameof(HasLocations));
-        }
-    }
     public bool HasLocations => LocationSightings.Count > 0;
 
     public async Task LoadAsync()
