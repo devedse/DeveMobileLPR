@@ -2,6 +2,8 @@
 using PlatformCameraPreviewHost = DeveMobileLPR.App.Platforms.Android.Camera.AndroidCameraPreviewHost;
 #elif WINDOWS
 using PlatformCameraPreviewHost = DeveMobileLPR.App.Platforms.Windows.Camera.WindowsCameraPreviewHost;
+#elif IOS
+using PlatformCameraPreviewHost = DeveMobileLPR.App.IosCameraPreviewHost;
 #endif
 using DeveMobileLPR.App.Controls;
 using Microsoft.Maui.Handlers;
